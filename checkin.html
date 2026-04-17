@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Best Western Ariel Hotel — Parking Check-In</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--navy:#1E407C;--navy-d:#162f5c;--navy-l:#2a559e;--gold:#C9A84C;--gold-l:#f0d080;--cream:#fdf8f0;--grey:#f4f6f9;--text:#1a1a2e;--muted:#5a6478;--border:#d4dce8;--ok:#1a6b3c;--ok-bg:#e8f5ee;--err:#c0392b;--err-bg:#fdf0ee}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--grey);min-height:100vh;color:var(--text)}
+.hdr{background:var(--navy);position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.25)}
+.hdr-in{max-width:520px;margin:0 auto;padding:12px 18px;display:flex;align-items:center;gap:12px}
+.bw-mark{width:40px;height:40px;background:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:11px;font-weight:800;color:var(--navy)}
+.hdr-txt h1{font-size:15px;font-weight:700;color:#fff}
+.hdr-txt p{font-size:11px;color:rgba(255,255,255,.7);margin-top:1px}
+.gold-bar{height:3px;background:linear-gradient(90deg,var(--gold),var(--gold-l),var(--gold))}
+.steps{max-width:520px;margin:0 auto;padding:14px 18px 0;display:flex;align-items:center}
+.si{display:flex;flex-direction:column;align-items:center;flex:1;position:relative}
+.si:not(:last-child)::after{content:'';position:absolute;top:13px;left:calc(50% + 13px);right:calc(-50% + 13px);height:2px;background:var(--border)}
+.si.done:not(:last-child)::after,.si.active:not(:last-child)::after{background:var(--navy)}
+.sc{width:26px;height:26px;border-radius:50%;border:2px solid var(--border);background:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--border);position:relative;z-index:1;transition:all .3s}
+.si.done .sc{background:var(--navy);border-color:var(--navy);color:#fff}
+.si.active .sc{background:var(--gold);border-color:var(--gold);color:#fff}
+.sl{font-size:10px;color:var(--muted);margin-top:3px;text-align:center}
+.si.active .sl{color:var(--navy);font-weight:600}
+.wrap{max-width:520px;margin:0 auto;padding:14px 14px 40px}
+.screen{display:none}.screen.active{display:block}
+.card{background:#fff;border-radius:12px;margin-bottom:12px;overflow:hidden;box-shadow:0 1px 6px rgba(0,0,0,.07)}
+.ch{background:var(--navy);padding:11px 15px;display:flex;align-items:center;gap:9px}
+.ch h2{font-size:14px;font-weight:600;color:#fff}
+.sn{width:22px;height:22px;border-radius:50%;background:var(--gold);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}
+.cb{padding:15px}
+.f{margin-bottom:13px}
+.f label{display:block;font-size:11px;font-weight:600;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em}
+.req{color:var(--gold)}
+input,select,textarea{width:100%;padding:11px 13px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;font-family:inherit;color:var(--text);background:#fff;-webkit-appearance:none;appearance:none;transition:border .15s}
+input:focus,select:focus{outline:none;border-color:var(--navy);box-shadow:0 0 0 3px rgba(30,64,124,.1)}
+input.up{text-transform:uppercase}
+input.e,select.e{border-color:var(--err)}
+.r2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23666' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:36px}
+.em{font-size:11px;color:var(--err);margin-top:3px;display:none}.em.on{display:block}
+.tc-box{max-height:175px;overflow-y:auto;background:#f9fafc;border:1.5px solid var(--border);border-radius:8px;padding:12px;font-size:12px;color:#444;line-height:1.7;margin-bottom:11px}
+.tc-box h4{font-size:13px;font-weight:700;color:var(--navy);margin-bottom:7px}
+.tc-box ul{padding-left:1.2rem;margin-bottom:7px}
+.tc-row{display:flex;align-items:flex-start;gap:10px;padding:11px;background:var(--cream);border-radius:8px;border:1.5px solid var(--gold);cursor:pointer}
+.tc-row input[type=checkbox]{display:none}
+.tc-check-box{width:22px;height:22px;border:2px solid var(--navy);border-radius:5px;background:#fff;flex-shrink:0;margin-top:1px;display:flex;align-items:center;justify-content:center;transition:all .2s;cursor:pointer}
+.tc-row input[type=checkbox]:checked + .tc-check-box{background:var(--navy);border-color:var(--navy)}
+.tc-row input[type=checkbox]:checked + .tc-check-box::after{content:'✓';color:#fff;font-size:14px;font-weight:700;line-height:1}
+.tc-row span{font-size:13px;line-height:1.5}
+.cat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.cb-btn{border:2px solid var(--border);border-radius:10px;padding:11px 8px;text-align:center;cursor:pointer;background:#fff;transition:all .15s;position:relative}
+.cb-btn.hp{border-color:var(--ok);background:var(--ok-bg)}
+.ci{font-size:23px;display:block;margin-bottom:3px}
+.cn{font-size:12px;font-weight:600;display:block}
+.cc{font-size:11px;color:var(--muted);display:block;margin-top:2px}
+.ctk{position:absolute;top:5px;right:5px;width:18px;height:18px;background:var(--ok);border-radius:50%;color:#fff;font-size:10px;font-weight:700;display:none;align-items:center;justify-content:center}
+.cb-btn.hp .ctk{display:flex}
+.pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:8px}
+.pi{position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;background:#f0f0ee}
+.pi img{width:100%;height:100%;object-fit:cover;display:block}
+.pi .rm{position:absolute;top:3px;right:3px;width:20px;height:20px;background:rgba(0,0,0,.65);border-radius:50%;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12px;border:none;font-weight:700}
+.pi .pl{position:absolute;bottom:0;left:0;right:0;background:rgba(30,64,124,.8);color:#fff;font-size:9px;padding:2px 4px;text-align:center}
+.opt-note{font-size:11px;color:var(--muted);text-align:center;margin-top:6px}
+.btn-p{width:100%;padding:14px;background:var(--navy);color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px;transition:background .15s}
+.btn-p:hover{background:var(--navy-d)}.btn-p:disabled{background:#aaa;cursor:not-allowed}
+.btn-nav{display:flex;gap:10px;margin-top:10px}
+.btn-bk{flex:1;padding:12px;background:#fff;color:var(--navy);border:2px solid var(--navy);border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}
+.btn-nx{flex:2;padding:12px;background:var(--gold);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit}
+.btn-nx:hover{background:#b8943e}
+.spin{display:inline-block;width:18px;height:18px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:sp .6s linear infinite;flex-shrink:0}
+@keyframes sp{to{transform:rotate(360deg)}}
+.upb-wrap{background:#e0e6ef;border-radius:10px;height:6px;overflow:hidden;margin:7px 0;display:none}
+.upb{height:6px;background:var(--navy);border-radius:10px;width:0;transition:width .3s}
+.up-txt{font-size:12px;color:var(--muted);text-align:center}
+.alert{padding:10px 13px;border-radius:8px;font-size:13px;margin-bottom:10px;line-height:1.5}
+.alert.err{background:var(--err-bg);color:var(--err);border:1px solid #f5c6c2}
+.bk-card{background:var(--navy);border-radius:12px;padding:1.25rem;margin-bottom:12px;color:#fff;text-align:center}
+.rp{font-size:30px;font-weight:800;letter-spacing:.08em;color:var(--gold-l);margin-bottom:3px}
+.rn{font-size:15px;opacity:.85}
+.sum-tbl{width:100%;border-collapse:collapse;font-size:13px}
+.sum-tbl tr td{padding:8px 0;border-bottom:1px solid var(--border)}
+.sum-tbl tr:last-child td{border-bottom:none}
+.sum-tbl td:first-child{color:var(--muted)}
+.sum-tbl td:last-child{text-align:right;font-weight:600}
+.ref-box{background:var(--cream);border:2px solid var(--gold);border-radius:10px;padding:1.25rem;text-align:center;margin-bottom:1rem}
+.ref-num{font-size:28px;font-weight:800;color:var(--navy);letter-spacing:.1em}
+.ref-lbl{font-size:12px;color:var(--muted);margin-top:3px}
+.suc-ico{width:68px;height:68px;background:var(--navy);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;font-size:28px;color:#fff}
+@media(max-width:360px){.r2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="hdr">
+  <div class="hdr-in">
+    <div class="bw-mark">BW</div>
+    <div class="hdr-txt">
+      <h1>Best Western Ariel Hotel</h1>
+      <p>London Heathrow — Airport Parking Check-In</p>
+    </div>
+  </div>
+  <div class="gold-bar"></div>
+</div>
+
+<div class="steps" id="steps">
+  <div class="si active" id="ps-1"><div class="sc">1</div><div class="sl">Vehicle</div></div>
+  <div class="si" id="ps-2"><div class="sc">2</div><div class="sl">Details</div></div>
+  <div class="si" id="ps-3"><div class="sc">3</div><div class="sl">Dates</div></div>
+  <div class="si" id="ps-4"><div class="sc">4</div><div class="sl">Photos</div></div>
+  <div class="si" id="ps-5"><div class="sc">5</div><div class="sl">Terms</div></div>
+  <div class="si" id="ps-6"><div class="sc">6</div><div class="sl">Confirm</div></div>
+</div>
+
+<div class="wrap">
+
+<!-- STEP 1 -->
+<div id="s-1" class="screen active" style="padding-top:14px">
+  <div class="card"><div class="ch"><span class="sn">1</span><h2>Your vehicle</h2></div><div class="cb">
+    <div class="f"><label>Registration plate <span class="req">*</span></label><input type="text" id="f-reg" class="up" placeholder="AB12 CDE" maxlength="10" autocomplete="off"><div class="em" id="e-reg">Please enter your registration plate</div></div>
+    <div class="r2">
+      <div class="f"><label>Make / model</label><input type="text" id="f-make" placeholder="e.g. Ford Focus" autocomplete="off"></div>
+      <div class="f"><label>Colour</label><input type="text" id="f-colour" placeholder="e.g. Silver" autocomplete="off"></div>
+    </div>
+  </div></div>
+  <button class="btn-nx" style="width:100%;padding:14px;font-size:16px;font-weight:700;border-radius:10px;cursor:pointer;font-family:inherit" onclick="go(2)">Next →</button>
+</div>
+
+<!-- STEP 2 -->
+<div id="s-2" class="screen" style="padding-top:14px">
+  <div class="card"><div class="ch"><span class="sn">2</span><h2>Your details</h2></div><div class="cb">
+    <div class="f"><label>Full name <span class="req">*</span></label><input type="text" id="f-name" placeholder="First and last name" autocomplete="name"><div class="em" id="e-name">Please enter your full name</div></div>
+    <div class="f"><label>Mobile number <span class="req">*</span></label><input type="tel" id="f-phone" placeholder="+44 7700 000000" autocomplete="tel"><div class="em" id="e-phone">Please enter your mobile number</div></div>
+    <div class="f"><label>Email address</label><input type="email" id="f-email" placeholder="your@email.com" autocomplete="email"></div>
+  </div></div>
+  <div class="btn-nav"><button class="btn-bk" onclick="go(1)">← Back</button><button class="btn-nx" onclick="go(3)">Next →</button></div>
+</div>
+
+<!-- STEP 3 -->
+<div id="s-3" class="screen" style="padding-top:14px">
+  <div class="card"><div class="ch"><span class="sn">3</span><h2>Parking dates</h2></div><div class="cb">
+    <div class="r2">
+      <div class="f"><label>Drop-off date <span class="req">*</span></label><input type="date" id="f-ci"><div class="em" id="e-ci">Required</div></div>
+      <div class="f"><label>Collection date <span class="req">*</span></label><input type="date" id="f-ret"><div class="em" id="e-ret">Required</div></div>
+    </div>
+    <div class="r2">
+      <div class="f"><label>Flight departure</label><input type="date" id="f-flt"></div>
+      <div class="f"><label>Flight number</label><input type="text" id="f-fno" placeholder="BA249" class="up" autocomplete="off"></div>
+    </div>
+    <div class="f"><label>Parking type <span class="req">*</span></label>
+      <select id="f-type"><option value="">— Please select —</option><option value="long">Long-stay (days / weeks / months)</option><option value="daily">Daily</option></select>
+      <div class="em" id="e-type">Please select a parking type</div>
+    </div>
+  </div></div>
+  <div class="btn-nav"><button class="btn-bk" onclick="go(2)">← Back</button><button class="btn-nx" onclick="go(4)">Next →</button></div>
+</div>
+
+<!-- STEP 4 PHOTOS -->
+<div id="s-4" class="screen" style="padding-top:14px">
+  <div class="card"><div class="ch"><span class="sn">4</span><h2>Vehicle photos <span style="font-size:11px;opacity:.75;font-weight:400">(optional but recommended)</span></h2></div><div class="cb">
+    <p style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:13px">Tap each button to photograph your vehicle. This protects you in case of any dispute about pre-existing damage.</p>
+    <div class="cat-grid" id="cat-grid"></div>
+    <input type="file" id="file-input" accept="image/*" multiple style="display:none" onchange="handleFiles(event)">
+    <div class="pgrid" id="pgrid"></div>
+    <p class="opt-note">Photos are optional but strongly recommended. You can skip this step.</p>
+  </div></div>
+  <div class="btn-nav"><button class="btn-bk" onclick="go(3)">← Back</button><button class="btn-nx" onclick="go(5)">Next →</button></div>
+</div>
+
+<!-- STEP 5 T&C -->
+<div id="s-5" class="screen" style="padding-top:14px">
+  <div class="card"><div class="ch"><span class="sn">5</span><h2>Terms &amp; conditions</h2></div><div class="cb">
+    <div class="tc-box">
+      <h4>Best Western Ariel Hotel — Airport Parking Terms</h4>
+      <p>Please read carefully before leaving your vehicle with us.</p>
+      <ul>
+        <li><strong>Charges:</strong> Parking charges accrue daily from drop-off to collection. In-house rate applies where space is available; if full, your vehicle may be stored at our approved contractor's facility at their rate.</li>
+        <li><strong>Vehicle condition:</strong> No liability for pre-existing damage. Please photograph your vehicle on arrival.</li>
+        <li><strong>Valuables:</strong> Remove all valuables before leaving your vehicle. The hotel accepts no responsibility for items left inside.</li>
+        <li><strong>Vehicle movement:</strong> You authorise staff to move your vehicle within the car park as required. Keys must be left at reception.</li>
+        <li><strong>Late collection:</strong> Additional daily charges apply if collected after the stated return date.</li>
+        <li><strong>CCTV:</strong> All car park areas are monitored by CCTV for security.</li>
+        <li><strong>Data:</strong> Your personal data is processed in accordance with our Privacy Policy, solely for managing your booking.</li>
+        <li><strong>Cancellation:</strong> Please notify reception as soon as possible if you no longer require parking.</li>
+      </ul>
+      <p>By ticking below you confirm you have read, understood and agree to these terms, and that all information provided is accurate.</p>
+    </div>
+    <label class="tc-row">
+      <input type="checkbox" id="f-tc">
+      <div class="tc-check-box"></div>
+      <span>I have read and agree to the <strong>Best Western Ariel Hotel Parking Terms and Conditions</strong>. I confirm all details provided are accurate.</span>
+    </label>
+    <div class="em" id="e-tc" style="margin-top:8px">You must accept the terms to continue</div>
+  </div></div>
+  <div class="btn-nav"><button class="btn-bk" onclick="go(4)">← Back</button><button class="btn-nx" onclick="go(6)">Review booking →</button></div>
+</div>
+
+<!-- STEP 6 REVIEW -->
+<div id="s-6" class="screen" style="padding-top:14px">
+  <div class="bk-card"><div class="rp" id="r-reg">–</div><div class="rn" id="r-name">–</div></div>
+  <div class="card"><div class="cb" style="padding:11px 15px">
+    <table class="sum-tbl">
+      <tr><td>Mobile</td><td id="r-phone">–</td></tr>
+      <tr><td>Drop-off</td><td id="r-ci">–</td></tr>
+      <tr><td>Collection</td><td id="r-ret">–</td></tr>
+      <tr><td>Flight</td><td id="r-flt">–</td></tr>
+      <tr><td>Parking type</td><td id="r-type">–</td></tr>
+      <tr><td>Vehicle</td><td id="r-veh">–</td></tr>
+      <tr><td>Photos attached</td><td id="r-photos">–</td></tr>
+      <tr><td>T&amp;C accepted</td><td style="color:#1a6b3c;font-weight:700">✓ Yes</td></tr>
+    </table>
+  </div></div>
+  <div id="sub-err" class="alert err" style="display:none"></div>
+  <div class="upb-wrap" id="upb-wrap"><div class="upb" id="upb"></div></div>
+  <div class="up-txt" id="up-txt"></div>
+  <button class="btn-p" onclick="submitAll()" id="sub-btn" style="margin-top:10px">Submit parking request</button>
+  <div class="btn-nav" style="margin-top:8px"><button class="btn-bk" onclick="go(5)" style="flex:1">← Edit</button></div>
+</div>
+
+<!-- SUCCESS -->
+<div id="s-ok" class="screen" style="padding-top:14px">
+  <div class="card">
+    <div style="text-align:center;padding:1.75rem 1rem 1rem">
+      <div class="suc-ico">✓</div>
+      <h2 style="font-size:20px;color:var(--navy);margin-bottom:7px">Request received!</h2>
+      <p style="font-size:13px;color:var(--muted);line-height:1.6">Thank you. Our team will review your details and confirm your parking space shortly.</p>
+    </div>
+    <div class="cb" style="padding:0 15px 16px">
+      <div class="ref-box">
+        <div class="ref-num" id="ok-ref">–</div>
+        <div class="ref-lbl">Your reference number — please keep this safe</div>
+      </div>
+      <div id="ok-detail" style="font-size:13px;color:var(--muted);line-height:2;border-top:1px solid var(--border);padding-top:11px"></div>
+      <div style="background:#f0f4ff;border-radius:8px;padding:11px;margin-top:11px;font-size:12px;color:var(--navy);line-height:1.7">
+        <strong>Please show this screen at hotel reception on arrival.</strong><br>Our team will confirm your parking space and collect your keys.
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script>
+const SB_URL='https://kcmzncomwnjejcchtlas.supabase.co';
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtjbXpuY29td25qZWpjY2h0bGFzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwOTI1MzAsImV4cCI6MjA5MTY2ODUzMH0.fsrJFLFxzT3ZFzM-oe96hptWDRr-cKg1S8anyfkWHgY';
+const BUCKET='vehicle-photos';
+const CATS=[{id:'front',l:'Front',i:'🚗'},{id:'rear',l:'Rear',i:'🔙'},{id:'left',l:'Left side',i:'◀'},{id:'right',l:'Right side',i:'▶'},{id:'interior',l:'Interior',i:'💺'},{id:'damage',l:'Damage/notes',i:'⚠'}];
+let sel={},activeCat=null,curStep=1;
+function today(){return new Date().toISOString().split('T')[0];}
+function nightsApart(a,b){if(!a||!b)return 0;return Math.max(0,Math.round((new Date(b)-new Date(a))/86400000));}
+function fmtD(d){if(!d)return'–';let p=d.split('-');return p[2]+'/'+p[1]+'/'+p[0].slice(2);}
+function genRef(){return'HP'+Date.now().toString(36).toUpperCase().slice(-6);}
+document.getElementById('cat-grid').innerHTML=CATS.map(c=>`<div class="cb-btn" id="cb-${c.id}" onclick="selCat('${c.id}')"><span class="ci">${c.i}</span><span class="cn">${c.l}</span><span class="cc" id="cc-${c.id}">Tap to add</span><span class="ctk" id="ct-${c.id}">✓</span></div>`).join('');
+document.getElementById('f-ci').value=today();
+loadPackagesForForm();
+
+async function loadPackagesForForm(){
+  let sel=document.getElementById('f-type');
+  try{
+    let r=await fetch(SB_URL+'/rest/v1/packages?active=eq.true&order=sort_order.asc,id.asc&select=*',{
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY}
+    });
+    let pkgs=await r.json();
+    if(pkgs&&pkgs.length){
+      sel.innerHTML=pkgs.map(p=>`<option value="${p.id}" data-desc="${p.description||''}" data-price="${p.is_daily?(p.daily_rate||0)+'/day':'£'+(p.price||0)}">${p.name} — ${p.is_daily?'£'+(p.daily_rate||0)+'/day':'£'+(p.price||0)+(p.days?' ('+p.days+' days)':'')}</option>`).join('');
+      sel.onchange=()=>{
+        let opt=sel.options[sel.selectedIndex];
+        let desc=opt?.dataset?.desc||'';
+        document.getElementById('pkg-desc-display').textContent=desc;
+      };
+      sel.dispatchEvent(new Event('change'));
+    } else {
+      sel.innerHTML='<option value="">No packages available — contact reception</option>';
+    }
+  }catch(e){
+    sel.innerHTML='<option value="">Unable to load packages</option>';
+  }
+}
+function selCat(id){activeCat=id;let fi=document.getElementById('file-input');fi.value='';fi.click();}
+function handleFiles(e){let fs=Array.from(e.target.files);if(!fs.length)return;if(!sel[activeCat])sel[activeCat]=[];sel[activeCat].push(...fs);let c=sel[activeCat].length;document.getElementById('cc-'+activeCat).textContent=c+' photo'+(c>1?'s':'');document.getElementById('cb-'+activeCat).classList.add('hp');renderP();}
+function remFile(cid,idx){if(sel[cid]){sel[cid].splice(idx,1);if(!sel[cid].length){delete sel[cid];document.getElementById('cc-'+cid).textContent='Tap to add';document.getElementById('cb-'+cid).classList.remove('hp');}}renderP();}
+function renderP(){let all=[];CATS.forEach(c=>(sel[c.id]||[]).forEach((f,i)=>all.push({cid:c.id,l:c.l,f,i})));let g=document.getElementById('pgrid');if(!all.length){g.innerHTML='';return;}g.innerHTML=all.map(x=>`<div class="pi"><img src="${URL.createObjectURL(x.f)}"><button class="rm" onclick="remFile('${x.cid}',${x.i})">✕</button><div class="pl">${x.l}</div></div>`).join('');}
+function photoCount(){return Object.values(sel).reduce((s,a)=>s+a.length,0);}
+function updSteps(step){for(let i=1;i<=6;i++){let el=document.getElementById('ps-'+i);if(!el)continue;el.classList.remove('active','done');if(i<step)el.classList.add('done');else if(i===step)el.classList.add('active');el.querySelector('.sc').textContent=i<step?'✓':i;}}
+function clrErr(){document.querySelectorAll('.em').forEach(e=>e.classList.remove('on'));document.querySelectorAll('.e').forEach(e=>e.classList.remove('e'));}
+function shErr(id,inp){document.getElementById(id).classList.add('on');if(inp)document.getElementById(inp).classList.add('e');}
+function validate(step){clrErr();let ok=true;
+  if(step===1&&!document.getElementById('f-reg').value.trim()){shErr('e-reg','f-reg');ok=false;}
+  if(step===2){if(!document.getElementById('f-name').value.trim()){shErr('e-name','f-name');ok=false;}if(!document.getElementById('f-phone').value.trim()){shErr('e-phone','f-phone');ok=false;}}
+  if(step===3){let ci=document.getElementById('f-ci').value,ret=document.getElementById('f-ret').value,t=document.getElementById('f-type').value;if(!ci){shErr('e-ci','f-ci');ok=false;}if(!ret){shErr('e-ret','f-ret');ok=false;}if(!t){shErr('e-type','f-type');ok=false;}if(ci&&ret&&ret<ci){document.getElementById('e-ret').textContent='Must be after drop-off';shErr('e-ret','f-ret');ok=false;}}
+  if(step===5&&!document.getElementById('f-tc').checked){shErr('e-tc');ok=false;}
+  return ok;}
+function go(next){if(next>curStep&&!validate(curStep))return;if(next===6)popReview();document.getElementById('s-'+curStep).classList.remove('active');curStep=next;document.getElementById('s-'+curStep).classList.add('active');updSteps(curStep);window.scrollTo(0,0);}
+function popReview(){let reg=document.getElementById('f-reg').value.trim().toUpperCase(),name=document.getElementById('f-name').value.trim(),phone=document.getElementById('f-phone').value.trim(),ci=document.getElementById('f-ci').value,ret=document.getElementById('f-ret').value,flt=document.getElementById('f-flt').value,fno=document.getElementById('f-fno').value.trim(),type=document.getElementById('f-type').value,make=document.getElementById('f-make').value.trim(),col=document.getElementById('f-colour').value.trim();
+  document.getElementById('r-reg').textContent=reg;document.getElementById('r-name').textContent=name;document.getElementById('r-phone').textContent=phone;document.getElementById('r-ci').textContent=fmtD(ci);document.getElementById('r-ret').textContent=fmtD(ret);document.getElementById('r-flt').textContent=(flt?fmtD(flt)+' ':'')+fno||'–';let sel=document.getElementById('f-type');
+  document.getElementById('r-type').textContent=sel.options[sel.selectedIndex]?.text||type;document.getElementById('r-veh').textContent=[col,make].filter(Boolean).join(' ')||'–';let pc=photoCount();document.getElementById('r-photos').textContent=pc>0?pc+' photo'+(pc>1?'s':''):'None (optional)';}
+async function submitAll(){
+  let btn=document.getElementById('sub-btn');btn.disabled=true;btn.innerHTML='<span class="spin"></span> Submitting...';
+  document.getElementById('sub-err').style.display='none';
+  let reg=document.getElementById('f-reg').value.trim().toUpperCase(),name=document.getElementById('f-name').value.trim(),phone=document.getElementById('f-phone').value.trim(),email=document.getElementById('f-email').value.trim(),make=document.getElementById('f-make').value.trim(),col=document.getElementById('f-colour').value.trim(),ci=document.getElementById('f-ci').value,ret=document.getElementById('f-ret').value,flt=document.getElementById('f-flt').value||null,fno=document.getElementById('f-fno').value.trim();
+  let pkgSel=document.getElementById('f-type');
+  let type=pkgSel.value;
+  let pkgLabel=pkgSel.options[pkgSel.selectedIndex]?.text||type||'Package';
+  let ref=genRef(),now=new Date().toISOString();
+  try{
+    let r=await fetch(SB_URL+'/rest/v1/pending_checkins',{method:'POST',headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify({ref_code:ref,reg,name,phone,email:email||null,vehicle_make:make||null,vehicle_colour:col||null,check_in_date:ci,return_date:ret,flight_date:flt,flight_number:fno||null,type:pkgLabel,package_id:String(type),tc_accepted:true,tc_accepted_at:now,status:'pending',submitted_at:now})});
+    if(!r.ok){
+      let errText=await r.text();
+      let errMsg='';
+      try{let j=JSON.parse(errText);errMsg=j.message||j.hint||j.details||errText;}catch(e){errMsg=errText;}
+      throw new Error('Could not save booking ('+r.status+'): '+errMsg.slice(0,120));
+    }
+    let all=[];CATS.forEach(c=>(sel[c.id]||[]).forEach((f,i)=>all.push({cid:c.id,l:c.l,f,i})));
+    if(all.length){
+      document.getElementById('upb-wrap').style.display='block';
+      for(let i=0;i<all.length;i++){
+        let {cid,l,f}=all[i];
+        document.getElementById('upb').style.width=Math.round(i/all.length*100)+'%';
+        document.getElementById('up-txt').textContent='Uploading '+l+' photo '+(i+1)+' of '+all.length+'...';
+        let ext=f.name.split('.').pop()||'jpg';
+        let path=reg.replace(/\s/g,'_')+'/'+ref+'/'+cid+'_'+Date.now()+'_'+i+'.'+ext;
+        let up=await fetch(SB_URL+'/storage/v1/object/'+BUCKET+'/'+path,{method:'POST',headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':f.type||'image/jpeg','x-upsert':'true'},body:f});
+        if(up.ok){let pu=SB_URL+'/storage/v1/object/public/'+BUCKET+'/'+path;await fetch(SB_URL+'/rest/v1/vehicle_photos',{method:'POST',headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify({reg,ref_code:ref,category:cid,filename:f.name,storage_path:path,public_url:pu,uploaded_by:'guest',uploaded_at:new Date().toISOString()})});}
+      }
+      document.getElementById('upb').style.width='100%';
+    }
+    document.getElementById('ok-ref').textContent=ref;
+    document.getElementById('ok-detail').innerHTML='<strong>'+reg+'</strong> · '+name+'<br>Drop-off: '+fmtD(ci)+' &nbsp; Collection: '+fmtD(ret)+(all.length>0?'<br>Photos uploaded: '+all.length:'');
+    document.getElementById('s-6').classList.remove('active');
+    document.getElementById('s-ok').classList.add('active');
+    document.getElementById('steps').style.display='none';
+    window.scrollTo(0,0);
+  }catch(err){let el=document.getElementById('sub-err');el.textContent='Submission failed: '+err.message;el.style.display='block';btn.disabled=false;btn.innerHTML='Submit parking request';}
+}
+</script>
+</body>
+</html>
