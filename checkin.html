@@ -174,7 +174,7 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
       <h4>Best Western Ariel Hotel — Airport Parking Terms</h4>
       <p>Please read carefully before leaving your vehicle with us.</p>
       <ul>
-        <li><strong>Charges:</strong> Parking charges accrue daily from drop-off to collection. In-house rate applies where space is available; if full, your vehicle may be stored at our approved contractor's facility at their rate.</li>
+        <li><strong>Charges:</strong> Parking charges are based on your selected package. Where required, your vehicle may be stored at our approved off-site facility. The package price you have agreed covers all parking, whether on-site or off-site.</li>
         <li><strong>Vehicle condition:</strong> No liability for pre-existing damage. Please photograph your vehicle on arrival.</li>
         <li><strong>Valuables:</strong> Remove all valuables before leaving your vehicle. The hotel accepts no responsibility for items left inside.</li>
         <li><strong>Vehicle movement:</strong> You authorise staff to move your vehicle within the car park as required. Keys must be left at reception.</li>
@@ -231,9 +231,20 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
         <div class="ref-lbl">Your reference number — please keep this safe</div>
       </div>
       <div id="ok-detail" style="font-size:13px;color:var(--muted);line-height:2;border-top:1px solid var(--border);padding-top:11px"></div>
-      <div style="background:#f0f4ff;border-radius:8px;padding:11px;margin-top:11px;font-size:12px;color:var(--navy);line-height:1.7">
-        <strong>Please show this screen at hotel reception on arrival.</strong><br>Our team will confirm your parking space and collect your keys.
+      <!-- Loyalty badge - shown for returning customers -->
+      <div id="ok-loyalty" style="display:none;background:#fdf8f0;border:1.5px solid var(--gold);border-radius:8px;padding:10px 13px;margin-top:10px;font-size:12px;color:#7a5c10;line-height:1.6">
+        ★ <strong>Welcome back!</strong> Our records show you have parked with us before. Thank you for your continued loyalty — our team will be pleased to see you.
       </div>
+      <!-- Reception message - shown to guest at desk -->
+      <div style="background:#1E407C;border-radius:8px;padding:14px 15px;margin-top:13px;color:#fff;line-height:1.7">
+        <div style="font-size:13px;font-weight:700;margin-bottom:4px;color:#C9A84C">Please show this screen at reception →</div>
+        <div style="font-size:13px;">Thank you for confirming your details. Our reception team will be happy to assist and guide you through the next steps.</div>
+      </div>
+      <!-- Print key tag button -->
+      <button onclick="printKeyTag()" style="width:100%;margin-top:10px;padding:12px;background:#fff;color:var(--navy);border:2px solid var(--navy);border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:7px">
+        🖨 Print key tag
+      </button>
+      <p style="font-size:11px;color:var(--muted);text-align:center;margin-top:6px">Staff can print and attach this to your vehicle keys</p>
     </div>
   </div>
 </div>
@@ -326,12 +337,120 @@ async function submitAll(){
     }
     document.getElementById('ok-ref').textContent=ref;
     document.getElementById('ok-detail').innerHTML='<strong>'+reg+'</strong> · '+name+'<br>Drop-off: '+fmtD(ci)+' &nbsp; Collection: '+fmtD(ret)+(all.length>0?'<br>Photos uploaded: '+all.length:'');
+    // Store submission data for print function
+    window._lastSubmission={ref,reg,name,phone,ci,ret,flt,fno,pkgLabel,email};
+    // Check loyalty (repeat customer) by querying pending_checkins for same reg
+    checkLoyalty(reg,ref);
+    // Send guest confirmation email if email provided
+    if(email) sendGuestEmail({ref,reg,name,phone,ci,ret,pkgLabel,email}).catch(()=>{});
     document.getElementById('s-6').classList.remove('active');
     document.getElementById('s-ok').classList.add('active');
     document.getElementById('steps').style.display='none';
     window.scrollTo(0,0);
   }catch(err){let el=document.getElementById('sub-err');el.textContent='Submission failed: '+err.message;el.style.display='block';btn.disabled=false;btn.innerHTML='Submit parking request';}
 }
-</script>
+
+// ── Loyalty check ──
+async function checkLoyalty(reg,currentRef){
+  try{
+    let r=await fetch(SB_URL+'/rest/v1/pending_checkins?reg=eq.'+encodeURIComponent(reg)+'&ref_code=neq.'+currentRef+'&select=id,submitted_at&limit=1',{
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY}
+    });
+    let rows=await r.json();
+    if(rows&&rows.length>0){
+      let badge=document.getElementById('ok-loyalty');
+      if(badge) badge.style.display='block';
+    }
+  }catch(e){}
+}
+
+// ── Guest confirmation email via Resend ──
+// Reads Resend config from localStorage (set in staff system settings)
+async function sendGuestEmail({ref,reg,name,phone,ci,ret,pkgLabel,email}){
+  let saved=localStorage.getItem('heathrow_email_cfg');
+  if(!saved) return;
+  let cfg;
+  try{cfg=JSON.parse(saved);}catch(e){return;}
+  if(!cfg.apiKey||!cfg.fromEmail) return;
+  let hotel=cfg.hotelName||'Best Western Ariel Hotel';
+  let html=`<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:20px;color:#1a1a1a">
+  <div style="background:#1E407C;padding:16px 20px;border-radius:8px 8px 0 0;border-bottom:3px solid #C9A84C">
+    <h1 style="color:#fff;margin:0;font-size:18px">${hotel}</h1>
+    <p style="color:rgba(255,255,255,.7);margin:4px 0 0;font-size:12px">Airport Parking — Booking Request Received</p>
+  </div>
+  <div style="background:#f9f9f7;padding:20px;border-radius:0 0 8px 8px;border:1px solid #eee;border-top:none">
+    <p>Dear ${name||'Guest'},</p>
+    <p>Thank you for submitting your parking request. Our reception team will review your details and confirm your space shortly.</p>
+    <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:13px">
+      <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#888">Reference</td><td style="padding:8px;border-bottom:1px solid #eee;font-weight:700;font-size:16px;letter-spacing:.05em">${ref}</td></tr>
+      <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#888">Registration</td><td style="padding:8px;border-bottom:1px solid #eee;font-weight:700">${reg}</td></tr>
+      <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#888">Package</td><td style="padding:8px;border-bottom:1px solid #eee">${pkgLabel}</td></tr>
+      <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#888">Drop-off</td><td style="padding:8px;border-bottom:1px solid #eee">${fmtD(ci)}</td></tr>
+      <tr><td style="padding:8px;color:#888">Collection</td><td style="padding:8px;font-weight:700">${fmtD(ret)}</td></tr>
+    </table>
+    <p style="background:#E6F1FB;padding:10px 14px;border-radius:6px;font-size:13px;color:#0C447C">
+      Please quote reference <strong>${ref}</strong> at hotel reception on arrival. Our team will be happy to assist you with the next steps.
+    </p>
+    <hr style="border:none;border-top:1px solid #eee;margin:16px 0">
+    <p style="font-size:11px;color:#aaa">${hotel} &nbsp;·&nbsp; Bath Road, Hayes, Middlesex, UB3 5AJ</p>
+  </div></body></html>`;
+  await fetch('https://api.resend.com/emails',{
+    method:'POST',
+    headers:{'Authorization':'Bearer '+cfg.apiKey,'Content-Type':'application/json'},
+    body:JSON.stringify({
+      from:hotel+' <'+cfg.fromEmail+'>',
+      reply_to:cfg.replyEmail||cfg.fromEmail,
+      to:[email],subject:hotel+' — Parking request received (Ref: '+ref+')',html
+    })
+  });
+}
+
+// ── Print key tag ──
+function printKeyTag(){
+  let d=window._lastSubmission;
+  if(!d){alert('No submission data available.');return;}
+  let w=window.open('','_blank','width=420,height=560');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Key Tag — ${d.reg}</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:Arial,sans-serif;background:#fff;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:1rem}
+    .tag{width:85mm;border:2px solid #1E407C;border-radius:8px;overflow:hidden;font-family:Arial,sans-serif}
+    .tag-hdr{background:#1E407C;padding:8px 12px;border-bottom:3px solid #C9A84C}
+    .tag-hdr h1{font-size:13px;font-weight:700;color:#fff;margin:0}
+    .tag-hdr p{font-size:9px;color:rgba(255,255,255,.7);margin:2px 0 0}
+    .tag-body{padding:10px 12px}
+    .reg{font-size:28px;font-weight:800;letter-spacing:.06em;color:#1E407C;text-align:center;padding:8px 0;border-bottom:1px dashed #ccc;margin-bottom:8px}
+    .row{display:flex;justify-content:space-between;padding:3px 0;font-size:11px;border-bottom:1px solid #f0f0f0}
+    .row:last-child{border-bottom:none}
+    .lbl{color:#888}
+    .val{font-weight:700;color:#1a1a1a;text-align:right;max-width:55%}
+    .ref-box{background:#fdf8f0;border:1.5px solid #C9A84C;border-radius:5px;text-align:center;padding:6px;margin-top:8px}
+    .ref-box .rn{font-size:15px;font-weight:800;letter-spacing:.08em;color:#1E407C}
+    .ref-box .rl{font-size:9px;color:#888;margin-top:2px}
+    .note{font-size:9px;color:#888;text-align:center;margin-top:7px;line-height:1.4;border-top:1px solid #eee;padding-top:6px}
+    @media print{body{padding:0}.tag{border:2px solid #1E407C}}
+  </style></head><body>
+  <div class="tag">
+    <div class="tag-hdr"><h1>Best Western Ariel Hotel</h1><p>Airport Parking — Key Tag</p></div>
+    <div class="tag-body">
+      <div class="reg">${d.reg}</div>
+      <div class="row"><span class="lbl">Guest name</span><span class="val">${d.name}</span></div>
+      <div class="row"><span class="lbl">Mobile</span><span class="val">${d.phone||'–'}</span></div>
+      <div class="row"><span class="lbl">Package</span><span class="val">${d.pkgLabel||'–'}</span></div>
+      <div class="row"><span class="lbl">Drop-off</span><span class="val">${fmtD(d.ci)}</span></div>
+      <div class="row"><span class="lbl">Collection</span><span class="val">${fmtD(d.ret)}</span></div>
+      ${d.fno?'<div class="row"><span class="lbl">Flight</span><span class="val">'+d.fno+'</span></div>':''}
+      <div class="ref-box">
+        <div class="rn">${d.ref}</div>
+        <div class="rl">Booking reference</div>
+      </div>
+      <div class="note">Keys to remain at reception at all times.<br>Printed: ${new Date().toLocaleDateString('en-GB')}</div>
+    </div>
+  </div>
+  <script>window.onload=()=>setTimeout(()=>window.print(),600);<\/script>
+  </body></html>`);
+  w.document.close();
+}
+
 </body>
 </html>
