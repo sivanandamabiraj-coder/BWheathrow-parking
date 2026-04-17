@@ -3058,6 +3058,7 @@ function renderPending(){
         <button class="btn success" style="font-size:12px;padding:6px 14px" onclick="approvePending('${p.id}','${p.reg}')">✓ Approve &amp; check in</button>
         <button class="btn" style="font-size:12px;padding:6px 14px;color:#185FA5;border-color:#B5D4F4" data-reg="${p.reg}" data-ref="${p.ref_code||''}" onclick="openPendingPhotos(this.dataset.reg,this.dataset.ref)">📷 View photos</button>
         <button class="btn" style="font-size:12px;padding:6px 14px" onclick="editPending('${p.id}')">Edit details</button>
+        <button class="btn" style="font-size:12px;padding:6px 14px;color:#1E407C;border-color:#1E407C" onclick="printKeyTagFromPending(${JSON.stringify(p).replace(/"/g,'&quot;')})">🖨 Print key tag</button>
         <button class="btn" style="font-size:12px;padding:6px 14px;color:#E24B4A;border-color:#F7C1C1" onclick="rejectPending('${p.id}','${p.reg}')">✗ Reject</button>
         <a href="tel:${p.phone}" style="font-size:12px;padding:6px 14px;border-radius:7px;border:1px solid #ddd;color:#555;text-decoration:none;display:inline-flex;align-items:center">Call ${p.phone||'–'}</a>
       </div>
@@ -3175,6 +3176,55 @@ async function rejectPending(id, reg){
   }catch(e){hideLoading();alert('Error: '+e.message);}
 }
 
+function printKeyTagFromPending(p){
+  let fmtDate=d=>{if(!d)return'–';let pts=d.split('-');return pts[2]+'/'+pts[1]+'/'+pts[0].slice(2);};
+  let w=window.open('','_blank','width=420,height=580');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Key Tag — ${p.reg}</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:Arial,sans-serif;background:#fff;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:1rem}
+    .tag{width:85mm;border:2px solid #1E407C;border-radius:8px;overflow:hidden}
+    .tag-hdr{background:#1E407C;padding:8px 12px;border-bottom:3px solid #C9A84C}
+    .tag-hdr h1{font-size:13px;font-weight:700;color:#fff;margin:0}
+    .tag-hdr p{font-size:9px;color:rgba(255,255,255,.7);margin:2px 0 0}
+    .tag-body{padding:10px 12px}
+    .reg{font-size:28px;font-weight:800;letter-spacing:.06em;color:#1E407C;text-align:center;padding:8px 0;border-bottom:1px dashed #ccc;margin-bottom:8px}
+    .row{display:flex;justify-content:space-between;padding:4px 0;font-size:11px;border-bottom:1px solid #f0f0f0}
+    .row:last-child{border-bottom:none}
+    .lbl{color:#888}
+    .val{font-weight:700;color:#1a1a1a;text-align:right;max-width:58%}
+    .ref-box{background:#fdf8f0;border:1.5px solid #C9A84C;border-radius:5px;text-align:center;padding:7px;margin-top:9px}
+    .ref-box .rn{font-size:16px;font-weight:800;letter-spacing:.08em;color:#1E407C}
+    .ref-box .rl{font-size:9px;color:#888;margin-top:2px}
+    .note{font-size:9px;color:#888;text-align:center;margin-top:8px;line-height:1.5;border-top:1px solid #eee;padding-top:7px}
+    .print-btn{display:block;margin:1rem auto 0;padding:8px 20px;background:#1E407C;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer}
+    @media print{.print-btn{display:none}body{padding:0}}
+  </style></head><body>
+  <div>
+    <div class="tag">
+      <div class="tag-hdr"><h1>Best Western Ariel Hotel</h1><p>Airport Parking — Key Tag</p></div>
+      <div class="tag-body">
+        <div class="reg">${p.reg}</div>
+        <div class="row"><span class="lbl">Guest name</span><span class="val">${p.name||'–'}</span></div>
+        <div class="row"><span class="lbl">Mobile</span><span class="val">${p.phone||'–'}</span></div>
+        <div class="row"><span class="lbl">Package</span><span class="val">${p.type||'–'}</span></div>
+        <div class="row"><span class="lbl">Drop-off</span><span class="val">${fmtDate(p.check_in_date)}</span></div>
+        <div class="row"><span class="lbl">Collection</span><span class="val">${fmtDate(p.return_date)}</span></div>
+        ${p.flight_number?'<div class="row"><span class="lbl">Flight</span><span class="val">'+p.flight_number+'</span></div>':''}
+        <div class="ref-box">
+          <div class="rn">${p.ref_code||'–'}</div>
+          <div class="rl">Booking reference</div>
+        </div>
+        <div class="note">Keys to remain at reception at all times.<br>Printed: ${new Date().toLocaleDateString('en-GB')}</div>
+      </div>
+    </div>
+    <button class="print-btn" onclick="window.print()">Print key tag</button>
+  </div>
+  <script>window.onload=()=>setTimeout(()=>window.print(),600);<\/script>
+  </body></html>`);
+  w.document.close();
+}
+
 // ════════════════════════════════════════════
 // RECEIPT / PRINT ENGINE
 // ════════════════════════════════════════════
@@ -3189,12 +3239,14 @@ function closeReceiptModal(){
 function buildReceiptHTML(v, mode){
   let td=today();
   let isActive = mode==='active';
-  let hd,cd,hc,contc,total,contRate,checkoutDateStr;
+  let hd,cd,hc,contc,total,contRate,checkoutDateStr,packagePrice,profit;
   let cc = vehicles.filter(x=>x.location==='contractor').length;
 
   if(isActive){
     let e=estimateCost(v, td);
     hd=e.hd; cd=e.cd; hc=e.hotelCost; contc=e.contCost; total=e.total;
+    packagePrice=e.packagePrice!=null?+e.packagePrice:0;
+    profit=e.profit!=null?+e.profit:0;
     contRate = (()=>{let c=Array.isArray(contractorsList)&&contractorsList.find(x=>x.active);return c?(cc<=(c.threshold||20)?+(c.rate1||4.5):+(c.rate2||3.5)):3.5;})();
     checkoutDateStr = '– (still parked)';
   } else {
@@ -3203,6 +3255,8 @@ function buildReceiptHTML(v, mode){
     hc = v.hotel_cost!=null ? +v.hotel_cost : +(hd*HOTEL_RATE()).toFixed(2);
     contc = v.contractor_cost!=null ? +v.contractor_cost : 0;
     total = v.total_cost!=null ? +v.total_cost : +(hc+contc).toFixed(2);
+    packagePrice = v.package_price!=null ? +v.package_price : (v.total_cost!=null ? +v.total_cost : 0);
+    profit = v.profit!=null ? +v.profit : +(packagePrice - total).toFixed(2);
     contRate = (()=>{let c=Array.isArray(contractorsList)&&contractorsList.find(x=>x.active);return c?(cc<=(c.threshold||20)?+(c.rate1||4.5):+(c.rate2||3.5)):3.5;})();
     checkoutDateStr = fmtD(v.check_out_date);
   }
