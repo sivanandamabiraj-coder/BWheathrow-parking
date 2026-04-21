@@ -107,9 +107,8 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
   <div class="si active" id="ps-1"><div class="sc">1</div><div class="sl">Vehicle</div></div>
   <div class="si" id="ps-2"><div class="sc">2</div><div class="sl">Details</div></div>
   <div class="si" id="ps-3"><div class="sc">3</div><div class="sl">Dates</div></div>
-  <div class="si" id="ps-4"><div class="sc">4</div><div class="sl">Photos</div></div>
-  <div class="si" id="ps-5"><div class="sc">5</div><div class="sl">Terms</div></div>
-  <div class="si" id="ps-6"><div class="sc">6</div><div class="sl">Confirm</div></div>
+  <div class="si" id="ps-4"><div class="sc">4</div><div class="sl">Terms</div></div>
+  <div class="si" id="ps-5"><div class="sc">5</div><div class="sl">Confirm</div></div>
 </div>
 
 <div class="wrap">
@@ -138,47 +137,28 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 
 <!-- STEP 3 -->
 <div id="s-3" class="screen" style="padding-top:14px">
-  <div class="card"><div class="ch"><span class="sn">3</span><h2>Parking dates</h2></div><div class="cb">
+  <div class="card"><div class="ch"><span class="sn">3</span><h2>Parking dates &amp; times</h2></div><div class="cb">
     <div class="r2">
-      <div class="f"><label>Drop-off date <span class="req">*</span></label><input type="date" id="f-ci"><div class="em" id="e-ci">Required</div></div>
-      <div class="f"><label>Collection date <span class="req">*</span></label><input type="date" id="f-ret"><div class="em" id="e-ret">Required</div></div>
+      <div class="f"><label>Drop-off date &amp; time <span class="req">*</span></label><input type="datetime-local" id="f-ci"><div class="em" id="e-ci">Required</div></div>
+      <div class="f"><label>Collection date &amp; time <span class="req">*</span></label><input type="datetime-local" id="f-ret"><div class="em" id="e-ret">Required</div></div>
     </div>
-    <div class="r2">
-      <div class="f"><label>Flight departure</label><input type="date" id="f-flt"></div>
-      <div class="f"><label>Flight number</label><input type="text" id="f-fno" placeholder="BA249" class="up" autocomplete="off"></div>
-    </div>
-    <div class="f"><label>Parking type <span class="req">*</span></label>
-      <select id="f-type"><option value="">— Please select —</option><option value="long">Long-stay (days / weeks / months)</option><option value="daily">Daily</option></select>
-      <div class="em" id="e-type">Please select a parking type</div>
-    </div>
+    <div class="f"><label>Hotel room number <span class="req">*</span></label><input type="text" id="f-room" placeholder="e.g. 215" autocomplete="off" maxlength="10"><div class="em" id="e-room">Please enter your room number</div></div>
   </div></div>
   <div class="btn-nav"><button class="btn-bk" onclick="go(2)">← Back</button><button class="btn-nx" onclick="go(4)">Next →</button></div>
 </div>
 
-<!-- STEP 4 PHOTOS -->
+<!-- STEP 4 T&C -->
 <div id="s-4" class="screen" style="padding-top:14px">
-  <div class="card"><div class="ch"><span class="sn">4</span><h2>Vehicle photos <span style="font-size:11px;opacity:.75;font-weight:400">(optional but recommended)</span></h2></div><div class="cb">
-    <p style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:13px">Tap each button to photograph your vehicle. This protects you in case of any dispute about pre-existing damage.</p>
-    <div class="cat-grid" id="cat-grid"></div>
-    <input type="file" id="file-input" accept="image/*" multiple style="display:none" onchange="handleFiles(event)">
-    <div class="pgrid" id="pgrid"></div>
-    <p class="opt-note">Photos are optional but strongly recommended. You can skip this step.</p>
-  </div></div>
-  <div class="btn-nav"><button class="btn-bk" onclick="go(3)">← Back</button><button class="btn-nx" onclick="go(5)">Next →</button></div>
-</div>
-
-<!-- STEP 5 T&C -->
-<div id="s-5" class="screen" style="padding-top:14px">
-  <div class="card"><div class="ch"><span class="sn">5</span><h2>Terms &amp; conditions</h2></div><div class="cb">
+  <div class="card"><div class="ch"><span class="sn">4</span><h2>Terms &amp; conditions</h2></div><div class="cb">
     <div class="tc-box">
       <h4>Best Western Ariel Hotel — Airport Parking Terms</h4>
       <p>Please read carefully before leaving your vehicle with us.</p>
       <ul>
-        <li><strong>Charges:</strong> Parking charges are based on your selected package. Where required, your vehicle may be stored at our approved off-site facility. The package price you have agreed covers all parking, whether on-site or off-site.</li>
-        <li><strong>Vehicle condition:</strong> No liability for pre-existing damage. Please photograph your vehicle on arrival.</li>
+        <li><strong>Charges:</strong> Parking charges are calculated from your drop-off time to your collection time. Where required, your vehicle may be stored at our approved off-site facility. Reception will confirm your parking rate on arrival.</li>
+        <li><strong>Vehicle condition:</strong> Our staff will photograph your vehicle on arrival. No liability for pre-existing damage.</li>
         <li><strong>Valuables:</strong> Remove all valuables before leaving your vehicle. The hotel accepts no responsibility for items left inside.</li>
         <li><strong>Vehicle movement:</strong> You authorise staff to move your vehicle within the car park as required. Keys must be left at reception.</li>
-        <li><strong>Late collection:</strong> Additional daily charges apply if collected after the stated return date.</li>
+        <li><strong>Late collection:</strong> Additional charges apply if collected after the stated return date.</li>
         <li><strong>CCTV:</strong> All car park areas are monitored by CCTV for security.</li>
         <li><strong>Data:</strong> Your personal data is processed in accordance with our Privacy Policy, solely for managing your booking.</li>
         <li><strong>Cancellation:</strong> Please notify reception as soon as possible if you no longer require parking.</li>
@@ -192,29 +172,25 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
     </label>
     <div class="em" id="e-tc" style="margin-top:8px">You must accept the terms to continue</div>
   </div></div>
-  <div class="btn-nav"><button class="btn-bk" onclick="go(4)">← Back</button><button class="btn-nx" onclick="go(6)">Review booking →</button></div>
+  <div class="btn-nav"><button class="btn-bk" onclick="go(3)">← Back</button><button class="btn-nx" onclick="go(5)">Review booking →</button></div>
 </div>
 
-<!-- STEP 6 REVIEW -->
-<div id="s-6" class="screen" style="padding-top:14px">
+<!-- STEP 5 REVIEW -->
+<div id="s-5" class="screen" style="padding-top:14px">
   <div class="bk-card"><div class="rp" id="r-reg">–</div><div class="rn" id="r-name">–</div></div>
   <div class="card"><div class="cb" style="padding:11px 15px">
     <table class="sum-tbl">
       <tr><td>Mobile</td><td id="r-phone">–</td></tr>
+      <tr><td>Room number</td><td id="r-room">–</td></tr>
       <tr><td>Drop-off</td><td id="r-ci">–</td></tr>
       <tr><td>Collection</td><td id="r-ret">–</td></tr>
-      <tr><td>Flight</td><td id="r-flt">–</td></tr>
-      <tr><td>Parking type</td><td id="r-type">–</td></tr>
       <tr><td>Vehicle</td><td id="r-veh">–</td></tr>
-      <tr><td>Photos attached</td><td id="r-photos">–</td></tr>
       <tr><td>T&amp;C accepted</td><td style="color:#1a6b3c;font-weight:700">✓ Yes</td></tr>
     </table>
   </div></div>
   <div id="sub-err" class="alert err" style="display:none"></div>
-  <div class="upb-wrap" id="upb-wrap"><div class="upb" id="upb"></div></div>
-  <div class="up-txt" id="up-txt"></div>
   <button class="btn-p" onclick="submitAll()" id="sub-btn" style="margin-top:10px">Submit parking request</button>
-  <div class="btn-nav" style="margin-top:8px"><button class="btn-bk" onclick="go(5)" style="flex:1">← Edit</button></div>
+  <div class="btn-nav" style="margin-top:8px"><button class="btn-bk" onclick="go(4)" style="flex:1">← Edit</button></div>
 </div>
 
 <!-- SUCCESS -->
@@ -245,105 +221,152 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 <script>
 const SB_URL='https://kcmzncomwnjejcchtlas.supabase.co';
 const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtjbXpuY29td25qZWpjY2h0bGFzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwOTI1MzAsImV4cCI6MjA5MTY2ODUzMH0.fsrJFLFxzT3ZFzM-oe96hptWDRr-cKg1S8anyfkWHgY';
-const BUCKET='vehicle-photos';
-const CATS=[{id:'front',l:'Front',i:'🚗'},{id:'rear',l:'Rear',i:'🔙'},{id:'left',l:'Left side',i:'◀'},{id:'right',l:'Right side',i:'▶'},{id:'interior',l:'Interior',i:'💺'},{id:'damage',l:'Damage/notes',i:'⚠'}];
-let sel={},activeCat=null,curStep=1;
-function today(){return new Date().toISOString().split('T')[0];}
-function nightsApart(a,b){if(!a||!b)return 0;return Math.max(0,Math.round((new Date(b)-new Date(a))/86400000));}
-function fmtD(d){if(!d)return'–';let p=d.split('-');return p[2]+'/'+p[1]+'/'+p[0].slice(2);}
-function genRef(){return'HP'+Date.now().toString(36).toUpperCase().slice(-6);}
-document.getElementById('cat-grid').innerHTML=CATS.map(c=>`<div class="cb-btn" id="cb-${c.id}" onclick="selCat('${c.id}')"><span class="ci">${c.i}</span><span class="cn">${c.l}</span><span class="cc" id="cc-${c.id}">Tap to add</span><span class="ctk" id="ct-${c.id}">✓</span></div>`).join('');
-document.getElementById('f-ci').value=today();
-loadPackagesForForm();
+let curStep=1;
 
-async function loadPackagesForForm(){
-  let sel=document.getElementById('f-type');
-  try{
-    let r=await fetch(SB_URL+'/rest/v1/packages?active=eq.true&order=sort_order.asc,id.asc&select=*',{
-      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY}
-    });
-    let pkgs=await r.json();
-    if(pkgs&&pkgs.length){
-      sel.innerHTML=pkgs.map(p=>`<option value="${p.id}" data-desc="${p.description||''}" data-price="${p.is_daily?(p.daily_rate||0)+'/day':'£'+(p.price||0)}">${p.name} — ${p.is_daily?'£'+(p.daily_rate||0)+'/day':'£'+(p.price||0)+(p.days?' ('+p.days+' days)':'')}</option>`).join('');
-      sel.onchange=()=>{
-        let opt=sel.options[sel.selectedIndex];
-        let desc=opt?.dataset?.desc||'';
-        document.getElementById('pkg-desc-display').textContent=desc;
-      };
-      sel.dispatchEvent(new Event('change'));
-    } else {
-      sel.innerHTML='<option value="">No packages available — contact reception</option>';
-    }
-  }catch(e){
-    sel.innerHTML='<option value="">Unable to load packages</option>';
+function nowLocal(){
+  // Returns current datetime in local time as "YYYY-MM-DDTHH:MM" for datetime-local inputs
+  let d=new Date();
+  d.setSeconds(0,0);
+  return d.toISOString().slice(0,16);
+}
+function fmtDT(dt){
+  if(!dt) return '–';
+  let d=new Date(dt);
+  if(isNaN(d)) return dt;
+  return d.toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit',year:'2-digit'})+
+    ' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+}
+function genRef(){return'HP'+Date.now().toString(36).toUpperCase().slice(-6);}
+
+// Set drop-off to current datetime
+document.getElementById('f-ci').value=nowLocal();
+
+function updSteps(step){
+  for(let i=1;i<=5;i++){
+    let el=document.getElementById('ps-'+i);
+    if(!el) continue;
+    el.classList.remove('active','done');
+    if(i<step) el.classList.add('done');
+    else if(i===step) el.classList.add('active');
+    el.querySelector('.sc').textContent=i<step?'✓':i;
   }
 }
-function selCat(id){activeCat=id;let fi=document.getElementById('file-input');fi.value='';fi.click();}
-function handleFiles(e){let fs=Array.from(e.target.files);if(!fs.length)return;if(!sel[activeCat])sel[activeCat]=[];sel[activeCat].push(...fs);let c=sel[activeCat].length;document.getElementById('cc-'+activeCat).textContent=c+' photo'+(c>1?'s':'');document.getElementById('cb-'+activeCat).classList.add('hp');renderP();}
-function remFile(cid,idx){if(sel[cid]){sel[cid].splice(idx,1);if(!sel[cid].length){delete sel[cid];document.getElementById('cc-'+cid).textContent='Tap to add';document.getElementById('cb-'+cid).classList.remove('hp');}}renderP();}
-function renderP(){let all=[];CATS.forEach(c=>(sel[c.id]||[]).forEach((f,i)=>all.push({cid:c.id,l:c.l,f,i})));let g=document.getElementById('pgrid');if(!all.length){g.innerHTML='';return;}g.innerHTML=all.map(x=>`<div class="pi"><img src="${URL.createObjectURL(x.f)}"><button class="rm" onclick="remFile('${x.cid}',${x.i})">✕</button><div class="pl">${x.l}</div></div>`).join('');}
-function photoCount(){return Object.values(sel).reduce((s,a)=>s+a.length,0);}
-function updSteps(step){for(let i=1;i<=6;i++){let el=document.getElementById('ps-'+i);if(!el)continue;el.classList.remove('active','done');if(i<step)el.classList.add('done');else if(i===step)el.classList.add('active');el.querySelector('.sc').textContent=i<step?'✓':i;}}
-function clrErr(){document.querySelectorAll('.em').forEach(e=>e.classList.remove('on'));document.querySelectorAll('.e').forEach(e=>e.classList.remove('e'));}
-function shErr(id,inp){document.getElementById(id).classList.add('on');if(inp)document.getElementById(inp).classList.add('e');}
-function validate(step){clrErr();let ok=true;
+function clrErr(){
+  document.querySelectorAll('.em').forEach(e=>e.classList.remove('on'));
+  document.querySelectorAll('.e').forEach(e=>e.classList.remove('e'));
+}
+function shErr(id,inp){
+  document.getElementById(id).classList.add('on');
+  if(inp) document.getElementById(inp).classList.add('e');
+}
+function validate(step){
+  clrErr(); let ok=true;
   if(step===1&&!document.getElementById('f-reg').value.trim()){shErr('e-reg','f-reg');ok=false;}
-  if(step===2){if(!document.getElementById('f-name').value.trim()){shErr('e-name','f-name');ok=false;}if(!document.getElementById('f-phone').value.trim()){shErr('e-phone','f-phone');ok=false;}}
-  if(step===3){let ci=document.getElementById('f-ci').value,ret=document.getElementById('f-ret').value,t=document.getElementById('f-type').value;if(!ci){shErr('e-ci','f-ci');ok=false;}if(!ret){shErr('e-ret','f-ret');ok=false;}if(!t){shErr('e-type','f-type');ok=false;}if(ci&&ret&&ret<ci){document.getElementById('e-ret').textContent='Must be after drop-off';shErr('e-ret','f-ret');ok=false;}}
-  if(step===5&&!document.getElementById('f-tc').checked){shErr('e-tc');ok=false;}
-  return ok;}
-function go(next){if(next>curStep&&!validate(curStep))return;if(next===6)popReview();document.getElementById('s-'+curStep).classList.remove('active');curStep=next;document.getElementById('s-'+curStep).classList.add('active');updSteps(curStep);window.scrollTo(0,0);}
-function popReview(){let reg=document.getElementById('f-reg').value.trim().toUpperCase(),name=document.getElementById('f-name').value.trim(),phone=document.getElementById('f-phone').value.trim(),ci=document.getElementById('f-ci').value,ret=document.getElementById('f-ret').value,flt=document.getElementById('f-flt').value,fno=document.getElementById('f-fno').value.trim(),type=document.getElementById('f-type').value,make=document.getElementById('f-make').value.trim(),col=document.getElementById('f-colour').value.trim();
-  document.getElementById('r-reg').textContent=reg;document.getElementById('r-name').textContent=name;document.getElementById('r-phone').textContent=phone;document.getElementById('r-ci').textContent=fmtD(ci);document.getElementById('r-ret').textContent=fmtD(ret);document.getElementById('r-flt').textContent=(flt?fmtD(flt)+' ':'')+fno||'–';let sel=document.getElementById('f-type');
-  document.getElementById('r-type').textContent=sel.options[sel.selectedIndex]?.text||type;document.getElementById('r-veh').textContent=[col,make].filter(Boolean).join(' ')||'–';let pc=photoCount();document.getElementById('r-photos').textContent=pc>0?pc+' photo'+(pc>1?'s':''):'None (optional)';}
+  if(step===2){
+    if(!document.getElementById('f-name').value.trim()){shErr('e-name','f-name');ok=false;}
+    if(!document.getElementById('f-phone').value.trim()){shErr('e-phone','f-phone');ok=false;}
+  }
+  if(step===3){
+    let ci=document.getElementById('f-ci').value;
+    let ret=document.getElementById('f-ret').value;
+    let room=document.getElementById('f-room').value.trim();
+    if(!ci){shErr('e-ci','f-ci');ok=false;}
+    if(!ret){shErr('e-ret','f-ret');ok=false;}
+    if(!room){shErr('e-room','f-room');ok=false;}
+    if(ci&&ret&&ret<=ci){document.getElementById('e-ret').textContent='Must be after drop-off time';shErr('e-ret','f-ret');ok=false;}
+  }
+  if(step===4&&!document.getElementById('f-tc').checked){shErr('e-tc');ok=false;}
+  return ok;
+}
+function go(next){
+  if(next>curStep&&!validate(curStep))return;
+  if(next===5) popReview();
+  document.getElementById('s-'+curStep).classList.remove('active');
+  curStep=next;
+  document.getElementById('s-'+curStep).classList.add('active');
+  updSteps(curStep);
+  window.scrollTo(0,0);
+}
+function popReview(){
+  let reg=document.getElementById('f-reg').value.trim().toUpperCase();
+  let name=document.getElementById('f-name').value.trim();
+  let phone=document.getElementById('f-phone').value.trim();
+  let room=document.getElementById('f-room').value.trim();
+  let ci=document.getElementById('f-ci').value;
+  let ret=document.getElementById('f-ret').value;
+  let make=document.getElementById('f-make').value.trim();
+  let col=document.getElementById('f-colour').value.trim();
+  document.getElementById('r-reg').textContent=reg;
+  document.getElementById('r-name').textContent=name;
+  document.getElementById('r-phone').textContent=phone;
+  document.getElementById('r-room').textContent=room||'–';
+  document.getElementById('r-ci').textContent=fmtDT(ci);
+  document.getElementById('r-ret').textContent=fmtDT(ret);
+  document.getElementById('r-veh').textContent=[col,make].filter(Boolean).join(' ')||'–';
+}
+
 async function submitAll(){
-  let btn=document.getElementById('sub-btn');btn.disabled=true;btn.innerHTML='<span class="spin"></span> Submitting...';
+  let btn=document.getElementById('sub-btn');
+  btn.disabled=true; btn.innerHTML='<span class="spin"></span> Submitting...';
   document.getElementById('sub-err').style.display='none';
-  let reg=document.getElementById('f-reg').value.trim().toUpperCase(),name=document.getElementById('f-name').value.trim(),phone=document.getElementById('f-phone').value.trim(),email=document.getElementById('f-email').value.trim(),make=document.getElementById('f-make').value.trim(),col=document.getElementById('f-colour').value.trim(),ci=document.getElementById('f-ci').value,ret=document.getElementById('f-ret').value,flt=document.getElementById('f-flt').value||null,fno=document.getElementById('f-fno').value.trim();
-  let pkgSel=document.getElementById('f-type');
-  let type=pkgSel.value;
-  let pkgLabel=pkgSel.options[pkgSel.selectedIndex]?.text||type||'Package';
-  let ref=genRef(),now=new Date().toISOString();
+  let reg=document.getElementById('f-reg').value.trim().toUpperCase();
+  let name=document.getElementById('f-name').value.trim();
+  let phone=document.getElementById('f-phone').value.trim();
+  let email=document.getElementById('f-email').value.trim();
+  let make=document.getElementById('f-make').value.trim();
+  let col=document.getElementById('f-colour').value.trim();
+  let ci=document.getElementById('f-ci').value;   // "YYYY-MM-DDTHH:MM"
+  let ret=document.getElementById('f-ret').value;
+  let room=document.getElementById('f-room').value.trim();
+  let ref=genRef(), now=new Date().toISOString();
   try{
-    let r=await fetch(SB_URL+'/rest/v1/pending_checkins',{method:'POST',headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify({ref_code:ref,reg,name,phone,email:email||null,vehicle_make:make||null,vehicle_colour:col||null,check_in_date:ci,return_date:ret,flight_date:flt,flight_number:fno||null,type:pkgLabel,package_id:String(type),tc_accepted:true,tc_accepted_at:now,status:'pending',submitted_at:now})});
+    let r=await fetch(SB_URL+'/rest/v1/pending_checkins',{
+      method:'POST',
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
+      body:JSON.stringify({
+        ref_code:ref, reg, name, phone,
+        email:email||null,
+        vehicle_make:make||null,
+        vehicle_colour:col||null,
+        check_in_date:ci,    // full datetime string
+        return_date:ret,     // full datetime string
+        room_number:room||null,
+        tc_accepted:true,
+        tc_accepted_at:now,
+        status:'pending',
+        submitted_at:now
+      })
+    });
     if(!r.ok){
       let errText=await r.text();
       let errMsg='';
       try{let j=JSON.parse(errText);errMsg=j.message||j.hint||j.details||errText;}catch(e){errMsg=errText;}
       throw new Error('Could not save booking ('+r.status+'): '+errMsg.slice(0,120));
     }
-    let all=[];CATS.forEach(c=>(sel[c.id]||[]).forEach((f,i)=>all.push({cid:c.id,l:c.l,f,i})));
-    if(all.length){
-      document.getElementById('upb-wrap').style.display='block';
-      for(let i=0;i<all.length;i++){
-        let {cid,l,f}=all[i];
-        document.getElementById('upb').style.width=Math.round(i/all.length*100)+'%';
-        document.getElementById('up-txt').textContent='Uploading '+l+' photo '+(i+1)+' of '+all.length+'...';
-        let ext=f.name.split('.').pop()||'jpg';
-        let path=reg.replace(/\s/g,'_')+'/'+ref+'/'+cid+'_'+Date.now()+'_'+i+'.'+ext;
-        let up=await fetch(SB_URL+'/storage/v1/object/'+BUCKET+'/'+path,{method:'POST',headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':f.type||'image/jpeg','x-upsert':'true'},body:f});
-        if(up.ok){let pu=SB_URL+'/storage/v1/object/public/'+BUCKET+'/'+path;await fetch(SB_URL+'/rest/v1/vehicle_photos',{method:'POST',headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify({reg,ref_code:ref,category:cid,filename:f.name,storage_path:path,public_url:pu,uploaded_by:'guest',uploaded_at:new Date().toISOString()})});}
-      }
-      document.getElementById('upb').style.width='100%';
-    }
     document.getElementById('ok-ref').textContent=ref;
-    document.getElementById('ok-detail').innerHTML='<strong>'+reg+'</strong> · '+name+'<br>Drop-off: '+fmtD(ci)+' &nbsp; Collection: '+fmtD(ret)+(all.length>0?'<br>Photos uploaded: '+all.length:'');
-    // Send guest confirmation email if email provided
-    if(email) sendGuestEmail({ref,reg,name,phone,ci,ret,pkgLabel,email}).catch(()=>{});
-    document.getElementById('s-6').classList.remove('active');
+    document.getElementById('ok-detail').innerHTML=
+      '<strong>'+reg+'</strong> · '+name+
+      '<br>Room: '+room+
+      '<br>Drop-off: '+fmtDT(ci)+
+      '<br>Collection: '+fmtDT(ret);
+    if(email) sendGuestEmail({ref,reg,name,phone,room,ci,ret,email}).catch(()=>{});
+    document.getElementById('s-5').classList.remove('active');
     document.getElementById('s-ok').classList.add('active');
     document.getElementById('steps').style.display='none';
     window.scrollTo(0,0);
-  }catch(err){let el=document.getElementById('sub-err');el.textContent='Submission failed: '+err.message;el.style.display='block';btn.disabled=false;btn.innerHTML='Submit parking request';}
+  }catch(err){
+    let el=document.getElementById('sub-err');
+    el.textContent='Submission failed: '+err.message;
+    el.style.display='block';
+    btn.disabled=false;
+    btn.innerHTML='Submit parking request';
+  }
 }
 
-// ── Guest confirmation email via Resend ──
-// Reads Resend config from localStorage (set in staff system settings)
-async function sendGuestEmail({ref,reg,name,phone,ci,ret,pkgLabel,email}){
+async function sendGuestEmail({ref,reg,name,phone,room,ci,ret,email}){
   let saved=localStorage.getItem('heathrow_email_cfg');
   if(!saved) return;
-  let cfg;
-  try{cfg=JSON.parse(saved);}catch(e){return;}
+  let cfg; try{cfg=JSON.parse(saved);}catch(e){return;}
   if(!cfg.apiKey||!cfg.fromEmail) return;
   let hotel=cfg.hotelName||'Best Western Ariel Hotel';
   let html=`<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:20px;color:#1a1a1a">
@@ -353,16 +376,16 @@ async function sendGuestEmail({ref,reg,name,phone,ci,ret,pkgLabel,email}){
   </div>
   <div style="background:#f9f9f7;padding:20px;border-radius:0 0 8px 8px;border:1px solid #eee;border-top:none">
     <p>Dear ${name||'Guest'},</p>
-    <p>Thank you for submitting your parking request. Our reception team will review your details and confirm your space shortly.</p>
+    <p>Thank you for submitting your parking request. Our reception team will confirm your space shortly.</p>
     <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:13px">
       <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#888">Reference</td><td style="padding:8px;border-bottom:1px solid #eee;font-weight:700;font-size:16px;letter-spacing:.05em">${ref}</td></tr>
       <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#888">Registration</td><td style="padding:8px;border-bottom:1px solid #eee;font-weight:700">${reg}</td></tr>
-      <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#888">Package</td><td style="padding:8px;border-bottom:1px solid #eee">${pkgLabel}</td></tr>
-      <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#888">Drop-off</td><td style="padding:8px;border-bottom:1px solid #eee">${fmtD(ci)}</td></tr>
-      <tr><td style="padding:8px;color:#888">Collection</td><td style="padding:8px;font-weight:700">${fmtD(ret)}</td></tr>
+      <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#888">Room number</td><td style="padding:8px;border-bottom:1px solid #eee">${room||'–'}</td></tr>
+      <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#888">Drop-off</td><td style="padding:8px;border-bottom:1px solid #eee">${fmtDT(ci)}</td></tr>
+      <tr><td style="padding:8px;color:#888">Collection</td><td style="padding:8px;font-weight:700">${fmtDT(ret)}</td></tr>
     </table>
     <p style="background:#E6F1FB;padding:10px 14px;border-radius:6px;font-size:13px;color:#0C447C">
-      Please quote reference <strong>${ref}</strong> at hotel reception on arrival. Our team will be happy to assist you with the next steps.
+      Please quote reference <strong>${ref}</strong> at hotel reception on arrival.
     </p>
     <hr style="border:none;border-top:1px solid #eee;margin:16px 0">
     <p style="font-size:11px;color:#aaa">${hotel} &nbsp;·&nbsp; Bath Road, Hayes, Middlesex, UB3 5AJ</p>
@@ -378,5 +401,6 @@ async function sendGuestEmail({ref,reg,name,phone,ci,ret,pkgLabel,email}){
   });
 }
 </script>
+
 </body>
 </html>
