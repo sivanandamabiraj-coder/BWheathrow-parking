@@ -429,8 +429,8 @@ on conflict do nothing;
       </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;margin-bottom:0.6rem">
-        <div class="card"><h3>Revenue to date</h3><div id="dash-revenue"></div></div>
-        <div class="card"><h3>Revenue forecast</h3><div id="dash-forecast"></div></div>
+        <div class="card"><h3>Contractor cost to date</h3><div id="dash-cont-cost"></div></div>
+        <div class="card"><h3>Forecast contractor cost</h3><div id="dash-forecast"></div></div>
       </div>
       <div class="card"><h3>Active vehicles — recent</h3><div id="dash-table"></div></div>
     </div>
@@ -445,15 +445,10 @@ on conflict do nothing;
         </div>
         <div class="form-row">
           <div class="form-group"><label>Mobile number</label><input type="text" id="ci-phone" placeholder="+44..."></div>
-          <div class="form-group"><label>Customer package *</label>
-            <select id="ci-package" onchange="updateSpacePreview()">
-              <option value="">Loading packages...</option>
-            </select>
-          </div>
-        </div>
-        <div class="form-row three">
-          <div class="form-group"><label>Check-in date &amp; time *</label><input type="datetime-local" id="ci-checkin" onchange="updateSpacePreview()"></div>
           <div class="form-group"><label>Room number</label><input type="text" id="ci-room" placeholder="e.g. 215" maxlength="10"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Check-in date &amp; time *</label><input type="datetime-local" id="ci-checkin" onchange="updateSpacePreview()"></div>
           <div class="form-group"><label>Expected return date &amp; time *</label><input type="datetime-local" id="ci-return" onchange="updateSpacePreview()"></div>
         </div>
         <div id="space-preview" style="margin:4px 0 8px"></div>
@@ -506,20 +501,18 @@ on conflict do nothing;
           <button class="btn" style="font-size:12px;padding:5px 10px" onclick="clearActiveFilters()">Clear</button>
           <button class="btn" style="margin-left:auto;font-size:12px" onclick="loadData(true)">↻ Refresh</button>
         </div>
-        <div id="active-rev-strip" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:0;border-bottom:1px solid #eee"></div>
+        <div id="active-rev-strip" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;border-bottom:1px solid #eee"></div>
         <div style="overflow-x:auto">
           <table>
             <thead><tr>
-              <th style="width:85px">Reg</th><th style="width:100px">Name</th>
-              <th style="width:130px">Location / Contractor</th><th style="width:75px">Package</th>
+              <th style="width:85px">Reg</th><th style="width:110px">Name</th>
+              <th style="width:150px">Location / Contractor</th>
               <th style="width:80px">Check-in</th><th style="width:80px">Return</th>
               <th style="width:50px">Nights</th>
-              <th style="width:80px">Pkg price</th>
-              <th style="width:75px">Int. cost</th>
-              <th style="width:70px">Profit</th>
+              <th style="width:90px">Cont. cost</th>
               <th style="width:180px">Move</th><th style="width:65px">Detail</th>
             </tr></thead>
-            <tbody id="active-tbody"><tr><td colspan="11" style="text-align:center;padding:2rem;color:#aaa">Loading...</td></tr></tbody>
+            <tbody id="active-tbody"><tr><td colspan="9" style="text-align:center;padding:2rem;color:#aaa">Loading...</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -546,20 +539,16 @@ on conflict do nothing;
           <input type="date" id="hist-filter-from" style="width:130px;height:30px;font-size:12px" oninput="renderHistory()" title="Check-in from">
           <input type="date" id="hist-filter-to" style="width:130px;height:30px;font-size:12px" oninput="renderHistory()" title="Check-in to">
           <button class="btn" style="font-size:12px;padding:5px 10px" onclick="clearHistoryFilters()">Clear</button>
-          <span style="font-size:12px;color:#888;margin-left:auto" id="history-rev"></span>
         </div>
-        <div id="history-summary" style="padding:0.5rem 0.75rem 0"></div>
         <div style="overflow-x:auto">
           <table>
             <thead><tr>
               <th style="width:85px">Reg</th><th style="width:100px">Name</th>
-              <th style="width:78px">Check-in</th><th style="width:78px">Check-out</th>
-              <th style="width:65px">Hotel nights</th><th style="width:72px">Hotel cost</th>
-              <th style="width:65px">Cont. nights</th><th style="width:72px">Cont. cost</th>
-              <th style="width:72px">Int. cost</th>
-              <th style="width:80px">Pkg price</th>
-              <th style="width:70px">Profit</th>
-              <th style="width:100px">Receipt</th>
+              <th style="width:90px">Check-in</th><th style="width:90px">Check-out</th>
+              <th style="width:65px">Hotel nights</th>
+              <th style="width:65px">Cont. nights</th><th style="width:80px">Cont. cost</th>
+              <th style="width:90px">Contractor(s)</th>
+              <th style="width:100px">Actions</th>
             </tr></thead>
             <tbody id="history-tbody"></tbody>
           </table>
@@ -573,12 +562,11 @@ on conflict do nothing;
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:0.6rem">
           <div class="form-group"><label>Report type</label>
             <select id="rpt-type" onchange="previewReport()">
-              <option value="summary">Summary (all vehicles)</option>
-              <option value="active">Active vehicles only</option>
+              <option value="active">Active vehicles</option>
               <option value="history">Completed bookings</option>
-              <option value="revenue">Revenue breakdown</option>
               <option value="contractor">Contractor usage</option>
-              <option value="tc">T&amp;C acceptance report</option>
+              <option value="monthly">Monthly cost summary</option>
+              <option value="tc">T&amp;C acceptance log</option>
             </select>
           </div>
           <div class="form-group"><label>Date from</label><input type="date" id="rpt-from" oninput="previewReport()"></div>
@@ -769,39 +757,10 @@ create policy "photos_insert" on storage.objects
 
       <!-- Tabs within settings -->
       <div style="display:flex;gap:6px;margin-bottom:0.6rem;flex-wrap:wrap">
-        <button class="btn active" id="stab-pricing-btn" onclick="switchSettingsTab('pricing',this)" style="font-size:12px;padding:6px 14px">Slots &amp; costs</button>
-        <button class="btn" id="stab-packages-btn" onclick="switchSettingsTab('packages',this)" style="font-size:12px;padding:6px 14px">Customer packages</button>
+        <button class="btn active" id="stab-pricing-btn" onclick="switchSettingsTab('pricing',this)" style="font-size:12px;padding:6px 14px">Space allocation</button>
         <button class="btn" id="stab-contractors-btn" onclick="switchSettingsTab('contractors',this)" style="font-size:12px;padding:6px 14px">Contractors</button>
         <button class="btn" id="stab-users-btn" onclick="switchSettingsTab('users',this)" style="font-size:12px;padding:6px 14px">Users &amp; roles</button>
         <button class="btn" id="stab-security-btn" onclick="switchSettingsTab('security',this)" style="font-size:12px;padding:6px 14px">Security &amp; notifications</button>
-      </div>
-
-      <!-- Pricing & Slots panel -->
-      <!-- Packages tab -->
-      <div id="stab-packages" style="display:none">
-        <div class="card">
-          <h3>Customer packages</h3>
-          <div id="pkg-msg" style="margin-bottom:8px"></div>
-          <div style="background:#E6F1FB;border:1px solid #B5D4F4;border-radius:7px;padding:10px 14px;font-size:12px;color:#0C447C;margin-bottom:1rem">
-            <strong>Customer-facing only.</strong> Guests choose from these packages at check-in. Staff cannot see contractor details. You can add, edit or deactivate packages at any time — changes apply to new bookings only.
-          </div>
-          <div id="pkg-list" style="margin-bottom:1rem"></div>
-          <div style="background:#f9f9f7;border-radius:8px;padding:1rem;border:1px solid #eee">
-            <div style="font-size:13px;font-weight:600;color:#1E407C;margin-bottom:10px">Add new package</div>
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:10px">
-              <div><label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Name *</label><input type="text" id="np-name" placeholder="e.g. 7-Day Package"></div>
-              <div><label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Fixed days (blank = daily)</label><input type="number" id="np-days" placeholder="7" min="1"></div>
-              <div><label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Package price £ (if fixed)</label><input type="number" id="np-price" placeholder="0.00" step="0.50" min="0"></div>
-              <div><label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Daily rate £/day (if per day)</label><input type="number" id="np-daily-rate" placeholder="0.00" step="0.50" min="0"></div>
-              <div><label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Description</label><input type="text" id="np-desc" placeholder="Optional note"></div>
-              <div><label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Sort order</label><input type="number" id="np-sort" value="0" min="0"></div>
-            </div>
-            <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-bottom:10px">
-              <input type="checkbox" id="np-is-daily"> Per-day rate (not a fixed package price)
-            </label>
-            <button class="btn primary" onclick="addPackage()">Add package</button>
-          </div>
-        </div>
       </div>
 
       <!-- Contractors tab -->
@@ -818,8 +777,8 @@ create policy "photos_insert" on storage.objects
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:10px">
               <div><label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Company name *</label><input type="text" id="nc-name" placeholder="ABC Parking Ltd"></div>
               <div><label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Contact number</label><input type="text" id="nc-contact" placeholder="07700..."></div>
-              <div><label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Rate below threshold (£/day)</label><input type="number" id="nc-rate1" step="0.10" min="0" placeholder="4.50"></div>
-              <div><label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Rate above threshold (£/day)</label><input type="number" id="nc-rate2" step="0.10" min="0" placeholder="3.50"></div>
+              <div><label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Rate below threshold (£/night)</label><input type="number" id="nc-rate1" step="0.10" min="0" placeholder="4.50"></div>
+              <div><label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Rate above threshold (£/night)</label><input type="number" id="nc-rate2" step="0.10" min="0" placeholder="3.50"></div>
               <div><label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Threshold (no. of vehicles)</label><input type="number" id="nc-threshold" min="1" placeholder="20"></div>
               <div><label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Address / notes</label><input type="text" id="nc-address" placeholder="Optional"></div>
             </div>
@@ -830,51 +789,6 @@ create policy "photos_insert" on storage.objects
 
       <div id="stab-pricing">
         <div id="settings-save-msg" style="margin-bottom:6px"></div>
-        <div class="card">
-          <h3>Customer packages — go to the <em>Customer packages</em> tab to manage</h3>
-          <div style="background:#E6F1FB;border:1px solid #B5D4F4;border-radius:7px;padding:10px 14px;font-size:12px;color:#0C447C;margin-bottom:1rem">
-            Customers pay a fixed package price regardless of whether their vehicle moves between hotel and contractor parking.
-            The system tracks your internal costs separately so you can see profit per booking.
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:1rem">
-            <div style="border:2px solid #1E407C;border-radius:10px;padding:1rem;text-align:center">
-              <div style="font-size:22px;margin-bottom:4px">📅</div>
-              <div style="font-size:13px;font-weight:700;color:#1E407C;margin-bottom:8px">7-Day Package</div>
-              <label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Price charged to customer</label>
-              <div style="display:flex;align-items:center;gap:4px">
-                <span style="font-size:16px;font-weight:600;color:#555">£</span>
-                <input type="number" id="s-pkg-7" step="0.50" min="0" style="font-size:18px;font-weight:700;text-align:center;border:1px solid #ddd;border-radius:6px;padding:6px;width:100%">
-              </div>
-            </div>
-            <div style="border:2px solid #C9A84C;border-radius:10px;padding:1rem;text-align:center">
-              <div style="font-size:22px;margin-bottom:4px">📅</div>
-              <div style="font-size:13px;font-weight:700;color:#C9A84C;margin-bottom:8px">15-Day Package</div>
-              <label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Price charged to customer</label>
-              <div style="display:flex;align-items:center;gap:4px">
-                <span style="font-size:16px;font-weight:600;color:#555">£</span>
-                <input type="number" id="s-pkg-15" step="0.50" min="0" style="font-size:18px;font-weight:700;text-align:center;border:1px solid #ddd;border-radius:6px;padding:6px;width:100%">
-              </div>
-            </div>
-            <div style="border:2px solid #639922;border-radius:10px;padding:1rem;text-align:center">
-              <div style="font-size:22px;margin-bottom:4px">📅</div>
-              <div style="font-size:13px;font-weight:700;color:#639922;margin-bottom:8px">30-Day Package</div>
-              <label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Price charged to customer</label>
-              <div style="display:flex;align-items:center;gap:4px">
-                <span style="font-size:16px;font-weight:600;color:#555">£</span>
-                <input type="number" id="s-pkg-30" step="0.50" min="0" style="font-size:18px;font-weight:700;text-align:center;border:1px solid #ddd;border-radius:6px;padding:6px;width:100%">
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- INTERNAL COSTS NOTE -->
-        <div class="card">
-          <h3>Off-site contractor costs</h3>
-          <div style="background:#FAEEDA;border:1px solid #FAC775;border-radius:7px;padding:10px 14px;font-size:12px;color:#633806">
-            Contractor rates are now managed per-contractor in the <strong>Contractors</strong> tab.
-            Each contractor has their own pricing structure. Go to <strong>Settings → Contractors</strong> to add or edit contractors.
-          </div>
-        </div>
 
         <!-- SPACE ALLOCATION -->
         <div class="card">
@@ -898,7 +812,7 @@ create policy "photos_insert" on storage.objects
           </div>
         </div>
 
-        <button class="btn primary" onclick="saveSettings()">Save all settings</button>
+        <button class="btn primary" onclick="saveSettings()">Save settings</button>
         <button class="btn" style="margin-left:8px" onclick="loadSettings()">Reset to saved</button>
       </div>
 
@@ -1059,26 +973,9 @@ window.onerror=function(msg,src,line){
 };
 
 // ── Config getters — always read latest settings ──
-const HOTEL_RATE=()=>CFG.HOTEL_RATE||3.5;
 const DAILY_CAP=()=>CFG.DAILY_CAP||40;
 const LONG_CAP=()=>CFG.LONG_CAP||60;
 const TOTAL_SPACES=()=>CFG.TOTAL_SPACES||100;
-
-// ── Package helpers (use live packagesList from Supabase) ──
-function getPackageById(id){
-  if(!Array.isArray(packagesList)||!id) return null;
-  return packagesList.find(p=>String(p.id)===String(id))||null;
-}
-function calcPackagePrice(pkg, actualDays){
-  if(!pkg) return 0;
-  if(pkg.is_daily) return +(( pkg.daily_rate||0)*actualDays).toFixed(2);
-  return +(pkg.price||0);
-}
-function getPackageLabel(pkg){
-  if(!pkg) return '–';
-  if(pkg.is_daily) return pkg.name+' (£'+(pkg.daily_rate||0)+'/day)';
-  return pkg.name+(pkg.days?' ('+pkg.days+' nights)':'');
-}
 
 // ── Contractor helpers (use live contractorsList from Supabase) ──
 function getContractorById(id){
@@ -1086,24 +983,22 @@ function getContractorById(id){
   return contractorsList.find(c=>String(c.id)===String(id))||null;
 }
 function calcContractorRate(contractor){
-  if(!contractor||typeof contractor!=='object') return 3.5;
+  if(!contractor||typeof contractor!=='object') return 0;
   let cc=Array.isArray(vehicles)?vehicles.filter(v=>v.location==='contractor').length:0;
-  return cc<=(contractor.threshold||20) ? +(contractor.rate1||4.5) : +(contractor.rate2||3.5);
+  return cc<=(contractor.threshold||20) ? +(contractor.rate1||0) : +(contractor.rate2||0);
 }
 function getActiveContractors(){
   if(!Array.isArray(contractorsList)) return [];
   return contractorsList.filter(c=>c.active);
 }
-function getActivePackages(){
-  if(!Array.isArray(packagesList)) return [];
-  return packagesList.filter(p=>p.active).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
-}
+
 let SB_URL='',SB_KEY='';
 let vehicles=[],historyData=[];
 
 function today(){return new Date().toISOString().split('T')[0];}
 function todayDT(){return new Date().toISOString();} // full ISO datetime for comparisons with datetime fields
 function nowLocal(){let d=new Date();d.setSeconds(0,0);return d.toISOString().slice(0,16);}
+function addDays(d,n){let x=new Date(d);x.setDate(x.getDate()+n);return x.toISOString().split('T')[0];}
 function nightsApart(a,b){if(!a||!b)return 0;return Math.max(0,Math.round((new Date(b)-new Date(a))/86400000));}
 function daysApart(a,b){return nightsApart(a,b);}
 function fmtD(d){if(!d)return'–';let x=new Date(d);if(isNaN(x))return d;return x.toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit',year:'2-digit'});}
@@ -1219,62 +1114,139 @@ function allocateSpace(){
   if(long<LONG_CAP())return'hotel';
   return'contractor';
 }
-function calcContractorCost(days, snapshotCount){
-  if(days<=0) return 0;
-  // Fallback rate using first active contractor threshold if available
-  let con = contractorsList.find(c=>c.active);
-  let thresh = con ? (con.threshold||20) : 20;
-  let r1 = con ? (con.rate1||4.5) : (CFG.HOTEL_RATE||3.5);
-  let r2 = con ? (con.rate2||3.5) : (CFG.HOTEL_RATE||3.5);
-  let rate = (snapshotCount||0) <= thresh ? r1 : r2;
-  return +(days * rate).toFixed(2);
+
+function updateDash(){
+  let{daily,long,contractor}=hotelCounts();
+  let total=daily+long;
+  document.getElementById('dash-metrics').innerHTML=`
+    <div class="metric"><div class="lbl">Hotel occupied</div><div class="val">${total}/${LONG_CAP()}</div><div class="sub">${LONG_CAP()-total} free</div></div>
+    <div class="metric"><div class="lbl">Long-stay slots</div><div class="val">${long}/${LONG_CAP()}</div><div class="sub">${LONG_CAP()-long} free</div></div>
+    <div class="metric"><div class="lbl">At contractor</div><div class="val">${contractor}</div><div class="sub">${(()=>{let c=Array.isArray(contractorsList)&&contractorsList.find(x=>x.active);return c?'£'+c.rate1+'/night up to '+c.threshold+', £'+c.rate2+' above':'see contractors'})()}</div></div>
+    <div class="metric"><div class="lbl">Total active</div><div class="val">${vehicles.length}</div><div class="sub">vehicles</div></div>`;
+
+  // ── Overdue alerts ──
+  let td=today();
+  let in2days=addDays(td,2);
+  let overdue=vehicles.filter(v=>v.location==='contractor'&&v.return_date<td);
+  let alertHtml='';
+  if(overdue.length) alertHtml+=`<div class="alert warn" style="margin-bottom:8px"><strong>${overdue.length} vehicle(s) overdue</strong> — should have returned: ${overdue.map(v=>'<strong>'+v.reg+'</strong> (was '+fmtDT(v.return_date)+')').join(', ')}</div>`;
+  document.getElementById('dash-alerts').innerHTML=alertHtml;
+
+  // ── Due back in next 2 days ──
+  let dueSoon=vehicles.filter(v=>v.return_date>=td&&v.return_date<=in2days).sort((a,b)=>a.return_date>b.return_date?1:-1);
+  let dueSoonFromContractor=dueSoon.filter(v=>v.location==='contractor');
+  let dueSoonFromHotel=dueSoon.filter(v=>v.location==='hotel');
+  let dueSoonHtml='';
+  if(!dueSoon.length){
+    dueSoonHtml='<p style="font-size:12px;color:#aaa;text-align:center;padding:0.5rem 0">No vehicles due back in the next 2 days</p>';
+  } else {
+    if(dueSoonFromContractor.length){
+      dueSoonHtml+=`<div style="font-size:11px;font-weight:600;color:#633806;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">At contractor — needs transfer to hotel</div>`;
+      dueSoonHtml+=dueSoonFromContractor.map(v=>{
+        let n=nightsApart(td,v.return_date);
+        let urg=n===0?'#E24B4A':n===1?'#EF9F27':'#378ADD';
+        let lbl=n===0?'Today':n===1?'Tomorrow':'In 2 days';
+        return`<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:#FAEEDA;border-radius:7px;margin-bottom:6px;border-left:3px solid ${urg}">
+          <div><strong style="font-size:13px">${v.reg}</strong><span style="font-size:12px;color:#633806;margin-left:8px">${v.name}</span></div>
+          <div style="display:flex;align-items:center;gap:8px"><span style="font-size:11px;font-weight:600;color:${urg}">${lbl}</span>
+          <button onclick="openMoveModal('${v.reg}','hotel')" style="font-size:11px;padding:3px 10px;background:#EF9F27;color:#fff;border:none;border-radius:5px;cursor:pointer">Move to hotel</button></div>
+        </div>`;
+      }).join('');
+    }
+    if(dueSoonFromHotel.length){
+      dueSoonHtml+=`<div style="font-size:11px;font-weight:600;color:#085041;margin-bottom:6px;margin-top:${dueSoonFromContractor.length?'10px':'0'};text-transform:uppercase;letter-spacing:.04em">At hotel — ready for collection</div>`;
+      dueSoonHtml+=dueSoonFromHotel.map(v=>{
+        let n=nightsApart(td,v.return_date);
+        let urg=n===0?'#E24B4A':n===1?'#EF9F27':'#378ADD';
+        let lbl=n===0?'Today':n===1?'Tomorrow':'In 2 days';
+        return`<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:#E1F5EE;border-radius:7px;margin-bottom:6px;border-left:3px solid ${urg}">
+          <div><strong style="font-size:13px">${v.reg}</strong><span style="font-size:12px;color:#085041;margin-left:8px">${v.name}</span></div>
+          <div style="display:flex;align-items:center;gap:8px"><span style="font-size:11px;font-weight:600;color:${urg}">${lbl}</span><span style="font-size:11px;color:#085041">Prepare checkout</span></div>
+        </div>`;
+      }).join('');
+    }
+  }
+  document.getElementById('dash-due-soon').innerHTML=dueSoonHtml;
+
+  // ── Space management suggestions ──
+  let{daily:dUsed,long:lUsed}=hotelCounts();
+  let totalFree=(DAILY_CAP()-dUsed)+(LONG_CAP()-lUsed);
+  let contractorReturning=dueSoonFromContractor.length;
+  let suggestHtml='';
+  if(contractorReturning>0&&totalFree<contractorReturning){
+    suggestHtml+=`<div style="padding:8px 10px;background:#FCEBEB;border-radius:7px;border-left:3px solid #E24B4A;margin-bottom:6px;font-size:12px;color:#791F1F"><strong>Space shortage:</strong> ${contractorReturning} returning but only ${totalFree} hotel slot(s) free.</div>`;
+  } else if(totalFree===0){
+    suggestHtml+=`<div style="padding:8px 10px;background:#FAEEDA;border-radius:7px;border-left:3px solid #EF9F27;margin-bottom:6px;font-size:12px;color:#633806"><strong>Hotel full</strong> — consider moving long-stay vehicles to contractor.</div>`;
+  } else {
+    suggestHtml+=`<div style="padding:8px 10px;background:#E1F5EE;border-radius:7px;border-left:3px solid #1D9E75;margin-bottom:6px;font-size:12px;color:#085041"><strong>${totalFree} slot(s) available</strong>. No action needed.</div>`;
+  }
+  let moveCandidates=vehicles.filter(v=>v.location==='hotel'&&nightsApart(td,v.return_date)>7).slice(0,4);
+  if(moveCandidates.length){
+    suggestHtml+=`<div style="font-size:11px;font-weight:600;color:#555;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">Suggested moves (${'>'}7 days left)</div>`;
+    suggestHtml+=moveCandidates.map(v=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:#f5f5f3;border-radius:7px;margin-bottom:6px;border-left:3px solid #378ADD">
+      <div><strong style="font-size:13px">${v.reg}</strong><span style="font-size:12px;color:#555;margin-left:6px">${v.name}</span><span style="font-size:11px;color:#888;margin-left:6px">${nightsApart(td,v.return_date)} days left</span></div>
+      <button onclick="openMoveModal('${v.reg}','contractor')" style="font-size:11px;padding:3px 10px;background:#378ADD;color:#fff;border:none;border-radius:5px;cursor:pointer">Move out</button>
+    </div>`).join('');
+  }
+  document.getElementById('dash-suggestions').innerHTML=suggestHtml;
+
+  // ── Recent vehicles table ──
+  let recent=vehicles.slice(0,8);
+  document.getElementById('dash-table').innerHTML=recent.length?`<table><thead><tr><th>Reg</th><th>Name</th><th>Location</th><th>Return</th><th>Cont. cost</th></tr></thead><tbody>${recent.map(v=>`<tr><td><strong>${v.reg}</strong></td><td>${v.name}</td><td><span class="badge ${v.location}">${v.location==='hotel'?'Hotel':(v.contractor_name||'Contractor')}</span></td><td>${fmtDT(v.return_date)}</td><td style="color:#633806;font-weight:600">£${estimateCost(v).contCost.toFixed(2)}</td></tr>`).join('')}</tbody></table>`:'<p style="color:#aaa;text-align:center;padding:1rem">No active vehicles</p>';
+
+  // ── Contractor cost to date ──
+  let contCostToDate=0,hotelNightsToDate=0,contNightsToDate=0;
+  vehicles.forEach(v=>{let e=estimateCost(v,td);contCostToDate+=e.contCost;hotelNightsToDate+=e.hd;contNightsToDate+=e.cd;});
+  document.getElementById('dash-cont-cost').innerHTML=`
+    <div style="margin-bottom:8px"><div style="font-size:28px;font-weight:700;color:#633806">£${contCostToDate.toFixed(2)}</div>
+    <div style="font-size:11px;color:#aaa;margin-bottom:8px">contractor cost accrued — ${vehicles.length} active vehicle(s)</div></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+      <div style="background:#f5f5f3;border-radius:6px;padding:7px 10px"><div style="font-size:10px;color:#888;margin-bottom:2px">Hotel nights</div><div style="font-size:16px;font-weight:600">${hotelNightsToDate}</div></div>
+      <div style="background:#FAEEDA;border-radius:6px;padding:7px 10px"><div style="font-size:10px;color:#633806;margin-bottom:2px">Off-site nights</div><div style="font-size:16px;font-weight:600;color:#633806">${contNightsToDate}</div></div>
+    </div>`;
+
+  // ── Forecast ──
+  let fCont=vehicles.reduce((s,v)=>s+estimateCost(v,v.return_date).contCost,0);
+  let fHN=vehicles.reduce((s,v)=>s+estimateCost(v,v.return_date).hd,0);
+  let fCN=vehicles.reduce((s,v)=>s+estimateCost(v,v.return_date).cd,0);
+  document.getElementById('dash-forecast').innerHTML=`
+    <div style="margin-bottom:8px"><div style="font-size:28px;font-weight:700;color:#EF9F27">£${fCont.toFixed(2)}</div>
+    <div style="font-size:11px;color:#aaa;margin-bottom:8px">forecast contractor cost — full stay</div></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+      <div style="background:#f5f5f3;border-radius:6px;padding:7px 10px"><div style="font-size:10px;color:#888;margin-bottom:2px">Hotel nights</div><div style="font-size:16px;font-weight:600">${fHN}</div></div>
+      <div style="background:#FAEEDA;border-radius:6px;padding:7px 10px"><div style="font-size:10px;color:#633806;margin-bottom:2px">Off-site nights</div><div style="font-size:16px;font-weight:600;color:#633806">${fCN}</div></div>
+    </div>
+    <div style="margin-top:8px;font-size:11px;color:#aaa">Based on ${vehicles.length} active vehicle(s) returning on schedule</div>`;
 }
 
 function estimateCost(v, asOfDate){
-  // asOfDate can be today (accrued cost) OR a future return date (forecast).
-  // We never clamp — caller decides what date to pass.
   let td = asOfDate || today();
 
   let log = [];
   try{ log = JSON.parse(v.move_log||'[]'); }catch(e){ log=[]; }
 
-  // ── Build segments from move_log ──
-  // Entry 0 = initial location at check-in (loc, date, contractor_name, rate).
-  // Entry 1+ = each subsequent move to a new location.
-  // Segment i runs from log[i].date → log[i+1].date (or td for the last segment).
-
   let segments = [];
-
   if(!log.length){
-    // Legacy vehicle with no log — treat entire stay as one segment
     segments.push({
-      loc: v.location,
-      from: v.check_in_date,
-      to: td,
+      loc: v.location, from: v.check_in_date, to: td,
       contractor_name: v.contractor_name||null,
       rate: v.contractor_rate!=null ? +v.contractor_rate : null
     });
   } else {
     for(let i=0; i<log.length; i++){
       let segStart = log[i].date;
-      if(segStart >= td) break; // segment starts after our target date — skip
+      if(segStart >= td) break;
       let segEnd = (i+1 < log.length && log[i+1].date <= td) ? log[i+1].date : td;
       segments.push({
-        loc: log[i].loc,
-        from: segStart,
-        to: segEnd,
+        loc: log[i].loc, from: segStart, to: segEnd,
         contractor_name: log[i].contractor_name||null,
         rate: log[i].rate!=null ? +log[i].rate : null
       });
     }
   }
 
-  // ── Accumulate nights and cost per segment ──
-  // Nights rule: drop Mon, collect Wed = 2 nights = nightsApart(Mon, Wed).
-  // Each segment contributes nightsApart(from, to) nights at its location.
   let hd = 0;
-  let contMap = {}; // keyed by contractor name: {name, nights, rate, cost}
-
+  let contMap = {};
   segments.forEach(seg => {
     let nights = nightsApart(seg.from, seg.to);
     if(nights <= 0) return;
@@ -1283,10 +1255,9 @@ function estimateCost(v, asOfDate){
     } else {
       let rate = seg.rate;
       if(rate == null){
-        // Fallback for legacy entries without locked rate
         let con = getContractorById(v.contractor_id) ||
                   (Array.isArray(contractorsList) ? contractorsList.find(c=>c.active) : null);
-        rate = con ? calcContractorRate(con) : (v.contractor_rate!=null ? +v.contractor_rate : 3.5);
+        rate = con ? calcContractorRate(con) : (v.contractor_rate!=null ? +v.contractor_rate : 0);
       }
       let key = seg.contractor_name || 'Off-site contractor';
       if(!contMap[key]) contMap[key] = {name:key, nights:0, rate, cost:0};
@@ -1297,298 +1268,58 @@ function estimateCost(v, asOfDate){
 
   let contSegments = Object.values(contMap);
   let cd = contSegments.reduce((s,c) => s+c.nights, 0);
-  let hotelCost = +(hd * (CFG.HOTEL_RATE||3.5)).toFixed(2);
-  let contCost  = +contSegments.reduce((s,c) => s+c.cost, 0).toFixed(2);
-  let internalCost = +(hotelCost + contCost).toFixed(2);
+  let contCost = +contSegments.reduce((s,c) => s+c.cost, 0).toFixed(2);
 
-  // Package price fixed at check-in — never recalculated on move
-  let actualNights = nightsApart(v.check_in_date, asOfDate||v.return_date||td);
-  let packagePrice = v.package_price != null ? +v.package_price
-                   : getPkgPriceByType(v.package_id||v.package_type, actualNights);
-  let profit = +(packagePrice - internalCost).toFixed(2);
-
-  return { hd, cd, hotelCost, contCost, internalCost, packagePrice, profit,
-           total: internalCost, contSegments };
-}
-function getPkgPriceByType(pkgId, actualDays){
-  let pkg=getPackageById(pkgId);
-  return calcPackagePrice(pkg, actualDays||0);
-}
-
-function updateDash(){
-  let{daily,long,contractor}=hotelCounts();
-  let total=daily+long;
-  document.getElementById('dash-metrics').innerHTML=`
-    <div class="metric"><div class="lbl">Hotel occupied</div><div class="val">${total}/100</div><div class="sub">${total}% occupancy</div></div>
-    <div class="metric"><div class="lbl">Daily slots</div><div class="val">${daily}/${DAILY_CAP()}</div><div class="sub">${DAILY_CAP()-daily} free</div></div>
-    <div class="metric"><div class="lbl">Long-stay slots</div><div class="val">${long}/${LONG_CAP()}</div><div class="sub">${LONG_CAP()-long} free</div></div>
-    <div class="metric"><div class="lbl">At contractor</div><div class="val">${contractor}</div><div class="sub">${(()=>{let c=Array.isArray(contractorsList)&&contractorsList.find(x=>x.active);return c?'£'+c.rate1+'/day up to '+c.threshold+', £'+c.rate2+' above':'see contractors'})()}</div></div>
-    <div class="metric"><div class="lbl">Total active</div><div class="val">${vehicles.length}</div><div class="sub">vehicles</div></div>`;
-  document.getElementById('d-daily-lbl').textContent=daily+' / '+DAILY_CAP();
-  document.getElementById('d-long-lbl').textContent=long+' / '+LONG_CAP();
-  document.getElementById('d-cont-lbl').textContent=contractor;
-  document.getElementById('bar-daily').style.width=(daily?Math.round(daily/DAILY_CAP()*100):0)+'%';
-  document.getElementById('bar-long').style.width=(long?Math.round(long/LONG_CAP()*100):0)+'%';
-  document.getElementById('bar-cont').style.width=(contractor?Math.min(100,Math.round(contractor/30*100)):0)+'%';
-  let td=today();
-  let tdDate=new Date(td);
-
-  // ── Date helpers ──
-  function addDays(d,n){let x=new Date(d);x.setDate(x.getDate()+n);return x.toISOString().split('T')[0];}
-  let in1day=addDays(td,1);
-  let in2days=addDays(td,2);
-
-  // ── General alerts: overdue contractor vehicles ──
-  let overdue=vehicles.filter(v=>v.location==='contractor'&&v.return_date<td);
-  let alertHtml='';
-  if(overdue.length){
-    alertHtml+=`<div class="alert warn" style="margin-bottom:8px"><strong>${overdue.length} vehicle(s) overdue</strong> — should have returned already: ${overdue.map(v=>'<strong>'+v.reg+'</strong> (was '+fmtDT(v.return_date)+')').join(', ')}</div>`;
-  }
-  document.getElementById('dash-alerts').innerHTML=alertHtml;
-
-  // ── Panel 1: Due back in next 2 days (from contractor OR hotel — any returning soon) ──
-  let dueSoon=vehicles.filter(v=>v.return_date>=td&&v.return_date<=in2days)
-    .sort((a,b)=>a.return_date>b.return_date?1:-1);
-
-  let dueSoonFromContractor=dueSoon.filter(v=>v.location==='contractor');
-  let dueSoonFromHotel=dueSoon.filter(v=>v.location==='hotel');
-
-  let dueSoonHtml='';
-  if(!dueSoon.length){
-    dueSoonHtml='<p style="font-size:12px;color:#aaa;text-align:center;padding:0.5rem 0">No vehicles due back in the next 2 days</p>';
-  } else {
-    if(dueSoonFromContractor.length){
-      dueSoonHtml+=`<div style="font-size:11px;font-weight:600;color:#633806;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">At contractor — needs transfer to hotel</div>`;
-      dueSoonHtml+=dueSoonFromContractor.map(v=>{
-        let daysLeft=daysApart(td,v.return_date);
-        let urgency=daysLeft===0?'#E24B4A':daysLeft===1?'#EF9F27':'#378ADD';
-        let label=daysLeft===0?'Today':daysLeft===1?'Tomorrow':'In 2 days';
-        return `<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:#FAEEDA;border-radius:7px;margin-bottom:6px;border-left:3px solid ${urgency}">
-          <div>
-            <strong style="font-size:13px">${v.reg}</strong>
-            <span style="font-size:12px;color:#633806;margin-left:8px">${v.name}</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:8px">
-            <span style="font-size:11px;font-weight:600;color:${urgency}">${label}</span>
-            <button onclick="openMoveModal('${v.reg}','hotel')" style="font-size:11px;padding:3px 10px;background:#EF9F27;color:#fff;border:none;border-radius:5px;cursor:pointer">Move to hotel</button>
-          </div>
-        </div>`;
-      }).join('');
-    }
-    if(dueSoonFromHotel.length){
-      dueSoonHtml+=`<div style="font-size:11px;font-weight:600;color:#085041;margin-bottom:6px;margin-top:${dueSoonFromContractor.length?'10px':'0'};text-transform:uppercase;letter-spacing:.04em">At hotel — ready for collection</div>`;
-      dueSoonHtml+=dueSoonFromHotel.map(v=>{
-        let daysLeft=daysApart(td,v.return_date);
-        let urgency=daysLeft===0?'#E24B4A':daysLeft===1?'#EF9F27':'#378ADD';
-        let label=daysLeft===0?'Today':daysLeft===1?'Tomorrow':'In 2 days';
-        return `<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:#E1F5EE;border-radius:7px;margin-bottom:6px;border-left:3px solid ${urgency}">
-          <div>
-            <strong style="font-size:13px">${v.reg}</strong>
-            <span style="font-size:12px;color:#085041;margin-left:8px">${v.name}</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:8px">
-            <span style="font-size:11px;font-weight:600;color:${urgency}">${label}</span>
-            <span style="font-size:11px;color:#085041">Prepare checkout</span>
-          </div>
-        </div>`;
-      }).join('');
-    }
-  }
-  document.getElementById('dash-due-soon').innerHTML=dueSoonHtml;
-
-  // ── Panel 2: Space management suggestions ──
-  // Logic: find hotel vehicles with longest remaining stay → suggest moving to contractor
-  // to free up hotel space for vehicles returning soon
-  let{daily:dUsed,long:lUsed}=hotelCounts();
-  let dailyFree=DAILY_CAP()-dUsed;
-  let longFree=LONG_CAP()-lUsed;
-  let totalFree=dailyFree+longFree;
-
-  let suggestHtml='';
-
-  // How many slots will be freed by returning vehicles in next 2 days
-  let slotsFreedSoon=dueSoon.filter(v=>v.location==='hotel').length;
-  // How many new arrivals from contractor need hotel space
-  let contractorReturning=dueSoonFromContractor.length;
-  // Net space pressure
-  let spacePressure=contractorReturning-totalFree-slotsFreedSoon;
-
-  // Find hotel vehicles with furthest return date (best candidates to move to contractor)
-  let hotelVehicles=vehicles.filter(v=>v.location==='hotel')
-    .sort((a,b)=>b.return_date>a.return_date?1:-1); // longest stay first
-
-  // Suggest moving vehicles that have more than 7 days left
-  let moveCandidates=hotelVehicles.filter(v=>daysApart(td,v.return_date)>7);
-
-  if(contractorReturning>0&&totalFree<contractorReturning){
-    // Urgent: not enough space for incoming vehicles
-    let needed=contractorReturning-totalFree;
-    suggestHtml+=`<div style="padding:8px 10px;background:#FCEBEB;border-radius:7px;border-left:3px solid #E24B4A;margin-bottom:6px;font-size:12px;color:#791F1F">
-      <strong>Space shortage:</strong> ${contractorReturning} vehicle(s) returning soon but only ${totalFree} hotel slot(s) free. Need to free up ${needed} more slot(s).
-    </div>`;
-  } else if(contractorReturning>0&&totalFree>=contractorReturning){
-    suggestHtml+=`<div style="padding:8px 10px;background:#EAF3DE;border-radius:7px;border-left:3px solid #1D9E75;margin-bottom:6px;font-size:12px;color:#27500A">
-      <strong>Space OK:</strong> ${totalFree} hotel slot(s) free — enough for ${contractorReturning} returning vehicle(s).
-    </div>`;
-  } else if(totalFree===0){
-    suggestHtml+=`<div style="padding:8px 10px;background:#FAEEDA;border-radius:7px;border-left:3px solid #EF9F27;margin-bottom:6px;font-size:12px;color:#633806">
-      <strong>Hotel full</strong> — all ${DAILY_CAP()+LONG_CAP()} spaces occupied. Consider moving long-stay vehicles to contractor.
-    </div>`;
-  } else {
-    suggestHtml+=`<div style="padding:8px 10px;background:#E1F5EE;border-radius:7px;border-left:3px solid #1D9E75;margin-bottom:6px;font-size:12px;color:#085041">
-      <strong>${totalFree} slot(s) available</strong> (${dailyFree} daily, ${longFree} long-stay). No action needed.
-    </div>`;
-  }
-
-  if(moveCandidates.length){
-    suggestHtml+=`<div style="font-size:11px;font-weight:600;color:#555;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">Suggested moves to contractor (long stays, ${'>'}7 days left)</div>`;
-    suggestHtml+=moveCandidates.slice(0,4).map(v=>{
-      let daysLeft=daysApart(td,v.return_date);
-      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:#f5f5f3;border-radius:7px;margin-bottom:6px;border-left:3px solid #378ADD">
-        <div>
-          <strong style="font-size:13px">${v.reg}</strong>
-          <span style="font-size:12px;color:#555;margin-left:6px">${v.name}</span>
-          <span style="font-size:11px;color:#888;margin-left:6px">${daysLeft} days left</span>
-        </div>
-        <button onclick="openMoveModal('${v.reg}','contractor')" style="font-size:11px;padding:3px 10px;background:#378ADD;color:#fff;border:none;border-radius:5px;cursor:pointer">Move out</button>
-      </div>`;
-    }).join('');
-    if(moveCandidates.length>4){
-      suggestHtml+=`<p style="font-size:11px;color:#aaa;text-align:center">${moveCandidates.length-4} more candidate(s) — view in Active tab</p>`;
-    }
-  } else if(hotelVehicles.length>0){
-    suggestHtml+=`<p style="font-size:12px;color:#aaa">All hotel vehicles return within 7 days — no moves suggested.</p>`;
-  } else {
-    suggestHtml+=`<p style="font-size:12px;color:#aaa">No hotel vehicles to assess.</p>`;
-  }
-
-  document.getElementById('dash-suggestions').innerHTML=suggestHtml;
-
-  let recent=vehicles.slice(0,8);
-  document.getElementById('dash-table').innerHTML=recent.length?`<table><thead><tr><th>Reg</th><th>Name</th><th>Location</th><th>Return</th><th>Est. cost</th></tr></thead><tbody>${recent.map(v=>`<tr><td><strong>${v.reg}</strong></td><td>${v.name}</td><td><span class="badge ${v.location}">${v.location==='hotel'?'Hotel':'Contractor'}</span></td><td>${fmtDT(v.return_date)}</td><td>£${estimateCost(v).total.toFixed(2)}</td></tr>`).join('')}</tbody></table>`:'<p style="color:#aaa;text-align:center;padding:1rem">No active vehicles</p>';
-
-  // ── Revenue to date: ACTIVE vehicles only, days accrued from check-in to today ──
-  // ── Revenue to date: package prices charged to customers ──
-  let pkgRevToDate=0, intCostToDate=0, profitToDate=0;
-  vehicles.forEach(v=>{
-    let e=estimateCost(v, td);
-    pkgRevToDate+=e.packagePrice; intCostToDate+=e.internalCost; profitToDate+=e.profit;
-  });
-
-  document.getElementById('dash-revenue').innerHTML=`
-    <div style="margin-bottom:8px">
-      <div style="font-size:24px;font-weight:700;color:#1E407C">£${pkgRevToDate.toFixed(2)}</div>
-      <div style="font-size:11px;color:#aaa;margin-bottom:8px">package revenue from ${vehicles.length} active vehicle(s)</div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
-      <div style="background:#FAEEDA;border-radius:6px;padding:7px 10px">
-        <div style="font-size:10px;color:#633806;margin-bottom:2px">Internal cost</div>
-        <div style="font-size:14px;font-weight:600;color:#633806">£${intCostToDate.toFixed(2)}</div>
-      </div>
-      <div style="background:${profitToDate>=0?'#EAF3DE':'#FCEBEB'};border-radius:6px;padding:7px 10px">
-        <div style="font-size:10px;color:${profitToDate>=0?'#27500A':'#791F1F'};margin-bottom:2px">Profit</div>
-        <div style="font-size:14px;font-weight:700;color:${profitToDate>=0?'#27500A':'#791F1F'}">£${profitToDate.toFixed(2)}</div>
-      </div>
-    </div>`;
-
-  // ── Revenue forecast: package prices for full stay ──
-  let forecastPkg=vehicles.reduce((s,v)=>s+estimateCost(v,v.return_date).packagePrice,0);
-  let forecastIntCost=vehicles.reduce((s,v)=>s+estimateCost(v,v.return_date).internalCost,0);
-  let forecastProfit=forecastPkg-forecastIntCost;
-
-  document.getElementById('dash-forecast').innerHTML=`
-    <div style="margin-bottom:8px">
-      <div style="font-size:24px;font-weight:700;color:#378ADD">£${forecastPkg.toFixed(2)}</div>
-      <div style="font-size:11px;color:#aaa;margin-bottom:8px">forecast package revenue — full stay</div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
-      <div style="background:#FAEEDA;border-radius:6px;padding:7px 10px">
-        <div style="font-size:10px;color:#633806;margin-bottom:2px">Forecast internal cost</div>
-        <div style="font-size:14px;font-weight:600;color:#633806">£${forecastIntCost.toFixed(2)}</div>
-      </div>
-      <div style="background:${forecastProfit>=0?'#EAF3DE':'#FCEBEB'};border-radius:6px;padding:7px 10px">
-        <div style="font-size:10px;color:${forecastProfit>=0?'#27500A':'#791F1F'};margin-bottom:2px">Forecast profit</div>
-        <div style="font-size:14px;font-weight:700;color:${forecastProfit>=0?'#27500A':'#791F1F'}">£${forecastProfit.toFixed(2)}</div>
-      </div>
-    </div>
-    <div style="margin-top:8px;font-size:11px;color:#aaa">Based on ${vehicles.length} active vehicle(s) returning on schedule</div>`;
+  return { hd, cd, contCost, total: contCost, contSegments };
 }
 
 function updateSpacePreview(){
   let override = document.getElementById('ci-location-override')?.value||'auto';
   let loc = override==='auto' ? allocateSpace() : override;
 
-  // Show/hide contractor selector
   let conRow = document.getElementById('ci-contractor-row');
   if(conRow) conRow.style.display = loc==='contractor' ? 'block' : 'none';
 
-  // Package info
-  let pkgSel = document.getElementById('ci-package');
-  let pkgId = pkgSel?.value;
-  let pkg = getPackageById(pkgId);
-  let ciDate = document.getElementById('ci-checkin')?.value;
-  let retDate = document.getElementById('ci-return')?.value;
-  let actualDays = (ciDate&&retDate) ? daysApart(ciDate,retDate) : (pkg&&pkg.days?pkg.days:0);
-  let pkgPrice = calcPackagePrice(pkg, actualDays);
-  let pkgLabel = pkg ? getPackageLabel(pkg) : '—';
-
-  // Contractor rate info
   let conId = document.getElementById('ci-contractor')?.value;
   let contractor = getContractorById(conId);
-  let contRate = calcContractorRate(contractor);
   let conRateEl = document.getElementById('ci-contractor-rate');
   if(conRateEl && contractor){
     let cc=vehicles.filter(v=>v.location==='contractor').length;
     let usingRate = cc<=(contractor.threshold||20) ? contractor.rate1 : contractor.rate2;
-    conRateEl.textContent = contractor.name+' — £'+usingRate+'/day ('+
-      cc+' vehicles currently offsite; threshold: '+contractor.threshold+')';
+    conRateEl.textContent = contractor.name+' — £'+usingRate+'/night ('+cc+' vehicles offsite; threshold: '+contractor.threshold+')';
   }
 
   let prev = document.getElementById('space-preview');
   if(!prev) return;
+  let{long}=hotelCounts();
   if(loc==='hotel'){
-    prev.innerHTML=`<div class="alert success">
-      <strong>${pkgLabel} — £${pkgPrice.toFixed(2)} charged to customer.</strong>
-      Hotel space available.
-    </div>`;
+    prev.innerHTML=`<div class="alert success">Hotel space available (${long}/${LONG_CAP()} occupied).</div>`;
   } else {
-    prev.innerHTML=`<div class="alert warn">
-      <strong>${pkgLabel} — £${pkgPrice.toFixed(2)} charged to customer.</strong>
-      Hotel full — select off-site contractor below (internal cost: £${contRate}/day).
-    </div>`;
+    let rate = contractor ? calcContractorRate(contractor) : '?';
+    prev.innerHTML=`<div class="alert warn">Hotel full — off-site contractor. Rate: £${rate}/night.</div>`;
   }
 }
 
 async function checkIn(){
-  let reg      = (document.getElementById('ci-reg')?.value||'').trim().toUpperCase();
-  let name     = (document.getElementById('ci-name')?.value||'').trim();
-  let phone    = (document.getElementById('ci-phone')?.value||'').trim();
-  let pkgId    = document.getElementById('ci-package')?.value||'';
+  let reg  = (document.getElementById('ci-reg')?.value||'').trim().toUpperCase();
+  let name = (document.getElementById('ci-name')?.value||'').trim();
+  let phone= (document.getElementById('ci-phone')?.value||'').trim();
   let checkinDate = document.getElementById('ci-checkin')?.value||nowLocal();
-  let ret      = document.getElementById('ci-return')?.value||'';
-  let room     = document.getElementById('ci-room')?.value.trim()||null;
+  let ret  = document.getElementById('ci-return')?.value||'';
+  let room = document.getElementById('ci-room')?.value.trim()||null;
   let override = document.getElementById('ci-location-override')?.value||'auto';
-
   let alertEl = document.getElementById('ci-alert');
+
   if(!reg||!name){alertEl.innerHTML='<div class="alert warn">Registration and name are required.</div>';return;}
-  if(!pkgId){alertEl.innerHTML='<div class="alert warn">Please select a customer package.</div>';return;}
-  if(!ret){alertEl.innerHTML='<div class="alert warn">Expected return date is required.</div>';return;}
+  if(!ret){alertEl.innerHTML='<div class="alert warn">Expected return date and time is required.</div>';return;}
   if(vehicles.find(v=>v.reg===reg)){alertEl.innerHTML='<div class="alert warn">'+reg+' is already checked in.</div>';return;}
 
-  // Package details
-  let pkg      = getPackageById(pkgId);
-  let pkgLabel = pkg ? getPackageLabel(pkg) : pkgId;
-  let actualDays = nightsApart(checkinDate, ret);
-  let pkgPrice = calcPackagePrice(pkg, actualDays);
-
-  // Location
   let loc = override==='auto' ? allocateSpace() : override;
-  let {long} = hotelCounts();
-  if(override==='hotel' && long>=LONG_CAP()){
+  let{long}=hotelCounts();
+  if(override==='hotel'&&long>=LONG_CAP()){
     alertEl.innerHTML='<div class="alert warn">Hotel is full ('+long+'/'+LONG_CAP()+'). Use contractor or auto.</div>';return;
   }
 
-  // Contractor (required if going off-site)
   let conId=null, conName=null, conRate=null;
   if(loc==='contractor'){
     conId = document.getElementById('ci-contractor')?.value||'';
@@ -1601,7 +1332,6 @@ async function checkIn(){
   try{
     await sbFetch('vehicles',{method:'POST',body:JSON.stringify({
       reg, name, phone:phone||null,
-      type: pkg?(pkg.is_daily?'daily':'package'):'package',
       location: loc,
       check_in_date: checkinDate,
       return_date: ret,
@@ -1609,15 +1339,12 @@ async function checkIn(){
       current_location_start: checkinDate,
       hotel_days: 0, contractor_days: 0,
       status: 'active',
-      package_id: pkgId,
-      package_type: pkgLabel,
-      package_price: pkgPrice,
       contractor_id: conId ? parseInt(conId) : null,
       contractor_name: conName||null,
       contractor_rate: conRate||null,
       move_log: JSON.stringify([{
         loc, date:checkinDate,
-        note:'Check-in — '+pkgLabel+' £'+pkgPrice.toFixed(2)+(conName?' → '+conName:''),
+        note:'Check-in'+(conName?' → '+conName:''),
         contractor_id: conId ? parseInt(conId) : null,
         contractor_name: conName||null,
         rate: conRate||null
@@ -1625,8 +1352,7 @@ async function checkIn(){
     })});
     await loadData(true);
     hideLoading();
-    alertEl.innerHTML='<div class="alert success">✓ <strong>'+reg+'</strong> checked in — '+(loc==='hotel'?'Hotel':'Off-site: '+conName)+' &nbsp;·&nbsp; '+pkgLabel+' &nbsp;·&nbsp; £'+pkgPrice.toFixed(2)+'</div>';
-    // Clear form
+    alertEl.innerHTML='<div class="alert success">✓ <strong>'+reg+'</strong> checked in — '+(loc==='hotel'?'Hotel':'Off-site: '+conName)+'</div>';
     ['ci-reg','ci-name','ci-phone','ci-checkin','ci-room','ci-return'].forEach(id=>{
       let el=document.getElementById(id); if(el) el.value='';
     });
@@ -1688,23 +1414,18 @@ function openMoveModal(reg,toLocation){
     let rateEl=document.getElementById('modal-contractor-rate');
     if(rateEl&&selCon) rateEl.textContent=selCon.name+' — rate: £'+mContRate+'/night ('+cc+' vehicles offsite)';
 
-    // Use estimateCost up to the move date for accurate segment breakdown
     let e=estimateCost(v, previewDate);
-    let pkgPrice=v.package_price!=null?+v.package_price:e.packagePrice;
     let nightsHere=nightsApart(v.current_location_start, md);
-
     let contBreakdown = e.contSegments.length
-      ? e.contSegments.map(s=>'<strong>'+s.name+':</strong> '+s.days+' nights × £'+(+s.rate).toFixed(2)+' = <strong>£'+(+s.cost).toFixed(2)+'</strong>').join('<br>')
-      : '';
+      ? e.contSegments.map(s=>'<strong>'+s.name+':</strong> '+s.nights+'n × £'+(+s.rate).toFixed(2)+' = <strong>£'+(+s.cost).toFixed(2)+'</strong>').join('<br>')
+      : '(no off-site cost yet)';
 
     document.getElementById('modal-cost-preview').innerHTML=
       '<div style="font-size:12px;line-height:2">'+
       '<strong>Nights at current location ('+fromLabel+'):</strong> '+nightsHere+' night(s) ('+fmtDT(v.current_location_start)+' → '+fmtDT(md)+')<br>'+
-      '<strong>Hotel cost so far:</strong> '+e.hd+' nights × £'+HOTEL_RATE()+' = <strong>£'+e.hotelCost.toFixed(2)+'</strong><br>'+
-      (contBreakdown?contBreakdown+'<br>':'')+
-      '<strong>Total internal cost so far:</strong> <strong>£'+e.internalCost.toFixed(2)+'</strong><br>'+
-      '<span style="color:#1E407C"><strong>Package price (customer pays):</strong> £'+pkgPrice.toFixed(2)+'</span><br>'+
-      '<span style="color:'+(e.profit>=0?'#27500A':'#791F1F')+'"><strong>Profit so far:</strong> £'+e.profit.toFixed(2)+'</span>'+
+      '<strong>Hotel nights so far:</strong> '+e.hd+'<br>'+
+      '<strong>Off-site cost so far:</strong> '+contBreakdown+'<br>'+
+      '<strong>Total contractor cost so far:</strong> <strong style="color:#633806">£'+e.contCost.toFixed(2)+'</strong>'+
       '</div>';
   };
 
@@ -1773,8 +1494,7 @@ function showDetail(reg){
   let v=vehicles.find(x=>x.reg===reg);if(!v)return;
   let td=today();
   let e=estimateCost(v,td);
-  let hd=e.hd, cd=e.cd;
-  let hotelCostD=e.hotelCost, contCostD=e.contCost, total=e.internalCost;
+  let hd=e.hd, cd=e.cd, contCost=e.contCost;
   let contSegs=e.contSegments||[];
   let log=[];try{log=JSON.parse(v.move_log||'[]');}catch(e2){log=[];}
   document.getElementById('detail-header').innerHTML=
@@ -1786,13 +1506,13 @@ function showDetail(reg){
   if(hd>0) costRowsHTML+=
     '<div style="background:#f5f5f3;border-radius:8px;padding:12px">'+
       '<div style="font-size:11px;color:#888;margin-bottom:2px">Hotel nights</div>'+
-      '<div style="font-weight:600">'+hd+' nights × £'+HOTEL_RATE()+' = £'+hotelCostD.toFixed(2)+'</div>'+
+      '<div style="font-weight:600">'+hd+' nights (no charge)</div>'+
     '</div>';
   contSegs.forEach(seg=>{
     costRowsHTML+=
       '<div style="background:#FAEEDA;border-radius:8px;padding:12px">'+
         '<div style="font-size:11px;color:#633806;margin-bottom:2px">'+seg.name+'</div>'+
-        '<div style="font-weight:600;color:#633806">'+seg.days+' nights × £'+(+seg.rate).toFixed(2)+' = £'+(+seg.cost).toFixed(2)+'</div>'+
+        '<div style="font-weight:600;color:#633806">'+seg.nights+' nights × £'+(+seg.rate).toFixed(2)+' = £'+(+seg.cost).toFixed(2)+'</div>'+
       '</div>';
   });
 
@@ -1802,9 +1522,9 @@ function showDetail(reg){
         '<div style="font-size:11px;color:#888;margin-bottom:4px">Current location</div>'+
         '<span class="badge '+v.location+'" style="font-size:13px">'+(v.location==='hotel'?'Hotel':(v.contractor_name||'Off-site'))+'</span>'+
       '</div>'+
-      '<div style="background:#f5f5f3;border-radius:8px;padding:12px">'+
-        '<div style="font-size:11px;color:#888;margin-bottom:4px">Internal cost to date</div>'+
-        '<div style="font-size:18px;font-weight:600;color:#1E407C">£'+total.toFixed(2)+'</div>'+
+      '<div style="background:#FAEEDA;border-radius:8px;padding:12px">'+
+        '<div style="font-size:11px;color:#633806;margin-bottom:4px">Contractor cost to date</div>'+
+        '<div style="font-size:18px;font-weight:600;color:#633806">£'+contCost.toFixed(2)+'</div>'+
       '</div>'+
       costRowsHTML+
     '</div>'+
@@ -1845,53 +1565,34 @@ function renderActive(){
   let ret=vehicles.filter(v=>v.location==='contractor'&&v.return_date<=td);
   document.getElementById('active-alerts').innerHTML=ret.length?`<div class="alert warn">${ret.length} vehicle(s) due back today — move from contractor to hotel: ${ret.map(v=>'<strong>'+v.reg+'</strong>').join(', ')}</div>`:'';
 
-  // Revenue strip for active tab
-  let stripRevToDate=0,stripRevHotel=0,stripRevCont=0,stripForecast=0;
-  list.forEach(v=>{
-    let e=estimateCost(v,td); stripRevToDate+=e.total; stripRevHotel+=e.hotelCost; stripRevCont+=e.contCost;
-    let f=estimateCost(v,v.return_date); stripForecast+=f.total;
-  });
+  // Active strip - contractor cost only
+  let stripContCost=list.reduce((s,v)=>s+estimateCost(v,today()).contCost,0);
+  let stripForecast=list.reduce((s,v)=>s+estimateCost(v,v.return_date).contCost,0);
+  let stripContN=list.reduce((s,v)=>s+estimateCost(v,today()).cd,0);
   let strip=document.getElementById('active-rev-strip');
-  let stripPkgTotal=list.reduce((s,v)=>s+estimateCost(v,today()).packagePrice,0);
-  let stripPkgForecast=list.reduce((s,v)=>s+estimateCost(v,v.return_date).packagePrice,0);
-  let stripIntCost=list.reduce((s,v)=>s+estimateCost(v,today()).internalCost,0);
-  let stripProfit=list.reduce((s,v)=>s+estimateCost(v,today()).profit,0);
   if(strip) strip.innerHTML=
-    `<div style="padding:8px 12px;border-right:1px solid #eee"><div style="font-size:10px;color:#888">Pkg revenue (to date)</div><div style="font-size:16px;font-weight:700;color:#1E407C">£${stripPkgTotal.toFixed(2)}</div></div>`+
-    `<div style="padding:8px 12px;border-right:1px solid #eee"><div style="font-size:10px;color:#888">Forecast pkg revenue</div><div style="font-size:16px;font-weight:700;color:#378ADD">£${stripPkgForecast.toFixed(2)}</div></div>`+
-    `<div style="padding:8px 12px;border-right:1px solid #eee"><div style="font-size:10px;color:#633806">Internal cost (to date)</div><div style="font-size:15px;font-weight:600;color:#633806">£${stripIntCost.toFixed(2)}</div></div>`+
-    `<div style="padding:8px 12px"><div style="font-size:10px;color:${stripProfit>=0?'#27500A':'#791F1F'}">Profit (to date)</div><div style="font-size:15px;font-weight:700;color:${stripProfit>=0?'#27500A':'#791F1F'}">£${stripProfit.toFixed(2)}</div></div>`;
+    `<div style="padding:8px 12px;border-right:1px solid #eee"><div style="font-size:10px;color:#888">Contractor cost to date</div><div style="font-size:16px;font-weight:700;color:#633806">£${stripContCost.toFixed(2)}</div></div>`+
+    `<div style="padding:8px 12px;border-right:1px solid #eee"><div style="font-size:10px;color:#888">Forecast contractor cost</div><div style="font-size:16px;font-weight:700;color:#EF9F27">£${stripForecast.toFixed(2)}</div></div>`+
+    `<div style="padding:8px 12px"><div style="font-size:10px;color:#888">Off-site nights (to date)</div><div style="font-size:15px;font-weight:600;color:#633806">${stripContN}</div></div>`;
 
-  if(!list.length){tbody.innerHTML='<tr><td colspan="11" style="text-align:center;padding:2rem;color:#aaa">No active vehicles</td></tr>';return;}
+  if(!list.length){tbody.innerHTML='<tr><td colspan="9" style="text-align:center;padding:2rem;color:#aaa">No active vehicles</td></tr>';return;}
   let{daily,long}=hotelCounts();
   tbody.innerHTML=list.map(v=>{
-    let days=Math.max(0,nightsApart(v.check_in_date,td));
+    let nights=Math.max(0,nightsApart(v.check_in_date,td));
     let eCurrent=estimateCost(v,td);
-    let eForecast=estimateCost(v,v.return_date);
     let isOverdue=v.location==='contractor'&&v.return_date<=td;
-    let canMoveToHotel=!(v.type==='daily'&&daily>=DAILY_CAP())&&!(v.type==='long'&&long>=LONG_CAP());
-    // Get package details from live packagesList
-    let _pkg=getPackageById(v.package_id)||packagesList.find(p=>p.name===v.package_type)||null;
-    let pkgLabel=_pkg?_pkg.name:(v.package_type||v.type||'–');
-    let pkgShort=pkgLabel.length>12?pkgLabel.slice(0,11)+'…':pkgLabel;
-    let pkgColor='#0C447C'; let pkgBg='#E6F1FB';
+    let canMoveToHotel=long<LONG_CAP();
     return`<tr style="${isOverdue?'background:#fffbf0':''}">
-      <td><strong>${v.reg}</strong>${v.ref_code?'<br><span style="font-size:10px;color:#0C447C;background:#E6F1FB;padding:1px 5px;border-radius:3px">'+v.ref_code+'</span>':''}</td><td style="overflow:hidden;text-overflow:ellipsis">${v.name}</td>
+      <td><strong>${v.reg}</strong>${v.ref_code?'<br><span style="font-size:10px;color:#0C447C;background:#E6F1FB;padding:1px 5px;border-radius:3px">'+v.ref_code+'</span>':''}</td>
+      <td style="overflow:hidden;text-overflow:ellipsis">${v.name}</td>
       <td>
         <span class="badge ${v.location}" style="display:block;margin-bottom:2px">${v.location==='hotel'?'Hotel':'Off-site'}</span>
-        ${v.location==='contractor'&&v.contractor_name
-          ?'<span style="font-size:10px;color:#633806;font-weight:500">'+v.contractor_name+'</span>'
-          :''}
-        ${v.location==='contractor'&&v.contractor_rate
-          ?'<span style="font-size:10px;color:#aaa;display:block">£'+v.contractor_rate+'/night</span>'
-          :''}
+        ${v.location==='contractor'&&v.contractor_name?'<span style="font-size:10px;color:#633806;font-weight:500">'+v.contractor_name+'</span>':''}
+        ${v.location==='contractor'&&v.contractor_rate?'<span style="font-size:10px;color:#aaa;display:block">£'+v.contractor_rate+'/night</span>':''}
       </td>
-      <td><span style="display:inline-block;padding:2px 7px;border-radius:20px;font-size:11px;font-weight:600;background:${pkgBg};color:${pkgColor}">${pkgShort}</span></td>
       <td>${fmtDT(v.check_in_date)}</td><td>${fmtDT(v.return_date)}</td>
-      <td>${days}</td>
-      <td style="font-weight:600;color:#1E407C">£${eCurrent.packagePrice.toFixed(2)}</td>
-      <td style="color:#633806;font-size:12px">£${eCurrent.internalCost.toFixed(2)}</td>
-      <td style="font-weight:600;color:${eCurrent.profit>=0?'#27500A':'#791F1F'}">£${eCurrent.profit.toFixed(2)}</td>
+      <td>${nights}</td>
+      <td style="color:#633806;font-weight:600">${eCurrent.cd>0?'£'+eCurrent.contCost.toFixed(2):'–'}</td>
       <td style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">
         ${v.location==='contractor'
           ?`<button class="btn warning" style="font-size:12px;padding:5px 11px" onclick="openMoveModal('${v.reg}','hotel')" ${!canMoveToHotel?'disabled title="Hotel full"':''}>Hotel${!canMoveToHotel?' (full)':''}</button>`
@@ -1915,68 +1616,43 @@ function searchCheckout(){
   if(!v){div.innerHTML='<div class="alert warn">No active vehicle found.</div>';return;}
   let coDate=document.getElementById('co-date').value||nowLocal();
   let e=estimateCost(v,coDate);
-  let hd=e.hd, cd=e.cd;
-  let hc=e.hotelCost;
-  let contc=e.contCost;
-  let internalCost=e.internalCost;
-  let packagePrice=e.packagePrice;
-  let profit=e.profit;
-  let total=packagePrice;
-  let totalDays=hd+cd;
+  let hd=e.hd, cd=e.cd, contCost=e.contCost;
+  let totalNights=hd+cd;
   let contSegs=e.contSegments||[];
-
-  // Build per-contractor rows for checkout table
-  let contRows = contSegs.map(seg=>
-    `<tr><td style="color:#888;padding:2px 0;font-size:12px">Internal — ${seg.name}</td><td style="text-align:right;padding:2px 0;font-size:12px;color:#555">${seg.days} nights × £${(+seg.rate).toFixed(2)} = £${(+seg.cost).toFixed(2)}</td></tr>`
+  let contRows=contSegs.map(seg=>
+    `<tr><td style="color:#888;padding:3px 0;font-size:12px">${seg.name}</td><td style="text-align:right;padding:3px 0;font-size:12px;color:#633806">${seg.nights} nights × £${(+seg.rate).toFixed(2)} = <strong>£${(+seg.cost).toFixed(2)}</strong></td></tr>`
   ).join('');
   div.innerHTML=`<div class="card" style="max-width:480px">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1rem">
-      <div><div style="font-size:18px;font-weight:600">${v.reg}</div><div style="color:#888;font-size:13px">${v.name} · ${v.phone||'no phone'}</div></div>
-      <span class="badge ${v.location}">${v.location==='hotel'?'Hotel':'Contractor'}</span>
+      <div><div style="font-size:18px;font-weight:600">${v.reg}</div><div style="color:#888;font-size:13px">${v.name}${v.phone?' · '+v.phone:''}${v.room_number?' · Room '+v.room_number:''}</div></div>
+      <span class="badge ${v.location}">${v.location==='hotel'?'Hotel':(v.contractor_name||'Off-site')}</span>
     </div>
-    <div style="background:#f9f9f7;border-radius:8px;padding:12px;margin-bottom:1rem;font-size:12px;color:#555;line-height:1.8">
-      <strong>Total parking nights: ${totalDays}</strong> &nbsp;(${hd} hotel + ${cd} contractor)
-    </div>
-    <div style="background:#f9f9f7;border-radius:8px;padding:10px 14px;margin-bottom:1rem;font-size:12px;color:#555;line-height:1.7">
-      <strong>${getPackageLabel(daysApart(v.check_in_date,coDate))}</strong>
-      &nbsp;·&nbsp; ${totalDays} nights total &nbsp;·&nbsp; ${hd} hotel + ${cd} contractor
-    </div>
-    <table style="margin-bottom:1rem">
+    <table style="margin-bottom:1rem;width:100%">
       <tr><td style="color:#888;padding:5px 0;font-size:13px">Check-in</td><td style="text-align:right;padding:5px 0;font-size:13px">${fmtDT(v.check_in_date)}</td></tr>
       <tr><td style="color:#888;padding:5px 0;font-size:13px">Check-out</td><td style="text-align:right;padding:5px 0;font-size:13px"><strong>${fmtDT(coDate)}</strong></td></tr>
-      <tr style="border-top:1px solid #eee;background:#E6F1FB"><td style="padding:8px;font-weight:700;color:#0C447C;font-size:14px">Package price (charged to customer)</td><td style="text-align:right;padding:8px;font-size:20px;font-weight:800;color:#1E407C">£${packagePrice.toFixed(2)}</td></tr>
-      <tr style="border-top:1px solid #eee"><td style="color:#888;padding:6px 0 2px;font-size:12px">Internal — hotel parking</td><td style="text-align:right;padding:6px 0 2px;font-size:12px;color:#555">${hd} nights × £${HOTEL_RATE()} = £${hc.toFixed(2)}</td></tr>
+      <tr><td style="color:#888;padding:5px 0;font-size:13px">Hotel nights</td><td style="text-align:right;padding:5px 0;font-size:13px">${hd}</td></tr>
+      <tr><td style="color:#888;padding:5px 0;font-size:13px">Off-site nights</td><td style="text-align:right;padding:5px 0;font-size:13px">${cd}</td></tr>
       ${contRows}
-      <tr><td style="color:#888;padding:2px 0 6px;font-size:12px">Total internal cost</td><td style="text-align:right;padding:2px 0 6px;font-size:12px;color:#555">£${internalCost.toFixed(2)}</td></tr>
-      <tr style="border-top:2px solid #eee;background:${profit>=0?'#EAF3DE':'#FCEBEB'}"><td style="padding:8px;font-weight:600;font-size:13px">Profit on this booking</td><td style="text-align:right;padding:8px;font-weight:700;font-size:16px;color:${profit>=0?'#27500A':'#791F1F'}">£${profit.toFixed(2)}</td></tr>
+      <tr style="border-top:2px solid #eee"><td style="padding:8px 0;font-weight:700;font-size:14px;color:#633806">Total contractor cost</td><td style="text-align:right;padding:8px 0;font-size:22px;font-weight:800;color:#633806">£${contCost.toFixed(2)}</td></tr>
     </table>
-    <button class="btn success" style="width:100%;justify-content:center;background:#1E407C;border-color:#1E407C" onclick="confirmCheckout('${v.reg}',${hd},${cd},${packagePrice},'${coDate}',${hc},${contc},${internalCost},${profit})">Confirm check-out &amp; collect £${packagePrice.toFixed(2)}</button>
+    <button class="btn success" style="width:100%;justify-content:center;background:#1E407C;border-color:#1E407C" onclick="confirmCheckout('${v.reg}',${hd},${cd},${contCost},'${coDate}')">Confirm check-out</button>
   </div>`;
 }
-async function confirmCheckout(reg,hd,cd,total,coDate,hotelCost,contCost,internalCost,profit){
-  let checkoutDate=coDate||today();
+
+async function confirmCheckout(reg,hd,cd,contCost,coDate){
+  let checkoutDate=coDate||nowLocal();
   showLoading('Processing...');
   await sbFetch('vehicles?reg=eq.'+reg,{method:'PATCH',body:JSON.stringify({
-    status:'checked-out',hotel_days:hd,contractor_days:cd,
+    status:'checked-out',
+    hotel_days:hd, contractor_days:cd,
     check_out_date:checkoutDate,
-    total_cost:total,          // package price = what customer paid
-    hotel_cost:hotelCost||+(hd*HOTEL_RATE()).toFixed(2),
-    contractor_cost:contCost||0,
-    internal_cost:internalCost||+(hd*HOTEL_RATE()).toFixed(2),
-    profit:profit||0
+    contractor_cost:contCost||0
   })});
-  await loadData(true);hideLoading();
+  await loadData(true);
+  hideLoading();
   document.getElementById('co-reg').value='';
   document.getElementById('co-date').value='';
-  document.getElementById('co-result').innerHTML=`<div class="alert success">Vehicle <strong>${reg}</strong> checked out on ${fmtDT(checkoutDate)} — £${total.toFixed(2)} collected. (Hotel: £${(hotelCost||0).toFixed(2)} + Contractor: £${(contCost||0).toFixed(2)})</div>`;
-  // Send receipt email if vehicle has email on record
-  if(emailCFG.onCheckout){
-    let v2=historyData.find(x=>x.reg===reg)||{reg,name:'Guest',check_in_date:'',check_out_date:checkoutDate};
-    if(v2&&v2.email){
-      sendEmail({to:v2.email,subject:emailCFG.hotelName+' — Parking Receipt for '+reg,html:emailCheckoutHTML(v2,hd,cd,total)})
-        .catch(e=>console.warn('Receipt email failed:',e));
-    }
-  }
+  document.getElementById('co-result').innerHTML=`<div class="alert success">Vehicle <strong>${reg}</strong> checked out ${fmtDT(checkoutDate)} — ${cd>0?'Contractor cost: £'+contCost.toFixed(2):'No off-site cost'}</div>`;
 }
 
 function clearHistoryFilters(){
@@ -1995,43 +1671,27 @@ function renderHistory(){
     (!fromF||h.check_in_date>=fromF)&&
     (!toF||h.check_in_date<=toF)
   );
-  let totalRev=filtered.reduce((s,h)=>s+(h.total_cost||0),0);
-  let totalHotelCost=filtered.reduce((s,h)=>s+(h.hotel_cost||+((h.hotel_days||0)*HOTEL_RATE())),0);
-  let totalContCost=filtered.reduce((s,h)=>s+(h.contractor_cost||0),0);
-  let totalHotelDays=filtered.reduce((s,h)=>s+(h.hotel_days||0),0);
-  let totalContDays=filtered.reduce((s,h)=>s+(h.contractor_days||0),0);
-
-  // Summary cards
-  document.getElementById('history-rev').innerHTML=
-    `<span style="color:#639922;font-weight:600">Total: £${totalRev.toFixed(2)} (${filtered.length} bookings)</span>`;
-
-  let summaryEl=document.getElementById('history-summary');
-  if(summaryEl){
-    summaryEl.innerHTML=`
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:1rem">
-        <div class="metric"><div class="lbl">Package revenue</div><div class="val" style="color:#1E407C">£${totalRev.toFixed(2)}</div><div class="sub">${historyData.length} bookings</div></div>
-        <div class="metric"><div class="lbl">Internal cost</div><div class="val">£${(totalHotelCost+totalContCost).toFixed(2)}</div><div class="sub">${totalHotelDays} hotel + ${totalContDays} cont. nights</div></div>
-        <div class="metric"><div class="lbl">Total profit</div><div class="val" style="color:${(totalRev-(totalHotelCost+totalContCost))>=0?'#27500A':'#791F1F'}">£${(totalRev-(totalHotelCost+totalContCost)).toFixed(2)}</div><div class="sub">revenue − internal cost</div></div>
-        <div class="metric"><div class="lbl">Avg. pkg per booking</div><div class="val">£${historyData.length?+(totalRev/historyData.length).toFixed(2):0}</div><div class="sub">per vehicle</div></div>
-      </div>`;
-  }
 
   let tbody=document.getElementById('history-tbody');
   if(!filtered.length){tbody.innerHTML='<tr><td colspan="9" style="text-align:center;padding:2rem;color:#aaa">No completed bookings yet</td></tr>';return;}
 
+  let totalHotelNights=0, totalContNights=0, totalContCost=0;
+
   tbody.innerHTML=filtered.map(r=>{
-    let hc=r.hotel_cost!=null?r.hotel_cost:+((r.hotel_days||0)*HOTEL_RATE()).toFixed(2);
-    let cc=r.contractor_cost!=null?r.contractor_cost:0;
+    let e=estimateCost(r, r.check_out_date||today());
+    totalHotelNights+=e.hd;
+    totalContNights+=e.cd;
+    totalContCost+=e.contCost;
+    let conNames=e.contSegments.length?e.contSegments.map(s=>s.name).join(', '):'–';
     return`<tr>
-      <td><strong>${r.reg}</strong>${r.ref_code?'<br><span style="font-size:10px;color:#0C447C">'+r.ref_code+'</span>':''}</td><td>${r.name}</td>
-      <td>${fmtDT(r.check_in_date)}</td><td>${fmtDT(r.check_out_date)}</td>
-      <td style="text-align:center">${r.hotel_days||0}</td>
-      <td style="color:#085041;font-weight:500">£${hc.toFixed(2)}</td>
-      <td style="text-align:center">${r.contractor_days||0}</td>
-      <td style="color:#633806;font-weight:500">${cc>0?'£'+cc.toFixed(2):'–'}</td>
-      <td style="font-weight:500;color:#555">£${((r.internal_cost!=null?+r.internal_cost:(hc+(r.contractor_cost||0)))).toFixed(2)}</td>
-      <td style="font-weight:700;color:#1E407C">£${(r.total_cost||0).toFixed(2)}</td>
-      <td style="font-weight:700;color:${(r.profit!=null?+r.profit:((r.total_cost||0)-(r.internal_cost||(hc+(r.contractor_cost||0)))))>=0?'#27500A':'#791F1F'}">£${(r.profit!=null?+r.profit:Math.max(0,(r.total_cost||0)-(r.internal_cost||(hc+(r.contractor_cost||0))))).toFixed(2)}</td>
+      <td><strong>${r.reg}</strong>${r.ref_code?'<br><span style="font-size:10px;color:#0C447C">'+r.ref_code+'</span>':''}</td>
+      <td>${r.name}</td>
+      <td>${fmtDT(r.check_in_date)}</td>
+      <td>${fmtDT(r.check_out_date)}</td>
+      <td style="text-align:center">${e.hd}</td>
+      <td style="text-align:center">${e.cd}</td>
+      <td style="color:#633806;font-weight:500">${e.contCost>0?'£'+e.contCost.toFixed(2):'–'}</td>
+      <td style="font-size:11px;color:#633806">${conNames}</td>
       <td style="display:flex;gap:4px;flex-wrap:wrap">
         <button class="btn" style="font-size:11px;padding:4px 8px" onclick="viewReceipt('${r.reg}','history')">View</button>
         <button class="btn" style="font-size:11px;padding:4px 8px" onclick="printReceipt('${r.reg}','history')">Print</button>
@@ -2041,11 +1701,10 @@ function renderHistory(){
   }).join('') +
   `<tr style="background:#f5f5f3;font-weight:600;border-top:2px solid #ddd">
     <td colspan="4" style="padding:10px">Totals (${filtered.length} bookings)</td>
-    <td style="text-align:center">${totalHotelDays}</td>
-    <td style="color:#085041">£${totalHotelCost.toFixed(2)}</td>
-    <td style="text-align:center">${totalContDays}</td>
+    <td style="text-align:center">${totalHotelNights}</td>
+    <td style="text-align:center">${totalContNights}</td>
     <td style="color:#633806">£${totalContCost.toFixed(2)}</td>
-    <td style="color:#639922;font-size:15px">£${totalRev.toFixed(2)}</td>
+    <td colspan="2"></td>
   </tr>`;
 }
 
@@ -2060,297 +1719,151 @@ function getReportData(){
   let locF=document.getElementById('rpt-loc').value;
   let td=today();
 
-  function matchFilters(v,dateField){
+  function matchFilters(v){
     return (!regF||v.reg.includes(regF))&&
            (!locF||v.location===locF)&&
-           (!fromF||(v[dateField]||'')>=fromF)&&
-           (!toF||(v[dateField]||'')<=toF);
-  }
-
-  // Helper: get all move_log segments for a vehicle
-  function getSegments(v){
-    let log=[];
-    try{log=JSON.parse(v.move_log||'[]');}catch(e){}
-    if(!log.length) return [{
-      loc:v.location, from:v.check_in_date,
-      to:v.check_out_date||v.return_date||td,
-      contractor_name:v.contractor_name||null,
-      rate:v.contractor_rate!=null?+v.contractor_rate:null
-    }];
-    let segs=[];
-    let endDate = v.check_out_date || td;
-    for(let i=0;i<log.length;i++){
-      let segStart=log[i].date;
-      let segEnd=(i+1<log.length)?log[i+1].date:endDate;
-      if(segStart>=endDate) break;
-      if(segEnd>endDate) segEnd=endDate;
-      segs.push({
-        loc:log[i].loc, from:segStart, to:segEnd,
-        contractor_name:log[i].contractor_name||null,
-        rate:log[i].rate!=null?+log[i].rate:null
-      });
-    }
-    return segs;
+           (!fromF||(v.check_in_date||'')>=fromF)&&
+           (!toF||(v.check_in_date||'')<=toF);
   }
 
   let rows=[];
 
-  if(type==='active'||type==='summary'){
-    vehicles.filter(v=>matchFilters(v,'check_in_date')).forEach(v=>{
+  if(type==='active'){
+    vehicles.filter(matchFilters).forEach(v=>{
       let e=estimateCost(v,td);
-      let f=estimateCost(v,v.return_date);
-      let _pkg=getPackageById(v.package_id)||null;
-      let pkgName=_pkg?_pkg.name:(v.package_type||v.type||'–');
-      // Build contractor detail string from contSegments
-      let conDetail=e.contSegments.length
-        ? e.contSegments.map(s=>s.name+': '+s.nights+'n @ £'+s.rate.toFixed(2)+' = £'+s.cost.toFixed(2)).join(' | ')
-        : '–';
-      rows.push({
-        reg:v.reg, name:v.name, phone:v.phone||'', type:pkgName,
-        status:'Active', location:v.location==='hotel'?'Hotel':'Off-site',
-        contractor:e.contSegments.length?e.contSegments.map(s=>s.name).join(', '):'–',
-        contDetail:conDetail,
-        contRate:v.contractor_rate!=null?'£'+v.contractor_rate+'/night':'–',
-        checkIn:v.check_in_date, checkOut:'', returnDate:v.return_date,
-        refCode:v.ref_code||'',
-        totalNights:nightsApart(v.check_in_date,td),
-        hotelNights:e.hd, contNights:e.cd,
-        hotelCost:e.hotelCost, contCost:e.contCost,
-        internalCost:e.internalCost,
-        packagePrice:e.packagePrice,
-        profit:e.profit,
-        totalCost:e.internalCost,
-        forecastPkg:f.packagePrice,
-        forecastInternal:f.internalCost,
-        forecastProfit:f.profit
-      });
+      let conNames=e.contSegments.map(s=>s.name).join(', ')||'–';
+      let conDetail=e.contSegments.map(s=>s.name+': '+s.nights+'n @ £'+s.rate.toFixed(2)+' = £'+s.cost.toFixed(2)).join(' | ')||'–';
+      rows.push({reg:v.reg,name:v.name,phone:v.phone||'',room:v.room_number||'',
+        status:'Active',location:v.location==='hotel'?'Hotel':'Off-site',
+        contractor:conNames,contDetail,
+        checkIn:v.check_in_date,returnDate:v.return_date,refCode:v.ref_code||'',
+        hotelNights:e.hd,contNights:e.cd,contCost:e.contCost});
     });
   }
 
-  if(type==='history'||type==='summary'){
-    historyData.filter(v=>matchFilters(v,'check_in_date')).forEach(v=>{
-      // Use estimateCost with checkout date for accurate segment-based history
-      let e=estimateCost(v, v.check_out_date||td);
-      let pkgP=v.package_price!=null?+v.package_price:(v.total_cost!=null?+v.total_cost:e.packagePrice);
-      let prof=v.profit!=null?+v.profit:+(pkgP-e.internalCost).toFixed(2);
-      let _pkg=getPackageById(v.package_id)||null;
-      let pkgName=_pkg?_pkg.name:(v.package_type||v.type||'–');
-      let conDetail=e.contSegments.length
-        ? e.contSegments.map(s=>s.name+': '+s.nights+'n @ £'+s.rate.toFixed(2)+' = £'+s.cost.toFixed(2)).join(' | ')
-        : '–';
-      rows.push({
-        reg:v.reg, name:v.name, phone:v.phone||'', type:pkgName,
-        status:'Completed',
-        location:e.hd>0&&e.cd>0?'Hotel+Off-site':(e.cd>0?'Off-site':'Hotel'),
-        contractor:e.contSegments.length?e.contSegments.map(s=>s.name).join(', '):'–',
-        contDetail:conDetail,
-        contRate:v.contractor_rate!=null?'£'+v.contractor_rate+'/night':'–',
-        checkIn:v.check_in_date, checkOut:v.check_out_date, returnDate:'',
-        refCode:v.ref_code||'',
-        totalNights:e.hd+e.cd,
-        hotelNights:e.hd, contNights:e.cd,
-        hotelCost:e.hotelCost, contCost:e.contCost,
-        internalCost:e.internalCost,
-        packagePrice:pkgP,
-        profit:prof,
-        totalCost:e.internalCost,
-        forecastPkg:pkgP,
-        forecastInternal:e.internalCost,
-        forecastProfit:prof
-      });
+  if(type==='history'){
+    historyData.filter(matchFilters).forEach(v=>{
+      let e=estimateCost(v,v.check_out_date||td);
+      let conNames=e.contSegments.map(s=>s.name).join(', ')||'–';
+      let conDetail=e.contSegments.map(s=>s.name+': '+s.nights+'n @ £'+s.rate.toFixed(2)+' = £'+s.cost.toFixed(2)).join(' | ')||'–';
+      rows.push({reg:v.reg,name:v.name,phone:v.phone||'',room:v.room_number||'',
+        status:'Completed',location:e.cd>0?'Off-site':'Hotel',
+        contractor:conNames,contDetail,
+        checkIn:v.check_in_date,checkOut:v.check_out_date,refCode:v.ref_code||'',
+        hotelNights:e.hd,contNights:e.cd,contCost:e.contCost});
     });
   }
 
-  if(type==='revenue'){
-    // Group by month — using SEGMENT dates so April contractor cost appears in April
-    // even if vehicle checked in March.
-    let byMonth={};
-    function ensureMonth(key){
-      if(!byMonth[key]) byMonth[key]={
-        month:key, bookings:new Set(), hotelNights:0, contNights:0,
-        hotelCost:0, contCost:0, internalCost:0, packageRevenue:0, profit:0,
-        contractors:new Set()
-      };
-      return byMonth[key];
-    }
+  if(type==='contractor'){
     [...vehicles,...historyData].forEach(v=>{
+      if(regF&&!v.reg.includes(regF)) return;
       let endDate=v.check_out_date||td;
-      let segs=getSegments(v);
-      // Package revenue: attribute to check-in month (it's a fixed price)
-      let pkgP=v.package_price!=null?+v.package_price:(v.total_cost!=null?+v.total_cost:0);
-      let checkinMonth=(v.check_in_date||'').slice(0,7);
-      if(checkinMonth){
-        if(!fromF||checkinMonth>=fromF.slice(0,7))
-        if(!toF||checkinMonth<=toF.slice(0,7)){
-          ensureMonth(checkinMonth).bookings.add(v.reg);
-          ensureMonth(checkinMonth).packageRevenue+=pkgP;
-        }
-      }
-      // Costs: attribute each segment's cost to the month(s) it spans
+      let log=[]; try{log=JSON.parse(v.move_log||'[]');}catch(e){}
+      let segs=log.length?log.map((entry,i)=>({
+        loc:entry.loc,from:entry.date,
+        to:(i+1<log.length?log[i+1].date:endDate),
+        contractor_name:entry.contractor_name||null,
+        rate:entry.rate!=null?+entry.rate:null
+      })).filter(s=>s.loc==='contractor'&&s.from<endDate)
+      :[{loc:v.location,from:v.check_in_date,to:endDate,contractor_name:v.contractor_name||null,rate:v.contractor_rate!=null?+v.contractor_rate:null}]
+        .filter(s=>s.loc==='contractor');
+      segs.forEach(seg=>{
+        if(fromF&&(seg.to||'')<=fromF) return;
+        if(toF&&(seg.from||'')>toF) return;
+        let nights=nightsApart(seg.from,seg.to);
+        if(nights<=0) return;
+        let rate=seg.rate;
+        if(rate==null){let con=getContractorById(v.contractor_id)||(Array.isArray(contractorsList)?contractorsList.find(c=>c.active):null);rate=con?calcContractorRate(con):0;}
+        rows.push({reg:v.reg,name:v.name,contractor:seg.contractor_name||'Off-site',
+          rate:'£'+rate.toFixed(2)+'/night',status:v.status==='active'?'Active':'Completed',
+          checkIn:v.check_in_date,segFrom:seg.from,segTo:seg.to,contNights:nights,contCost:+(nights*rate).toFixed(2)});
+      });
+    });
+  }
+
+  if(type==='monthly'){
+    let byMonth={};
+    function em(k){if(!byMonth[k])byMonth[k]={month:k,vehicles:new Set(),hotelNights:0,contNights:0,contCost:0,contractors:new Set()};return byMonth[k];}
+    [...vehicles,...historyData].forEach(v=>{
+      let log=[]; try{log=JSON.parse(v.move_log||'[]');}catch(e){}
+      let endDate=v.check_out_date||td;
+      let segs=log.length?log.map((entry,i)=>({loc:entry.loc,from:entry.date,to:(i+1<log.length?log[i+1].date:endDate),contractor_name:entry.contractor_name||null,rate:entry.rate!=null?+entry.rate:null}))
+        :[{loc:v.location,from:v.check_in_date,to:endDate,contractor_name:v.contractor_name||null,rate:v.contractor_rate!=null?+v.contractor_rate:null}];
       segs.forEach(seg=>{
         let nights=nightsApart(seg.from,seg.to);
         if(nights<=0) return;
-        // Segment may span multiple months — split by month
-        let cur=new Date(seg.from);
-        let endD=new Date(seg.to);
+        let cur=new Date(seg.from); let endD=new Date(seg.to);
         while(cur<endD){
-          let monthKey=cur.toISOString().slice(0,7);
-          // Check date filters
-          if(fromF&&monthKey<fromF.slice(0,7)){cur.setMonth(cur.getMonth()+1);cur.setDate(1);continue;}
-          if(toF&&monthKey>toF.slice(0,7)) break;
-          // Nights in this month for this segment
-          let monthEnd=new Date(cur.getFullYear(),cur.getMonth()+1,1);
-          if(monthEnd>endD) monthEnd=endD;
-          let mNights=nightsApart(cur.toISOString().slice(0,10),monthEnd.toISOString().slice(0,10));
-          if(mNights>0){
-            let m=ensureMonth(monthKey);
-            if(seg.loc==='hotel'){
-              m.hotelNights+=mNights;
-              m.hotelCost+=+(mNights*(CFG.HOTEL_RATE||3.5)).toFixed(2);
-            } else {
-              let rate=seg.rate;
-              if(rate==null){
-                let con=getContractorById(v.contractor_id)||(Array.isArray(contractorsList)?contractorsList.find(c=>c.active):null);
-                rate=con?calcContractorRate(con):(v.contractor_rate!=null?+v.contractor_rate:3.5);
-              }
-              m.contNights+=mNights;
-              m.contCost+=+(mNights*rate).toFixed(2);
-              if(seg.contractor_name) m.contractors.add(seg.contractor_name);
-            }
+          let mk=cur.toISOString().slice(0,7);
+          if(fromF&&mk<fromF.slice(0,7)){cur=new Date(cur.getFullYear(),cur.getMonth()+1,1);continue;}
+          if(toF&&mk>toF.slice(0,7)) break;
+          let me=new Date(cur.getFullYear(),cur.getMonth()+1,1); if(me>endD)me=endD;
+          let mn=nightsApart(cur.toISOString().slice(0,10),me.toISOString().slice(0,10));
+          if(mn>0){
+            let m=em(mk); m.vehicles.add(v.reg);
+            if(seg.loc==='hotel'){m.hotelNights+=mn;}
+            else{let rate=seg.rate;if(rate==null){let con=getContractorById(v.contractor_id)||(Array.isArray(contractorsList)?contractorsList.find(c=>c.active):null);rate=con?calcContractorRate(con):0;}m.contNights+=mn;m.contCost+=+(mn*rate).toFixed(2);if(seg.contractor_name)m.contractors.add(seg.contractor_name);}
           }
           cur=new Date(cur.getFullYear(),cur.getMonth()+1,1);
         }
       });
     });
-    // Finalise rows
-    return {type, rows:Object.values(byMonth)
-      .sort((a,b)=>a.month>b.month?1:-1)
-      .map(r=>({
-        month:r.month,
-        bookings:r.bookings instanceof Set?r.bookings.size:r.bookings,
-        hotelNights:r.hotelNights,
-        hotelCost:+(r.hotelCost).toFixed(2),
-        contNights:r.contNights,
-        contCost:+(r.contCost).toFixed(2),
-        internalCost:+(r.hotelCost+r.contCost).toFixed(2),
-        packageRevenue:+(r.packageRevenue).toFixed(2),
-        profit:+(r.packageRevenue-r.hotelCost-r.contCost).toFixed(2),
-        contractors:r.contractors instanceof Set?[...r.contractors].join(', ')||'–':'–'
-      }))
-    };
-  }
-
-  if(type==='contractor'){
-    // One row per vehicle per contractor segment — shows full breakdown
-    let cRows=[];
-    [...vehicles,...historyData].forEach(v=>{
-      // Filter by date range on check-in
-      if(fromF&&(v.check_in_date||'')<fromF) return;
-      if(toF&&(v.check_in_date||'')>toF) return;
-      if(regF&&!v.reg.includes(regF)) return;
-      let endDate=v.check_out_date||td;
-      let segs=getSegments(v);
-      segs.filter(s=>s.loc==='contractor').forEach(seg=>{
-        let nights=nightsApart(seg.from,seg.to);
-        if(nights<=0) return;
-        let rate=seg.rate;
-        if(rate==null){
-          let con=getContractorById(v.contractor_id)||(Array.isArray(contractorsList)?contractorsList.find(c=>c.active):null);
-          rate=con?calcContractorRate(con):(v.contractor_rate!=null?+v.contractor_rate:3.5);
-        }
-        let cost=+(nights*rate).toFixed(2);
-        cRows.push({
-          reg:v.reg, name:v.name,
-          contractor:seg.contractor_name||'Off-site contractor',
-          rate:'£'+rate.toFixed(2)+'/night',
-          status:v.status==='active'?'Active':'Completed',
-          checkIn:v.check_in_date,
-          segFrom:seg.from, segTo:seg.to,
-          contNights:nights, contCost:cost
-        });
-      });
-    });
-    return {type, rows:cRows};
+    return{type,rows:Object.values(byMonth).sort((a,b)=>a.month>b.month?1:-1).map(r=>({
+      month:r.month,vehicles:r.vehicles.size,hotelNights:r.hotelNights,
+      contNights:r.contNights,contCost:+(r.contCost).toFixed(2),
+      contractors:[...r.contractors].join(', ')||'–'
+    }))};
   }
 
   if(type==='tc'){
     let tcRows=[...pendingData.filter(p=>p.tc_accepted),...historyData.filter(h=>h.tc_accepted_at)].map(r=>({
-      ref:r.ref_code||'–', reg:r.reg||r.reg, name:r.name,
-      phone:r.phone||'–', email:r.email||'–',
+      ref:r.ref_code||'–',reg:r.reg,name:r.name,phone:r.phone||'–',email:r.email||'–',
       accepted_at:r.tc_accepted_at?new Date(r.tc_accepted_at).toLocaleString('en-GB'):'–',
-      check_in:r.check_in_date||r.checkIn||'–',
-      status:r.status||'–'
+      check_in:r.check_in_date||'–',status:r.status||'–'
     }));
     return{type,rows:tcRows};
   }
-  return {type, rows};
+  return{type,rows};
 }
 
 function getReportHeaders(type){
   if(type==='tc') return ['Ref','Reg','Name','Phone','Email','T&C accepted at','Check-in','Status'];
-  if(type==='revenue') return ['Month','Bookings','Hotel nights','Hotel cost','Cont. nights','Cont. cost','Internal cost','Pkg revenue','Profit','Contractors used'];
+  if(type==='monthly') return ['Month','Vehicles','Hotel nights','Cont. nights','Cont. cost','Contractors'];
   if(type==='contractor') return ['Reg','Customer','Contractor','Rate/night','Status','Check-in','Seg. from','Seg. to','Nights','Cost'];
-  return ['Ref','Reg','Customer','Phone','Package','Status','Location','Contractors','Check-in','Check-out','Return','Nights','Hotel nights','Hotel cost','Cont. nights','Cont. cost','Contractor detail','Internal cost','Pkg price','Profit'];
+  if(type==='active') return ['Ref','Reg','Customer','Phone','Room','Status','Location','Contractor','Check-in','Return','Hotel nights','Cont. nights','Cont. cost','Detail'];
+  return ['Ref','Reg','Customer','Phone','Room','Status','Location','Contractor','Check-in','Check-out','Hotel nights','Cont. nights','Cont. cost','Detail'];
 }
 
 function rowToArray(row,type){
   let fmt=v=>v!=null?'£'+(+v).toFixed(2):'£0.00';
   if(type==='tc') return [row.ref,row.reg,row.name,row.phone,row.email,row.accepted_at,row.check_in,row.status];
-  if(type==='revenue') return [row.month,row.bookings,row.hotelNights,fmt(row.hotelCost),row.contNights,fmt(row.contCost),fmt(row.internalCost),fmt(row.packageRevenue),fmt(row.profit),row.contractors||'–'];
+  if(type==='monthly') return [row.month,row.vehicles,row.hotelNights,row.contNights,fmt(row.contCost),row.contractors];
   if(type==='contractor') return [row.reg,row.name,row.contractor,row.rate,row.status,fmtDT(row.checkIn),fmtDT(row.segFrom),fmtDT(row.segTo),row.contNights,fmt(row.contCost)];
-  return [row.refCode||'',row.reg,row.name,row.phone,row.type,row.status,row.location,row.contractor||'–',fmtDT(row.checkIn),fmtDT(row.checkOut),fmtDT(row.returnDate),row.totalNights,row.hotelNights,fmt(row.hotelCost),row.contNights,fmt(row.contCost),row.contDetail||'–',fmt(row.internalCost),fmt(row.packagePrice),fmt(row.profit)];
+  if(type==='active') return [row.refCode,row.reg,row.name,row.phone,row.room,row.status,row.location,row.contractor,fmtDT(row.checkIn),fmtDT(row.returnDate),row.hotelNights,row.contNights,fmt(row.contCost),row.contDetail];
+  return [row.refCode,row.reg,row.name,row.phone,row.room,row.status,row.location,row.contractor,fmtDT(row.checkIn),fmtDT(row.checkOut),row.hotelNights,row.contNights,fmt(row.contCost),row.contDetail];
 }
 
 function previewReport(){
-  let {type,rows}=getReportData();
+  let{type,rows}=getReportData();
   let headers=getReportHeaders(type);
-  let thead=document.getElementById('rpt-thead');
-  let tbody=document.getElementById('rpt-tbody');
-  let tfoot=document.getElementById('rpt-tfoot');
-  thead.innerHTML=headers.map(h=>'<th style="padding:8px 10px;font-size:11px;font-weight:600;color:#666;border-bottom:1px solid #eee;background:#fafaf8;white-space:nowrap">'+h+'</th>').join('');
-  tbody.innerHTML=rows.map(r=>'<tr>'+rowToArray(r,type).map(c=>'<td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:12px;white-space:nowrap">'+c+'</td>').join('')+'</tr>').join('');
+  document.getElementById('rpt-thead').innerHTML=headers.map(h=>'<th style="padding:8px 10px;font-size:11px;font-weight:600;color:#666;border-bottom:1px solid #eee;background:#fafaf8;white-space:nowrap">'+h+'</th>').join('');
+  document.getElementById('rpt-tbody').innerHTML=rows.map(r=>'<tr>'+rowToArray(r,type).map(c=>'<td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:12px;white-space:nowrap">'+(c||'–')+'</td>').join('')+'</tr>').join('');
   document.getElementById('rpt-count').textContent=rows.length+' row(s)';
-
-  // Summary strip
-  let strip='';
-  if(type==='revenue'){
-    let totalHotel=rows.reduce((s,r)=>s+(r.hotelCost||0),0);
-    let totalCont=rows.reduce((s,r)=>s+(r.contCost||0),0);
-    let totalPkg=rows.reduce((s,r)=>s+(r.packageRevenue||0),0);
-    let totalProfit=rows.reduce((s,r)=>s+(r.profit||0),0);
-    strip=`<div class="metric"><div class="lbl">Months</div><div class="val">${rows.length}</div></div>`+
-          `<div class="metric"><div class="lbl">Hotel cost</div><div class="val" style="color:#085041">£${totalHotel.toFixed(2)}</div></div>`+
-          `<div class="metric"><div class="lbl">Contractor cost</div><div class="val" style="color:#633806">£${totalCont.toFixed(2)}</div></div>`+
-          `<div class="metric"><div class="lbl">Pkg revenue</div><div class="val" style="color:#1E407C">£${totalPkg.toFixed(2)}</div></div>`+
-          `<div class="metric"><div class="lbl">Profit</div><div class="val" style="color:${totalProfit>=0?'#27500A':'#791F1F'}">£${totalProfit.toFixed(2)}</div></div>`;
-  } else if(type==='contractor'){
-    let totalC=rows.reduce((s,r)=>s+(r.contCost||0),0);
-    let totalN=rows.reduce((s,r)=>s+(r.contNights||0),0);
-    strip=`<div class="metric"><div class="lbl">Segments</div><div class="val">${rows.length}</div></div>`+
-          `<div class="metric"><div class="lbl">Total nights</div><div class="val">${totalN}</div></div>`+
-          `<div class="metric"><div class="lbl">Contractor cost</div><div class="val" style="color:#633806">£${totalC.toFixed(2)}</div></div>`;
-  } else {
-    let totalH=rows.reduce((s,r)=>s+(r.hotelCost||0),0);
-    let totalC=rows.reduce((s,r)=>s+(r.contCost||0),0);
-    let totalIC=rows.reduce((s,r)=>s+(r.internalCost||0),0);
-    let totalPkg=rows.reduce((s,r)=>s+(r.packagePrice||0),0);
-    let totalProfit=rows.reduce((s,r)=>s+(r.profit||0),0);
-    strip=`<div class="metric"><div class="lbl">Records</div><div class="val">${rows.length}</div></div>`+
-          `<div class="metric"><div class="lbl">Hotel cost</div><div class="val" style="color:#085041">£${totalH.toFixed(2)}</div></div>`+
-          `<div class="metric"><div class="lbl">Contractor cost</div><div class="val" style="color:#633806">£${totalC.toFixed(2)}</div></div>`+
-          `<div class="metric"><div class="lbl">Internal cost</div><div class="val" style="color:#1E407C">£${totalIC.toFixed(2)}</div></div>`+
-          `<div class="metric"><div class="lbl">Pkg revenue</div><div class="val" style="color:#378ADD">£${totalPkg.toFixed(2)}</div></div>`+
-          `<div class="metric"><div class="lbl">Profit</div><div class="val" style="color:${totalProfit>=0?'#27500A':'#791F1F'}">£${totalProfit.toFixed(2)}</div></div>`;
-  }
+  let totalCont=rows.reduce((s,r)=>s+(r.contCost||0),0);
+  let totalContN=rows.reduce((s,r)=>s+(r.contNights||0),0);
+  let strip=`<div class="metric"><div class="lbl">Records</div><div class="val">${rows.length}</div></div>`+
+    (totalContN?`<div class="metric"><div class="lbl">Off-site nights</div><div class="val">${totalContN}</div></div>`:'');
+  if(totalCont>0) strip+=`<div class="metric"><div class="lbl">Contractor cost</div><div class="val" style="color:#633806">£${totalCont.toFixed(2)}</div></div>`;
   document.getElementById('rpt-summary-strip').innerHTML=strip;
-
-  // Totals footer
-  if(rows.length>0){
-    if(type==='revenue'){
-      let r={month:'TOTAL',bookings:rows.reduce((s,r)=>s+r.bookings,0),hotelDays:rows.reduce((s,r)=>s+r.hotelDays,0),hotelCost:rows.reduce((s,r)=>s+r.hotelCost,0),contDays:rows.reduce((s,r)=>s+r.contDays,0),contCost:rows.reduce((s,r)=>s+r.contCost,0),total:rows.reduce((s,r)=>s+r.total,0)};
-      tfoot.innerHTML='<tr style="font-weight:700;background:#f5f5f3">'+rowToArray(r,type).map(c=>'<td style="padding:8px 10px;font-size:12px;border-top:2px solid #ddd">'+c+'</td>').join('')+'</tr>';
-    } else tfoot.innerHTML='';
-  }
+  // Totals footer for monthly
+  let tfoot=document.getElementById('rpt-tfoot');
+  if(rows.length>0&&type==='monthly'){
+    let tot={month:'TOTAL',vehicles:'',hotelNights:rows.reduce((s,r)=>s+r.hotelNights,0),contNights:rows.reduce((s,r)=>s+r.contNights,0),contCost:rows.reduce((s,r)=>s+r.contCost,0),contractors:''};
+    tfoot.innerHTML='<tr style="font-weight:700;background:#f5f5f3">'+rowToArray(tot,type).map(c=>'<td style="padding:8px 10px;font-size:12px;border-top:2px solid #ddd">'+c+'</td>').join('')+'</tr>';
+  } else if(rows.length>0&&type==='contractor'){
+    let tot={reg:'TOTAL',name:'',contractor:'',rate:'',status:'',checkIn:'',segFrom:'',segTo:'',contNights:rows.reduce((s,r)=>s+r.contNights,0),contCost:rows.reduce((s,r)=>s+r.contCost,0)};
+    tfoot.innerHTML='<tr style="font-weight:700;background:#f5f5f3">'+rowToArray(tot,type).map(c=>'<td style="padding:8px 10px;font-size:12px;border-top:2px solid #ddd">'+c+'</td>').join('')+'</tr>';
+  } else tfoot.innerHTML='';
 }
 
 function exportExcel(){
@@ -2369,13 +1882,10 @@ function exportPDF(){
   let {type,rows}=getReportData();
   if(!rows.length){alert('No data to export.');return;}
   let headers=getReportHeaders(type);
-  let totalT=type!=='contractor'&&type!=='revenue'?rows.reduce((s,r)=>s+(r.totalCost||0),0):rows.reduce((s,r)=>s+(r.total||r.contCost||0),0);
-  let totalH=type!=='contractor'&&type!=='revenue'?rows.reduce((s,r)=>s+(r.hotelCost||0),0):0;
   let totalC=rows.reduce((s,r)=>s+(r.contCost||0),0);
-
   let thCells=headers.map(h=>`<th>${h}</th>`).join('');
-  let trRows=rows.map(r=>'<tr>'+rowToArray(r,type).map(c=>`<td>${c}</td>`).join('')+'</tr>').join('');
-  let html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Heathrow Parking Report</title>
+  let trRows=rows.map(r=>'<tr>'+rowToArray(r,type).map(c=>`<td>${c||'–'}</td>`).join('')+'</tr>').join('');
+  let html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Ariel Hotel Parking Report</title>
   <style>
     body{font-family:Arial,sans-serif;font-size:10px;padding:20px;color:#1a1a1a}
     h1{font-size:16px;margin-bottom:4px}
@@ -2388,18 +1898,15 @@ function exportPDF(){
     tr:nth-child(even) td{background:#fafafa}
     .footer{margin-top:20px;font-size:9px;color:#aaa;text-align:right}
   </style></head><body>
-  <h1>Heathrow Hotel Parking — Report</h1>
+  <h1>Best Western Ariel Hotel — Parking Report</h1>
   <div class="meta">Type: ${type} &nbsp;·&nbsp; Generated: ${new Date().toLocaleString()} &nbsp;·&nbsp; Records: ${rows.length}</div>
   <div class="summary">
-    <div class="s-item"><div class="l">Total records</div><div class="v">${rows.length}</div></div>
-    ${totalH>0?`<div class="s-item"><div class="l">Hotel revenue</div><div class="v" style="color:#085041">£${totalH.toFixed(2)}</div></div>`:''}
+    <div class="s-item"><div class="l">Records</div><div class="v">${rows.length}</div></div>
     ${totalC>0?`<div class="s-item"><div class="l">Contractor cost</div><div class="v" style="color:#633806">£${totalC.toFixed(2)}</div></div>`:''}
-    <div class="s-item"><div class="l">Total</div><div class="v" style="color:#639922">£${totalT.toFixed(2)}</div></div>
   </div>
   <table><thead><tr>${thCells}</tr></thead><tbody>${trRows}</tbody></table>
-  <div class="footer">Heathrow Hotel Parking System · ${today()}</div>
+  <div class="footer">Best Western Ariel Hotel Parking &nbsp;·&nbsp; ${today()}</div>
   </body></html>`;
-
   let w=window.open('','_blank');
   w.document.write(html);
   w.document.close();
@@ -2747,25 +2254,24 @@ function emailCheckinHTML(v,loc){
   </div></body></html>`;
 }
 
-function emailCheckoutHTML(v,hd,cd,total){
+function emailCheckoutHTML(v,hd,cd,contCost){
   let hotel=emailCFG.hotelName||'Best Western Ariel Hotel';
   return `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:20px;color:#1a1a1a">
   <div style="background:#1E407C;padding:16px 20px;border-radius:8px 8px 0 0;border-bottom:3px solid #C9A84C">
     <h1 style="color:#fff;margin:0;font-size:18px">${hotel}</h1>
-    <p style="color:rgba(255,255,255,.7);margin:4px 0 0;font-size:12px">Airport Parking — Checkout Receipt</p>
+    <p style="color:rgba(255,255,255,.7);margin:4px 0 0;font-size:12px">Airport Parking — Check-out Summary</p>
   </div>
   <div style="background:#f9f9f7;padding:20px;border-radius:0 0 8px 8px;border:1px solid #eee;border-top:none">
     <p>Dear ${v.name||'Guest'},</p>
-    <p>Thank you for parking with Best Western Ariel Hotel. Here is your receipt.</p>
+    <p>Thank you for parking with ${hotel}.</p>
     <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:13px">
       <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#888">Registration</td><td style="padding:8px;border-bottom:1px solid #eee;font-weight:700">${v.reg}</td></tr>
-      <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#888">Check-in</td><td style="padding:8px;border-bottom:1px solid #eee">${v.check_in_date||'–'}</td></tr>
-      <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#888">Check-out</td><td style="padding:8px;border-bottom:1px solid #eee">${v.check_out_date||'–'}</td></tr>
-      <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#888">Hotel days</td><td style="padding:8px;border-bottom:1px solid #eee">${hd} × £${HOTEL_RATE()} = £${(hd*HOTEL_RATE()).toFixed(2)}</td></tr>
-      ${cd>0?`<tr><td style="padding:8px;border-bottom:1px solid #eee;color:#888">Contractor days</td><td style="padding:8px;border-bottom:1px solid #eee">${cd} days = £${(total-(hd*HOTEL_RATE())).toFixed(2)}</td></tr>`:''}
-      <tr style="background:#eee"><td style="padding:10px 8px;font-weight:700">Total charged</td><td style="padding:10px 8px;font-weight:700;font-size:16px;color:#1E407C">£${parseFloat(total).toFixed(2)}</td></tr>
+      <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#888">Check-in</td><td style="padding:8px;border-bottom:1px solid #eee">${fmtDT(v.check_in_date)}</td></tr>
+      <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#888">Check-out</td><td style="padding:8px;border-bottom:1px solid #eee">${fmtDT(v.check_out_date)}</td></tr>
+      <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#888">Hotel nights</td><td style="padding:8px;border-bottom:1px solid #eee">${hd}</td></tr>
+      <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#888">Off-site nights</td><td style="padding:8px;border-bottom:1px solid #eee">${cd}</td></tr>
+      ${cd>0?`<tr style="background:#FAEEDA"><td style="padding:10px 8px;font-weight:700;color:#633806">Off-site contractor cost</td><td style="padding:10px 8px;font-weight:700;font-size:16px;color:#633806">£${parseFloat(contCost).toFixed(2)}</td></tr>`:''}
     </table>
-    <p style="font-size:12px;color:#888">Thank you for choosing Best Western Ariel Hotel.</p>
     <hr style="border:none;border-top:1px solid #eee;margin:16px 0">
     <p style="font-size:11px;color:#aaa">${hotel} &nbsp;·&nbsp; Airport Parking</p>
   </div></body></html>`;
@@ -2842,150 +2348,15 @@ function resetLoginAttempts(){ loginAttempts=0; loginLockedUntil=0; }
 // DYNAMIC PACKAGES & CONTRACTORS
 // ══════════════════════════════════════════════════════════
 
-async function loadPackages(){
-  try{
-    let rows=await sbFetch('packages?order=sort_order.asc,id.asc&select=*');
-    packagesList=Array.isArray(rows)?rows:[];
-  }catch(e){packagesList=[];console.warn('loadPackages (table may not exist yet):',e.message);}
-}
-
-async function loadContractors(){
-  try{
-    let rows=await sbFetch('contractors?order=id.asc&select=*');
-    contractorsList=Array.isArray(rows)?rows:[];
-  }catch(e){contractorsList=[];console.warn('loadContractors (table may not exist yet):',e.message);}
-}
-
-// Populate check-in dropdowns with live data
+// Populate check-in dropdowns with live contractor data
 function populateCheckinDropdowns(){
-  if(!Array.isArray(packagesList)) return;
-  // Package dropdown
-  let pSel=document.getElementById('ci-package');
-  if(pSel){
-    let active=getActivePackages();
-    pSel.innerHTML=active.length
-      ? active.map(p=>`<option value="${p.id}">${p.name}${p.is_daily?' (£'+p.daily_rate+'/day)':' — £'+p.price+(p.days?' for '+p.days+' days':'')}</option>`).join('')
-      : '<option value="">No packages defined — add in Settings</option>';
-  }
-  // Contractor dropdown
   let cSel=document.getElementById('ci-contractor');
   if(cSel){
     let active=getActiveContractors();
     cSel.innerHTML='<option value="">Select contractor...</option>'+
-      active.map(c=>`<option value="${c.id}">${c.name} (£${c.rate1}/day up to ${c.threshold}, then £${c.rate2}/day)</option>`).join('');
+      active.map(c=>`<option value="${c.id}">${c.name} (£${c.rate1}/night up to ${c.threshold}, then £${c.rate2}/night)</option>`).join('');
   }
   updateSpacePreview();
-}
-
-// ── Packages list in settings ──
-function renderPackagesList(){
-  let el=document.getElementById('pkg-list');
-  if(!el)return;
-  if(!Array.isArray(packagesList)||!packagesList.length){
-    el.innerHTML='<div style="background:#FAEEDA;border:1px solid #FAC775;border-radius:7px;padding:10px 14px;font-size:12px;color:#633806;margin-bottom:1rem">⚠ No packages found. If this is a fresh setup, run the SQL from the Setup screen first, then add packages below.</div>';
-    return;
-  }
-  el.innerHTML=`<div style="overflow-x:auto;border:1px solid #eee;border-radius:8px">
-    <table style="table-layout:auto;font-size:13px">
-      <thead><tr>
-        <th>Name</th><th>Type</th><th>Price</th><th>Nights</th><th>Description</th><th>Active</th><th>Actions</th>
-      </tr></thead>
-      <tbody>
-        ${packagesList.map(p=>`<tr id="pkg-row-${p.id}" style="opacity:${p.active?1:0.5}">
-          <td id="pkg-name-${p.id}"><strong>${p.name}</strong></td>
-          <td>${p.is_daily?'Per day':'Fixed package'}</td>
-          <td style="font-weight:600;color:#1E407C">${p.is_daily?'£'+(p.daily_rate||0)+'/day':'£'+(p.price||0)}</td>
-          <td>${p.days||'–'}</td>
-          <td style="color:#888;font-size:12px">${p.description||'–'}</td>
-          <td><span style="padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;background:${p.active?'#EAF3DE':'#f0f0ee'};color:${p.active?'#27500A':'#888'}">${p.active?'Active':'Inactive'}</span></td>
-          <td style="display:flex;gap:4px;flex-wrap:wrap">
-            <button class="btn" style="font-size:11px;padding:3px 8px" onclick="editPackageInline(${p.id})">Edit</button>
-            <button class="btn" style="font-size:11px;padding:3px 8px" onclick="togglePackage(${p.id},${!p.active})">${p.active?'Deactivate':'Activate'}</button>
-          </td>
-        </tr>
-        <tr id="pkg-edit-${p.id}" style="display:none;background:#f9fafc">
-          <td colspan="7" style="padding:10px">
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:8px">
-              <div><label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Name</label><input type="text" id="ep-name-${p.id}" value="${p.name}" style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px"></div>
-              <div><label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Fixed days</label><input type="number" id="ep-days-${p.id}" value="${p.days||''}" style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px"></div>
-              <div><label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Package price £</label><input type="number" id="ep-price-${p.id}" value="${p.price||0}" step="0.50" style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px"></div>
-              <div><label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Daily rate £/day</label><input type="number" id="ep-drate-${p.id}" value="${p.daily_rate||0}" step="0.50" style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px"></div>
-              <div><label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Description</label><input type="text" id="ep-desc-${p.id}" value="${p.description||''}" style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px"></div>
-              <div><label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Sort order</label><input type="number" id="ep-sort-${p.id}" value="${p.sort_order||0}" style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px"></div>
-            </div>
-            <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin-bottom:8px;cursor:pointer">
-              <input type="checkbox" id="ep-isdaily-${p.id}" ${p.is_daily?'checked':''}> Per-day rate
-            </label>
-            <div style="display:flex;gap:6px">
-              <button class="btn primary" style="font-size:12px;padding:5px 12px" onclick="savePackageEdit(${p.id})">Save</button>
-              <button class="btn" style="font-size:12px;padding:5px 12px" onclick="document.getElementById('pkg-edit-${p.id}').style.display='none'">Cancel</button>
-            </div>
-          </td>
-        </tr>`).join('')}
-      </tbody>
-    </table></div>`;
-}
-
-function editPackageInline(id){
-  let row=document.getElementById('pkg-edit-'+id);
-  if(row) row.style.display=row.style.display==='none'?'table-row':'none';
-}
-
-async function savePackageEdit(id){
-  let get=s=>document.getElementById(s+'_'+id)||document.getElementById(s+'-'+id);
-  let payload={
-    name:(get('ep-name')?.value||'').trim(),
-    days:parseInt(get('ep-days')?.value)||null,
-    price:parseFloat(get('ep-price')?.value)||0,
-    daily_rate:parseFloat(get('ep-drate')?.value)||0,
-    description:(get('ep-desc')?.value||'').trim(),
-    sort_order:parseInt(get('ep-sort')?.value)||0,
-    is_daily:get('ep-isdaily')?.checked||false
-  };
-  if(!payload.name){alert('Package name is required.');return;}
-  showLoading('Saving...');
-  try{
-    await sbFetch('packages?id=eq.'+id,{method:'PATCH',body:JSON.stringify(payload)});
-    await loadPackages();
-    renderPackagesList();
-    populateCheckinDropdowns();
-    document.getElementById('pkg-msg').innerHTML='<div class="alert success">Package updated.</div>';
-    setTimeout(()=>{let m=document.getElementById('pkg-msg');if(m)m.innerHTML='';},3000);
-  }catch(e){alert('Error: '+e.message);}
-  hideLoading();
-}
-
-async function togglePackage(id, active){
-  showLoading('Updating...');
-  try{
-    await sbFetch('packages?id=eq.'+id,{method:'PATCH',body:JSON.stringify({active})});
-    await loadPackages();
-    renderPackagesList();
-    populateCheckinDropdowns();
-  }catch(e){alert('Error: '+e.message);}
-  hideLoading();
-}
-
-async function addPackage(){
-  let name=document.getElementById('np-name')?.value.trim();
-  let days=parseInt(document.getElementById('np-days')?.value)||null;
-  let price=parseFloat(document.getElementById('np-price')?.value)||0;
-  let drate=parseFloat(document.getElementById('np-daily-rate')?.value)||0;
-  let desc=document.getElementById('np-desc')?.value.trim();
-  let sort=parseInt(document.getElementById('np-sort')?.value)||0;
-  let isDaily=document.getElementById('np-is-daily')?.checked||false;
-  if(!name){alert('Package name is required.');return;}
-  showLoading('Adding package...');
-  try{
-    await sbFetch('packages',{method:'POST',body:JSON.stringify({name,days,price,daily_rate:drate,description:desc||null,sort_order:sort,is_daily:isDaily,active:true})});
-    await loadPackages();
-    renderPackagesList();
-    populateCheckinDropdowns();
-    ['np-name','np-days','np-price','np-daily-rate','np-desc','np-sort'].forEach(id=>{let el=document.getElementById(id);if(el)el.value='';});
-    document.getElementById('pkg-msg').innerHTML='<div class="alert success">Package added.</div>';
-    setTimeout(()=>{let m=document.getElementById('pkg-msg');if(m)m.innerHTML='';},3000);
-  }catch(e){alert('Error: '+e.message);}
-  hideLoading();
 }
 
 // ── Contractors list in settings ──
@@ -3102,13 +2473,13 @@ function checkRepeatCustomer(){
   let prev=[...vehicles,...historyData].filter(v=>v.reg===reg);
   if(!prev.length){alertEl.style.display='none';return;}
   let last=prev.sort((a,b)=>(b.check_in_date||'')>(a.check_in_date||'')?1:-1)[0];
-  let totalSpend=prev.reduce((s,v)=>s+(v.total_cost||0),0);
+  
   // Store for prefill
   window._repeatLast=last;
   alertEl.style.display='block';
   alertEl.innerHTML='<div style="background:#E6F1FB;border:1px solid #B5D4F4;border-radius:7px;padding:8px 12px;font-size:12px;color:#0C447C">'+
     '&#8635; <strong>Repeat customer</strong> — '+prev.length+' previous booking(s). '+
-    'Last visit: '+fmtDT(last.check_in_date)+' &nbsp;·&nbsp; Total spent: <strong>£'+totalSpend.toFixed(2)+'</strong> '+
+    'Last visit: '+fmtDT(last.check_in_date)+' '+
     '<button onclick="prefillRepeat()" style="font-size:11px;padding:2px 8px;border:1px solid #378ADD;border-radius:4px;background:#fff;color:#185FA5;cursor:pointer;margin-left:6px">Pre-fill details</button>'+
     '</div>';
 }
@@ -3442,32 +2813,16 @@ function closeReceiptModal(){
 function buildReceiptHTML(v, mode){
   let td=today();
   let isActive = mode==='active';
-  let hd,cd,hc,contc,total,contRate,checkoutDateStr,packagePrice,profit,contSegs;
-  let cc = vehicles.filter(x=>x.location==='contractor').length;
+  let hd, cd, contCost, contSegs, checkoutDateStr;
 
-  if(isActive){
-    let e=estimateCost(v, td);
-    hd=e.hd; cd=e.cd; hc=e.hotelCost; contc=e.contCost; total=e.total;
-    packagePrice=e.packagePrice!=null?+e.packagePrice:0;
-    profit=e.profit!=null?+e.profit:0;
-    contSegs=e.contSegments||[];
-    contRate = (()=>{let c=Array.isArray(contractorsList)&&contractorsList.find(x=>x.active);return c?(cc<=(c.threshold||20)?+(c.rate1||4.5):+(c.rate2||3.5)):3.5;})();
-    checkoutDateStr = '– (still parked)';
-  } else {
-    let e=estimateCost(v, v.check_out_date||td);
-    hd=e.hd; cd=e.cd; hc=e.hotelCost; contc=e.contCost; total=e.total;
-    packagePrice=e.packagePrice!=null?+e.packagePrice:(v.total_cost!=null?+v.total_cost:0);
-    profit=v.profit!=null?+v.profit:e.profit!=null?+e.profit:0;
-    contSegs=e.contSegments||[];
-    contRate = (()=>{let c=Array.isArray(contractorsList)&&contractorsList.find(x=>x.active);return c?(cc<=(c.threshold||20)?+(c.rate1||4.5):+(c.rate2||3.5)):3.5;})();
-    checkoutDateStr = fmtDT(v.check_out_date);
-  }
+  let e = estimateCost(v, isActive ? td : (v.check_out_date||td));
+  hd=e.hd; cd=e.cd; contCost=e.contCost; contSegs=e.contSegments||[];
+  checkoutDateStr = isActive ? '– (still parked)' : fmtDT(v.check_out_date);
 
-  let totalDays=hd+cd;
+  let totalNights=hd+cd;
   let moveLog=[];
-  try{moveLog=JSON.parse(v.move_log||'[]');}catch(e){}
+  try{moveLog=JSON.parse(v.move_log||'[]');}catch(e2){}
 
-  // Build move log timeline
   let timelineHTML='';
   if(moveLog.length){
     timelineHTML=`
@@ -3477,7 +2832,7 @@ function buildReceiptHTML(v, mode){
         ${moveLog.map((m,i)=>`
           <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:${i<moveLog.length-1?'1px solid #f0f0f0':'none'}">
             <div style="width:8px;height:8px;border-radius:50%;background:${m.loc==='hotel'?'#1D9E75':'#EF9F27'};flex-shrink:0"></div>
-            <div style="font-size:12px;flex:1">${m.note||'–'}</div>
+            <div style="font-size:12px;flex:1">${m.note||'–'}${m.rate?` <span style="color:#888">(£${m.rate}/night)</span>`:''}</div>
             <div style="font-size:11px;color:#aaa;white-space:nowrap">${fmtDT(m.date)}</div>
           </div>`).join('')}
         </div>
@@ -3486,14 +2841,12 @@ function buildReceiptHTML(v, mode){
 
   return `
     <div id="printable-receipt">
-      <!-- Hotel header -->
       <div style="text-align:center;padding-bottom:1rem;border-bottom:2px solid #eee;margin-bottom:0.6rem">
-        <div style="font-size:20px;font-weight:700;margin-bottom:2px">Heathrow Hotel</div>
-        <div style="font-size:13px;color:#888">Airport Parking Receipt</div>
+        <div style="font-size:20px;font-weight:700;margin-bottom:2px">Best Western Ariel Hotel</div>
+        <div style="font-size:13px;color:#888">Airport Parking — Cost Summary</div>
         <div style="font-size:11px;color:#aaa;margin-top:4px">Printed: ${new Date().toLocaleString('en-GB')}</div>
       </div>
 
-      <!-- Vehicle & customer details -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:0.6rem">
         <div>
           <div style="font-size:11px;color:#888;margin-bottom:2px">Registration</div>
@@ -3502,12 +2855,11 @@ function buildReceiptHTML(v, mode){
         <div>
           <div style="font-size:11px;color:#888;margin-bottom:2px">Customer</div>
           <div style="font-size:15px;font-weight:600">${v.name}</div>
-          <div style="font-size:12px;color:#888">${v.phone||''}</div>
+          <div style="font-size:12px;color:#888">${v.phone||''}${v.room_number?' · Room '+v.room_number:''}</div>
         </div>
       </div>
 
-      <!-- Dates & type -->
-      <div style="background:#f9f9f7;border-radius:8px;padding:12px 14px;margin-bottom:0.6rem;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+      <div style="background:#f9f9f7;border-radius:8px;padding:12px 14px;margin-bottom:0.6rem;display:grid;grid-template-columns:1fr 1fr;gap:8px">
         <div>
           <div style="font-size:10px;color:#888;margin-bottom:2px">Check-in</div>
           <div style="font-size:13px;font-weight:600">${fmtDT(v.check_in_date)}</div>
@@ -3516,65 +2868,46 @@ function buildReceiptHTML(v, mode){
           <div style="font-size:10px;color:#888;margin-bottom:2px">Check-out</div>
           <div style="font-size:13px;font-weight:600">${checkoutDateStr}</div>
         </div>
-        <div>
-          <div style="font-size:10px;color:#888;margin-bottom:2px">Parking type</div>
-          <div style="font-size:13px;font-weight:600;text-transform:capitalize">${v.type||'–'}</div>
-        </div>
       </div>
 
-      <!-- Charge breakdown -->
-      <div style="font-size:12px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Charge breakdown (internal cost)</div>
+      <div style="font-size:12px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Off-site contractor cost</div>
       <table style="width:100%;border-collapse:collapse;margin-bottom:0.6rem;font-size:13px">
         <thead>
           <tr style="background:#f5f5f3">
-            <th style="padding:8px 10px;text-align:left;font-weight:600;border-bottom:1px solid #eee">Description</th>
+            <th style="padding:8px 10px;text-align:left;font-weight:600;border-bottom:1px solid #eee">Contractor</th>
             <th style="padding:8px 10px;text-align:center;font-weight:600;border-bottom:1px solid #eee">Nights</th>
             <th style="padding:8px 10px;text-align:right;font-weight:600;border-bottom:1px solid #eee">Rate</th>
-            <th style="padding:8px 10px;text-align:right;font-weight:600;border-bottom:1px solid #eee">Amount</th>
+            <th style="padding:8px 10px;text-align:right;font-weight:600;border-bottom:1px solid #eee">Cost</th>
           </tr>
         </thead>
         <tbody>
-          ${hd>0?`<tr>
-            <td style="padding:9px 10px;border-bottom:1px solid #f0f0f0">Hotel in-house parking</td>
-            <td style="padding:9px 10px;text-align:center;border-bottom:1px solid #f0f0f0">${hd}</td>
-            <td style="padding:9px 10px;text-align:right;border-bottom:1px solid #f0f0f0;color:#888">£${HOTEL_RATE()}/night</td>
-            <td style="padding:9px 10px;text-align:right;border-bottom:1px solid #f0f0f0;font-weight:500;color:#085041">£${hc.toFixed(2)}</td>
-          </tr>`:''}
-          ${(contSegs||[]).map(seg=>`<tr>
-            <td style="padding:9px 10px;border-bottom:1px solid #f0f0f0">${seg.name}</td>
-            <td style="padding:9px 10px;text-align:center;border-bottom:1px solid #f0f0f0">${seg.days}</td>
+          ${hd>0?`<tr><td style="padding:9px 10px;border-bottom:1px solid #f0f0f0;color:#888">Hotel (in-house)</td><td style="padding:9px 10px;text-align:center;border-bottom:1px solid #f0f0f0">${hd}</td><td style="padding:9px 10px;border-bottom:1px solid #f0f0f0;text-align:right;color:#aaa">–</td><td style="padding:9px 10px;text-align:right;border-bottom:1px solid #f0f0f0;color:#888">–</td></tr>`:''}
+          ${contSegs.map(seg=>`<tr>
+            <td style="padding:9px 10px;border-bottom:1px solid #f0f0f0;color:#633806;font-weight:500">${seg.name}</td>
+            <td style="padding:9px 10px;text-align:center;border-bottom:1px solid #f0f0f0">${seg.nights}</td>
             <td style="padding:9px 10px;text-align:right;border-bottom:1px solid #f0f0f0;color:#888">£${(+seg.rate).toFixed(2)}/night</td>
-            <td style="padding:9px 10px;text-align:right;border-bottom:1px solid #f0f0f0;font-weight:500;color:#633806">£${(+seg.cost).toFixed(2)}</td>
+            <td style="padding:9px 10px;text-align:right;border-bottom:1px solid #f0f0f0;font-weight:600;color:#633806">£${(+seg.cost).toFixed(2)}</td>
           </tr>`).join('')}
-          ${hd===0&&(contSegs||[]).length===0?`<tr><td colspan="4" style="padding:9px 10px;color:#aaa;text-align:center">No nights accrued yet</td></tr>`:''}
+          ${contSegs.length===0?`<tr><td colspan="4" style="padding:9px 10px;color:#aaa;text-align:center">No off-site cost${isActive?' accrued yet':''}</td></tr>`:''}
         </tbody>
         <tfoot>
-          <tr style="background:#f0f4ff">
-            <td colspan="3" style="padding:8px 10px;font-weight:600;color:#1E407C;font-size:13px">Total internal cost (${totalDays} nights)</td>
-            <td style="padding:8px 10px;text-align:right;font-weight:600;color:#1E407C">£${total.toFixed(2)}</td>
-          </tr>
-          <tr style="background:#1E407C">
-            <td colspan="3" style="padding:10px;font-weight:700;font-size:14px;color:#fff">Package price charged to customer</td>
-            <td style="padding:10px;text-align:right;font-size:22px;font-weight:800;color:#C9A84C">£${packagePrice.toFixed(2)}</td>
-          </tr>
-          <tr style="background:${profit>=0?'#EAF3DE':'#FCEBEB'}">
-            <td colspan="3" style="padding:8px 10px;font-weight:600;font-size:13px;color:${profit>=0?'#27500A':'#791F1F'}">Profit on this booking</td>
-            <td style="padding:8px 10px;text-align:right;font-weight:700;font-size:15px;color:${profit>=0?'#27500A':'#791F1F'}">£${profit.toFixed(2)}</td>
+          <tr style="background:#FAEEDA">
+            <td colspan="3" style="padding:8px 10px;font-weight:700;color:#633806;font-size:13px">Total off-site cost (${totalNights} nights total)</td>
+            <td style="padding:8px 10px;text-align:right;font-weight:700;font-size:16px;color:#633806">£${contCost.toFixed(2)}</td>
           </tr>
         </tfoot>
       </table>
 
       ${isActive?`<div style="background:#E6F1FB;border-radius:7px;padding:10px 14px;font-size:12px;color:#0C447C;margin-bottom:1rem">
-        This is an interim statement — charges continue to accrue until check-out.
+        Interim — charges continue to accrue until check-out.
       </div>`:''}
 
       ${timelineHTML}
 
-      <!-- Footer -->
       <div style="margin-top:1.5rem;padding-top:1rem;border-top:1px solid #eee;text-align:center;font-size:11px;color:#aaa">
-        Thank you for parking with Heathrow Hotel &nbsp;·&nbsp; Airport Parking
+        Best Western Ariel Hotel &nbsp;·&nbsp; Airport Parking &nbsp;·&nbsp; Bath Road, Hayes, UB3 5AJ
       </div>
-    </div>`;
+    </div>`
 }
 
 function viewReceipt(reg, mode){
@@ -3641,8 +2974,7 @@ function openDeleteModal(reg){
     reg+' — '+v.name+(v.phone?' ('+v.phone+')':'')+
     ' · checked in '+fmtDT(v.check_in_date)+' · currently at '+(v.location==='hotel'?'Hotel':'Contractor');
   document.getElementById('delete-modal-summary').innerHTML =
-    '<strong>Accrued so far:</strong> '+e.hd+' hotel days (£'+e.hotelCost.toFixed(2)+') + '+
-    e.cd+' contractor days (£'+e.contCost.toFixed(2)+') = <strong>£'+e.total.toFixed(2)+'</strong>';
+    '<strong>Contractor cost accrued:</strong> '+e.cd+' off-site nights = <strong>£'+e.contCost.toFixed(2)+'</strong>';
   document.getElementById('delete-reason-type').value = '';
   document.getElementById('delete-reason-text').value = '';
   document.getElementById('delete-reason-text').style.display = 'none';
@@ -3680,15 +3012,12 @@ async function confirmDelete(){
     reg:          v.reg,
     name:         v.name,
     phone:        v.phone||'',
-    type:         v.type,
     location:     v.location,
     check_in_date:v.check_in_date,
     return_date:  v.return_date,
-    hotel_days:   e.hd,
-    contractor_days: e.cd,
-    hotel_cost:   e.hotelCost,
+    hotel_nights: e.hd,
+    contractor_nights: e.cd,
     contractor_cost: e.contCost,
-    accrued_total: e.total,
     move_log:     v.move_log||''
   };
 
@@ -3709,12 +3038,10 @@ async function confirmDelete(){
     // 2. Mark vehicle as deleted (soft delete — keeps record in DB)
     await sbFetch('vehicles?reg=eq.'+encodeURIComponent(reg), {method:'PATCH',
       body: JSON.stringify({
-        status:         'deleted',
-        check_out_date: td,
-        total_cost:     e.total,
-        hotel_cost:     e.hotelCost,
+        status:          'deleted',
+        check_out_date:  td,
         contractor_cost: e.contCost,
-        move_log:       JSON.stringify(
+        move_log:        JSON.stringify(
           [...(JSON.parse(v.move_log||'[]')),
            {loc:v.location, date:td, note:'DELETED — '+fullReason+' by '+staffName}]
         )
@@ -3905,11 +3232,17 @@ function applyRoleUI(){
 // SETTINGS ENGINE
 // ════════════════════════════════════════════
 let CFG={
-  HOTEL_RATE:3.5, DAILY_CAP:40, LONG_CAP:60, TOTAL_SPACES:100
+  DAILY_CAP:40, LONG_CAP:60, TOTAL_SPACES:100
 };
 // Dynamic data loaded from Supabase
 let contractorsList = [];  // [{id,name,rate1,rate2,threshold,active}]
-let packagesList    = [];  // [{id,name,days,price,is_daily,daily_rate,active,sort_order}]
+
+async function loadContractors(){
+  try{
+    let rows=await sbFetch('contractors?order=id.asc&select=*');
+    contractorsList=Array.isArray(rows)?rows:[];
+  }catch(e){contractorsList=[];console.warn('loadContractors:',e.message);}
+}
 
 async function loadSettings(){
   try{
@@ -3917,15 +3250,12 @@ async function loadSettings(){
     if(rows&&rows.length){
       rows.forEach(r=>{
         let v=parseFloat(r.value);
-        if(r.key==='hotel_rate')CFG.HOTEL_RATE=v;
         if(r.key==='daily_cap')CFG.DAILY_CAP=v;
         if(r.key==='long_cap')CFG.LONG_CAP=v;
         if(r.key==='total_spaces')CFG.TOTAL_SPACES=v;
       });
     }
-    // Populate settings inputs
     let s=id=>document.getElementById(id);
-    if(s('s-hotel-rate'))s('s-hotel-rate').value=CFG.HOTEL_RATE||3.5;
     if(s('s-total-spaces'))s('s-total-spaces').value=CFG.TOTAL_SPACES||100;
     if(s('s-daily-cap'))s('s-daily-cap').value=CFG.DAILY_CAP||40;
     if(s('s-long-cap'))s('s-long-cap').value=CFG.LONG_CAP||60;
@@ -3941,7 +3271,6 @@ async function saveSettings(){
     return;
   }
   let updates=[
-    {key:'hotel_rate',value:''+get('s-hotel-rate')},
     {key:'daily_cap',value:''+daily},
     {key:'long_cap',value:''+lng},
     {key:'total_spaces',value:''+total},
@@ -3952,7 +3281,7 @@ async function saveSettings(){
       await sbFetch('app_settings?key=eq.'+u.key,{method:'PATCH',body:JSON.stringify({value:u.value})});
     }
     await loadSettings();
-    document.getElementById('settings-save-msg').innerHTML='<div class="alert success">Settings saved successfully.</div>';
+    document.getElementById('settings-save-msg').innerHTML='<div class="alert success">Settings saved.</div>';
     setTimeout(()=>document.getElementById('settings-save-msg').innerHTML='',3000);
   }catch(e){
     document.getElementById('settings-save-msg').innerHTML='<div class="alert warn">Error saving: '+e.message+'</div>';
@@ -3961,14 +3290,13 @@ async function saveSettings(){
 }
 
 function switchSettingsTab(tab,el){
-  ['pricing','packages','contractors','users','security'].forEach(t=>{
+  ['pricing','contractors','users','security'].forEach(t=>{
     let el2=document.getElementById('stab-'+t);
     if(el2)el2.style.display=tab===t?'block':'none';
   });
   document.querySelectorAll('[id^="stab-"][id$="-btn"]').forEach(b=>b.classList.remove('active'));
   if(el)el.classList.add('active');
   if(tab==='pricing')loadSettings();
-  if(tab==='packages')renderPackagesList();
   if(tab==='contractors')renderContractorsList();
   if(tab==='users')loadUsers();
   if(tab==='security')loadSecuritySettings();
@@ -4051,7 +3379,7 @@ function launchApp(){
   document.getElementById('app').style.display='block';
   applyRoleUI();
   // Load settings, packages and contractors in parallel then load vehicle data
-  Promise.all([loadSettings(), loadPackages(), loadContractors()])
+  Promise.all([loadSettings(), loadContractors()])
     .then(()=>{ loadData(false); populateCheckinDropdowns(); });
   setInterval(()=>loadData(true),20000);
   let saved=localStorage.getItem('heathrow_email_cfg');
