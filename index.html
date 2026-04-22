@@ -479,12 +479,15 @@ on conflict do nothing;
 
     <div id="tab-active" class="section">
       <div id="active-alerts"></div>
-      <div id="detail-panel" style="display:none;background:#fff;border:1px solid #e0e0e0;border-radius:10px;padding:0.75rem 1rem;margin-bottom:1rem">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1rem">
-          <div id="detail-header"></div>
-          <button class="btn" style="font-size:12px;padding:5px 10px" onclick="document.getElementById('detail-panel').style.display='none'">Close</button>
+      <div id="detail-panel" style="display:none;background:#fff;border:2px solid #1E407C;border-radius:10px;overflow:hidden;margin-bottom:1rem">
+        <div style="background:#1E407C;padding:10px 16px;display:flex;justify-content:space-between;align-items:center">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="color:#C9A84C;font-size:14px">✏</span>
+            <div id="detail-header" style="color:#fff"></div>
+          </div>
+          <button class="btn" style="font-size:12px;padding:4px 12px;background:rgba(255,255,255,0.15);border-color:rgba(255,255,255,0.3);color:#fff" onclick="document.getElementById('detail-panel').style.display='none'">✕ Close</button>
         </div>
-        <div id="detail-body"></div>
+        <div id="detail-body" style="padding:1rem"></div>
       </div>
 
       <div class="card" style="padding:0;overflow:hidden">
@@ -510,7 +513,7 @@ on conflict do nothing;
               <th style="width:80px">Check-in</th><th style="width:80px">Return</th>
               <th style="width:50px">Nights</th>
               <th style="width:90px">Cont. cost</th>
-              <th style="width:180px">Move</th><th style="width:65px">Detail</th>
+              <th style="width:180px">Move</th><th style="width:80px">Actions</th>
             </tr></thead>
             <tbody id="active-tbody"><tr><td colspan="9" style="text-align:center;padding:2rem;color:#aaa">Loading...</td></tr></tbody>
           </table>
@@ -1504,8 +1507,8 @@ function showDetail(reg){
   let log=[];try{log=JSON.parse(v.move_log||'[]');}catch(e2){log=[];}
 
   document.getElementById('detail-header').innerHTML=
-    '<div style="font-size:18px;font-weight:600">'+v.reg+'</div>'+
-    '<div style="font-size:13px;color:#888;margin-top:2px">'+v.name+
+    '<div style="font-size:16px;font-weight:700">'+v.reg+'</div>'+
+    '<div style="font-size:12px;opacity:0.8;margin-top:1px">'+v.name+
     (v.phone?' &nbsp;·&nbsp; '+v.phone:'')+
     (v.room_number?' &nbsp;·&nbsp; Room '+v.room_number:'')+
     '</div>';
@@ -1723,7 +1726,7 @@ function renderActive(){
           :`<button class="btn" style="font-size:12px;padding:5px 11px;color:#633806;border-color:#FAC775;background:#FAEEDA" onclick="openMoveModal('${v.reg}','contractor')">Contractor</button>`}
       </td>
       <td style="display:flex;gap:4px;flex-wrap:wrap">
-        <button class="btn" style="font-size:11px;padding:4px 8px" onclick="showDetail('${v.reg}')">Log</button>
+        <button class="btn" style="font-size:11px;padding:4px 10px;color:#1E407C;border-color:#1E407C;font-weight:600" onclick="showDetail('${v.reg}')">✏ Edit</button>
         <button class="btn" style="font-size:11px;padding:4px 8px" onclick="printReceipt('${v.reg}','active')">Print</button>
         <button class="btn" style="font-size:11px;padding:4px 8px;color:#185FA5;border-color:#B5D4F4" onclick="openPhotos('${v.reg}')">Photos</button>
         ${can('manager')?`<button class="btn" style="font-size:11px;padding:4px 8px;color:#E24B4A;border-color:#F7C1C1" onclick="openDeleteModal('${v.reg}')">Delete</button>`:''}
