@@ -999,7 +999,12 @@ function today(){return new Date().toISOString().split('T')[0];}
 function todayDT(){return new Date().toISOString();} // full ISO datetime for comparisons with datetime fields
 function nowLocal(){let d=new Date();d.setSeconds(0,0);return d.toISOString().slice(0,16);}
 function addDays(d,n){let x=new Date(d);x.setDate(x.getDate()+n);return x.toISOString().split('T')[0];}
-function nightsApart(a,b){if(!a||!b)return 0;return Math.max(0,Math.round((new Date(b)-new Date(a))/86400000));}
+function nightsApart(a,b){
+  if(!a||!b) return 0;
+  const da=new Date(a), db=new Date(b);
+  if(isNaN(da)||isNaN(db)) return 0;
+  return Math.max(0, Math.floor((db-da)/86400000));
+}
 function daysApart(a,b){return nightsApart(a,b);}
 function fmtD(d){if(!d)return'–';let x=new Date(d);if(isNaN(x))return d;return x.toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit',year:'2-digit'});}
 function fmtDT(d){if(!d)return'–';let x=new Date(d);if(isNaN(x))return d;return x.toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit',year:'2-digit'})+' '+x.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});}
@@ -1220,7 +1225,7 @@ function updateDash(){
 }
 
 function estimateCost(v, asOfDate){
-  let td = asOfDate || today();
+  let td = asOfDate || todayDT();
 
   let log = [];
   try{ log = JSON.parse(v.move_log||'[]'); }catch(e){ log=[]; }
@@ -1492,53 +1497,172 @@ async function confirmMove(reg,toLocation){
 
 function showDetail(reg){
   let v=vehicles.find(x=>x.reg===reg);if(!v)return;
-  let td=today();
+  let td=todayDT();
   let e=estimateCost(v,td);
   let hd=e.hd, cd=e.cd, contCost=e.contCost;
   let contSegs=e.contSegments||[];
   let log=[];try{log=JSON.parse(v.move_log||'[]');}catch(e2){log=[];}
+
   document.getElementById('detail-header').innerHTML=
     '<div style="font-size:18px;font-weight:600">'+v.reg+'</div>'+
-    '<div style="font-size:13px;color:#888;margin-top:2px">'+v.name+' &nbsp;·&nbsp; '+
-    (v.phone||'no phone')+'</div>';
+    '<div style="font-size:13px;color:#888;margin-top:2px">'+v.name+
+    (v.phone?' &nbsp;·&nbsp; '+v.phone:'')+
+    (v.room_number?' &nbsp;·&nbsp; Room '+v.room_number:'')+
+    '</div>';
 
-  let costRowsHTML = '';
+  // Cost breakdown tiles
+  let costRowsHTML='';
   if(hd>0) costRowsHTML+=
-    '<div style="background:#f5f5f3;border-radius:8px;padding:12px">'+
-      '<div style="font-size:11px;color:#888;margin-bottom:2px">Hotel nights</div>'+
-      '<div style="font-weight:600">'+hd+' nights (no charge)</div>'+
+    '<div style="background:#f5f5f3;border-radius:8px;padding:10px 12px">'+
+      '<div style="font-size:10px;color:#888;margin-bottom:2px">Hotel nights</div>'+
+      '<div style="font-weight:600">'+hd+'</div>'+
     '</div>';
   contSegs.forEach(seg=>{
     costRowsHTML+=
-      '<div style="background:#FAEEDA;border-radius:8px;padding:12px">'+
-        '<div style="font-size:11px;color:#633806;margin-bottom:2px">'+seg.name+'</div>'+
-        '<div style="font-weight:600;color:#633806">'+seg.nights+' nights × £'+(+seg.rate).toFixed(2)+' = £'+(+seg.cost).toFixed(2)+'</div>'+
+      '<div style="background:#FAEEDA;border-radius:8px;padding:10px 12px">'+
+        '<div style="font-size:10px;color:#633806;margin-bottom:2px">'+seg.name+'</div>'+
+        '<div style="font-weight:600;color:#633806">'+seg.nights+'n × £'+(+seg.rate).toFixed(2)+' = £'+(+seg.cost).toFixed(2)+'</div>'+
       '</div>';
   });
+  if(hd===0&&contSegs.length===0) costRowsHTML+=
+    '<div style="background:#f5f5f3;border-radius:8px;padding:10px 12px;color:#aaa;font-size:12px">No cost accrued yet</div>';
 
-  document.getElementById('detail-body').innerHTML=
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;margin-bottom:0.6rem">'+
-      '<div style="background:#f5f5f3;border-radius:8px;padding:12px">'+
-        '<div style="font-size:11px;color:#888;margin-bottom:4px">Current location</div>'+
-        '<span class="badge '+v.location+'" style="font-size:13px">'+(v.location==='hotel'?'Hotel':(v.contractor_name||'Off-site'))+'</span>'+
-      '</div>'+
-      '<div style="background:#FAEEDA;border-radius:8px;padding:12px">'+
-        '<div style="font-size:11px;color:#633806;margin-bottom:4px">Contractor cost to date</div>'+
-        '<div style="font-size:18px;font-weight:600;color:#633806">£'+contCost.toFixed(2)+'</div>'+
-      '</div>'+
-      costRowsHTML+
-    '</div>'+
-    '<div style="font-size:13px;font-weight:600;margin-bottom:8px">Movement history</div>'+
-    '<div style="border:1px solid #eee;border-radius:8px;overflow:hidden">'+
-    (log.length?log.map((m,i)=>'<div style="padding:9px 12px;border-bottom:'+(i<log.length-1?'1px solid #f0f0f0':'none')+';display:flex;gap:10px;align-items:center">'+
-      '<span class="badge '+(m.loc||'hotel')+'" style="flex-shrink:0">'+(m.loc==='hotel'?'Hotel':(m.contractor_name||'Off-site'))+'</span>'+
-      '<span style="font-size:12px;color:#555;flex:1">'+m.note+'</span>'+
-      (m.rate?'<span style="font-size:11px;color:#633806;white-space:nowrap">£'+m.rate+'/night</span>':'')+
-      '<span style="font-size:11px;color:#aaa;white-space:nowrap;margin-left:6px">'+fmtDT(m.date)+'</span>'+
-    '</div>').join(''):'<div style="padding:12px;color:#aaa;font-size:13px">No movement log yet</div>')+
-    '</div>';
+  // Contractor options for edit form
+  let conOptions='<option value="">Hotel (no contractor)</option>'+
+    (Array.isArray(contractorsList)?contractorsList.filter(c=>c.active).map(c=>
+      `<option value="${c.id}" data-name="${c.name}" data-rate="${calcContractorRate(c)}" ${v.contractor_id==c.id?'selected':''}>${c.name}</option>`
+    ).join(''):'');
+
+  document.getElementById('detail-body').innerHTML=`
+    <!-- Cost summary -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:1rem">
+      <div style="background:#f5f5f3;border-radius:8px;padding:10px 12px">
+        <div style="font-size:10px;color:#888;margin-bottom:4px">Current location</div>
+        <span class="badge ${v.location}" style="font-size:12px">${v.location==='hotel'?'Hotel':(v.contractor_name||'Off-site')}</span>
+      </div>
+      <div style="background:#FAEEDA;border-radius:8px;padding:10px 12px">
+        <div style="font-size:10px;color:#633806;margin-bottom:4px">Contractor cost to date</div>
+        <div style="font-size:18px;font-weight:700;color:#633806">£${contCost.toFixed(2)}</div>
+      </div>
+      ${costRowsHTML}
+    </div>
+
+    <!-- Edit form -->
+    <div style="background:#f9f9f7;border:1px solid #e5e5e3;border-radius:10px;padding:12px 14px;margin-bottom:1rem">
+      <div style="font-size:13px;font-weight:600;color:#1E407C;margin-bottom:10px">✏ Edit booking details</div>
+      <div id="edit-save-msg-${reg}" style="margin-bottom:6px"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+        <div>
+          <label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Registration</label>
+          <input type="text" id="ed-reg-${reg}" value="${v.reg}" style="width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;text-transform:uppercase">
+        </div>
+        <div>
+          <label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Customer name</label>
+          <input type="text" id="ed-name-${reg}" value="${v.name||''}" style="width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+        </div>
+        <div>
+          <label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Mobile number</label>
+          <input type="text" id="ed-phone-${reg}" value="${v.phone||''}" style="width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+        </div>
+        <div>
+          <label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Room number</label>
+          <input type="text" id="ed-room-${reg}" value="${v.room_number||''}" style="width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+        </div>
+        <div>
+          <label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Drop-off date &amp; time</label>
+          <input type="datetime-local" id="ed-checkin-${reg}" value="${v.check_in_date||''}" style="width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+        </div>
+        <div>
+          <label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Expected return</label>
+          <input type="datetime-local" id="ed-return-${reg}" value="${v.return_date||''}" style="width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+        </div>
+      </div>
+      <div style="margin-bottom:8px">
+        <label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Contractor (if off-site)</label>
+        <select id="ed-contractor-${reg}" style="width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+          ${conOptions}
+        </select>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn primary" style="font-size:12px;padding:6px 16px" onclick="saveBookingEdit('${reg}')">Save changes</button>
+        <button class="btn" style="font-size:12px;padding:6px 14px" onclick="showDetail('${reg}')">Reset</button>
+      </div>
+    </div>
+
+    <!-- Movement log -->
+    <div style="font-size:13px;font-weight:600;margin-bottom:8px">Movement history</div>
+    <div style="border:1px solid #eee;border-radius:8px;overflow:hidden">
+    ${log.length?log.map((m,i)=>
+      '<div style="padding:9px 12px;border-bottom:'+(i<log.length-1?'1px solid #f0f0f0':'none')+';display:flex;gap:10px;align-items:center">'+
+        '<span class="badge '+(m.loc||'hotel')+'" style="flex-shrink:0">'+(m.loc==='hotel'?'Hotel':(m.contractor_name||'Off-site'))+'</span>'+
+        '<span style="font-size:12px;color:#555;flex:1">'+(m.note||'–')+'</span>'+
+        (m.rate?'<span style="font-size:11px;color:#633806;white-space:nowrap">£'+m.rate+'/night</span>':'')+
+        '<span style="font-size:11px;color:#aaa;white-space:nowrap;margin-left:6px">'+fmtDT(m.date)+'</span>'+
+      '</div>'
+    ).join(''):'<div style="padding:12px;color:#aaa;font-size:13px">No movement log yet</div>'}
+    </div>`;
+
   document.getElementById('detail-panel').style.display='block';
   document.getElementById('detail-panel').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+async function saveBookingEdit(reg){
+  let v=vehicles.find(x=>x.reg===reg);if(!v)return;
+  let msgEl=document.getElementById('edit-save-msg-'+reg);
+
+  let newReg=(document.getElementById('ed-reg-'+reg)?.value||'').trim().toUpperCase();
+  let name=(document.getElementById('ed-name-'+reg)?.value||'').trim();
+  let phone=(document.getElementById('ed-phone-'+reg)?.value||'').trim();
+  let room=(document.getElementById('ed-room-'+reg)?.value||'').trim()||null;
+  let checkin=document.getElementById('ed-checkin-'+reg)?.value||'';
+  let ret=document.getElementById('ed-return-'+reg)?.value||'';
+  let conSel=document.getElementById('ed-contractor-'+reg);
+  let conId=conSel?.value||null;
+  let conOpt=conSel?.options[conSel.selectedIndex];
+  let conName=conId?(conOpt?.dataset?.name||null):null;
+  let conRate=conId?(parseFloat(conOpt?.dataset?.rate)||null):null;
+
+  if(!newReg||!name){msgEl.innerHTML='<div class="alert warn">Reg and name are required.</div>';return;}
+  if(!checkin||!ret){msgEl.innerHTML='<div class="alert warn">Both dates are required.</div>';return;}
+  if(new Date(ret)<=new Date(checkin)){msgEl.innerHTML='<div class="alert warn">Return must be after drop-off.</div>';return;}
+
+  // If reg changed, check it doesn't clash with another active vehicle
+  if(newReg!==reg && vehicles.find(x=>x.reg===newReg&&x.reg!==reg)){
+    msgEl.innerHTML='<div class="alert warn">'+newReg+' is already checked in.</div>';return;
+  }
+
+  showLoading('Saving changes...');
+  try{
+    let patch={
+      reg:newReg, name, phone:phone||null, room_number:room,
+      check_in_date:checkin, return_date:ret,
+      contractor_id: conId?parseInt(conId):null,
+      contractor_name: conName||null,
+      contractor_rate: conRate||null
+    };
+    // Update first move_log entry date if check-in date changed
+    let log=[]; try{log=JSON.parse(v.move_log||'[]');}catch(e){}
+    if(log.length && checkin!==v.check_in_date){
+      log[0].date=checkin;
+      // Also update contractor info in log[0] if location is contractor
+      if(log[0].loc==='contractor'&&conId){
+        log[0].contractor_id=parseInt(conId);
+        log[0].contractor_name=conName||null;
+        log[0].rate=conRate||null;
+      }
+      patch.move_log=JSON.stringify(log);
+    }
+    await sbFetch('vehicles?reg=eq.'+encodeURIComponent(reg),{method:'PATCH',body:JSON.stringify(patch)});
+    await loadData(true);
+    hideLoading();
+    let msgHtml='<div class="alert success">✓ Booking updated.</div>';
+    // Re-render with new reg in case it changed
+    showDetail(newReg);
+    document.getElementById('edit-save-msg-'+newReg).innerHTML=msgHtml;
+  }catch(err){
+    hideLoading();
+    msgEl.innerHTML='<div class="alert error">Error: '+err.message+'</div>';
+  }
 }
 
 function clearActiveFilters(){
