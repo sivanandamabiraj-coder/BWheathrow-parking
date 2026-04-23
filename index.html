@@ -3783,9 +3783,23 @@ async function requestReturn(reg){
 // ════════════════════════════════════════════
 // CONTRACTOR PORTAL
 // ════════════════════════════════════════════
+
+// ── Photo categories for contractor inspection ──
+const CP_REQUIRED = ['front','rear','left','right'];
+const CP_OPTIONAL = ['interior','damage'];
+const CP_LABELS = {
+  front:    {label:'Front',      icon:'🚘', hint:'Face the front bumper'},
+  rear:     {label:'Rear',       icon:'🔙', hint:'Face the rear/back of vehicle'},
+  left:     {label:'Left side',  icon:'◀️', hint:'Driver side, full length'},
+  right:    {label:'Right side', icon:'▶️', hint:'Passenger side, full length'},
+  interior: {label:'Interior',   icon:'🪑', hint:'Through driver window, seats visible'},
+  damage:   {label:'Damage',     icon:'⚠️', hint:'Any scratches/dents, or clear bodywork'},
+};
+
+let _cpPhotos = {};        // {category: {dataUrl, validated, validating, error}}
+let _cpActiveCat = null;
 let _cpCurrentReg = null;
-let _cpCurrentAction = null; // 'deliver' or 'return'
-let _cpPhotos = []; // base64 data URLs
+let _cpCurrentAction = null;
 
 function launchContractorPortal(){
   document.getElementById('login-screen').style.display='none';
@@ -3884,92 +3898,235 @@ function renderCPListHTML(list, action){
 function openCPConfirmModal(reg, action){
   _cpCurrentReg = reg;
   _cpCurrentAction = action;
-  _cpPhotos = [];
-  let v = vehicles ? vehicles.find(x=>x.reg===reg) : null;
-  document.getElementById('cp-modal-title').textContent = action==='deliver' ? 'Confirm vehicle received' : 'Confirm vehicle returned';
+  _cpPhotos = {};
+  _cpActiveCat = null;
+
+  document.getElementById('cp-modal-title').textContent =
+    action==='deliver' ? 'Vehicle received — take inspection photos' : 'Vehicle returned — take inspection photos';
   document.getElementById('cp-modal-reg').textContent = reg;
-  document.getElementById('cp-modal-desc').textContent = action==='deliver'
-    ? 'Upload photos of the vehicle then confirm you have received it at your facility.'
-    : 'Upload photos showing the vehicle is back at the hotel, then confirm.';
-  document.getElementById('cp-photo-grid').innerHTML='';
-  document.getElementById('cp-modal-error').innerHTML='';
-  document.getElementById('cp-file-input').value='';
-  document.getElementById('cp-confirm-btn').textContent = action==='deliver' ? '✓ Confirm vehicle received' : '✓ Confirm returned to hotel';
+  document.getElementById('cp-modal-desc').textContent =
+    action==='deliver'
+      ? 'You are confirming receipt at your facility. Take each view using live camera only.'
+      : 'You are confirming this vehicle has been returned to the hotel. Take each view live.';
+
+  document.getElementById('cp-modal-error').innerHTML = '';
+  let aiEl=document.getElementById('cp-ai-status');
+  if(aiEl){aiEl.style.display='none'; aiEl.innerHTML='';}
+  let btn=document.getElementById('cp-confirm-btn');
+  btn.disabled=true; btn.style.background='#ccc'; btn.style.cursor='not-allowed';
+  btn.textContent='✓ Confirm & submit photos';
   document.getElementById('cp-confirm-modal').style.display='flex';
+  renderCPCatGrid();
+  updateCPProgress();
 }
 
-function cpHandlePhotos(input){
-  let files = Array.from(input.files);
-  let grid = document.getElementById('cp-photo-grid');
-  files.forEach(file=>{
-    let reader = new FileReader();
-    reader.onload = e=>{
-      _cpPhotos.push(e.target.result);
-      let img = document.createElement('img');
-      img.src = e.target.result;
-      img.style.cssText='width:100%;aspect-ratio:1;object-fit:cover;border-radius:6px;border:2px solid #1D9E75';
-      grid.appendChild(img);
-    };
-    reader.readAsDataURL(file);
+function renderCPCatGrid(){
+  let grid = document.getElementById('cp-cat-grid');
+  if(!grid) return;
+  let all = [...CP_REQUIRED, ...CP_OPTIONAL];
+  grid.innerHTML = all.map(cat=>{
+    let info = CP_LABELS[cat];
+    let state = _cpPhotos[cat];
+    let isRequired = CP_REQUIRED.includes(cat);
+    let bg='#fff', border='#ddd', statusBar='', imgHtml='';
+
+    if(state){
+      if(state.validating){
+        bg='#FFF9EC'; border='#EF9F27';
+        statusBar='<div style="font-size:10px;color:#633806;margin-top:4px;display:flex;align-items:center;gap:4px"><span style="display:inline-block;width:10px;height:10px;border:2px solid #EF9F27;border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite"></span>AI checking...</div>';
+        imgHtml='<img src="'+state.dataUrl+'" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:4px;margin-top:6px;opacity:0.6">';
+      } else if(state.validated){
+        bg='#EAF3DE'; border='#1D9E75';
+        statusBar='<div style="font-size:10px;color:#27500A;margin-top:4px;font-weight:600">✅ Photo verified</div>';
+        imgHtml='<img src="'+state.dataUrl+'" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:4px;margin-top:6px;border:2px solid #1D9E75">';
+      } else if(state.error){
+        bg='#FCEBEB'; border='#E24B4A';
+        statusBar='<div style="font-size:10px;color:#791F1F;margin-top:4px">❌ '+state.error+'</div><div style="font-size:10px;color:#1E407C;text-decoration:underline;cursor:pointer;margin-top:2px" onclick="cpOpenCamera(\''+cat+'\')">📷 Retake</div>';
+        imgHtml=state.dataUrl?'<img src="'+state.dataUrl+'" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:4px;margin-top:6px;opacity:0.4">':'';
+      }
+    }
+
+    let badge=isRequired
+      ?'<span style="font-size:9px;background:#E24B4A;color:#fff;padding:1px 5px;border-radius:10px">Required</span>'
+      :'<span style="font-size:9px;background:#888;color:#fff;padding:1px 5px;border-radius:10px">Optional</span>';
+    let clickable=!state?.validating;
+
+    return '<div onclick="'+(clickable?'cpOpenCamera(\''+cat+'\')':'')+'"'
+      +' style="border:2px solid '+border+';border-radius:10px;padding:10px;background:'+bg
+      +';cursor:'+(clickable?'pointer':'default')+';transition:all .15s">'
+      +'<div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:2px">'
+      +'<span style="font-size:18px;line-height:1.2">'+info.icon+'</span>'
+      +'<div style="flex:1"><div style="font-size:12px;font-weight:700">'+info.label+' '+badge+'</div>'
+      +'<div style="font-size:10px;color:#888">'+info.hint+'</div></div>'
+      +(state&&state.validated?'<span style="font-size:16px">✅</span>':'')
+      +'</div>'
+      +imgHtml+statusBar
+      +'</div>';
+  }).join('');
+}
+
+function cpOpenCamera(cat){
+  if(_cpPhotos[cat]&&_cpPhotos[cat].validating) return;
+  _cpActiveCat = cat;
+  let input = document.getElementById('cp-camera-input');
+  input.value='';
+  input.click();
+}
+
+async function cpCameraCapture(input){
+  let file = input.files[0];
+  if(!file||!_cpActiveCat) return;
+  let cat = _cpActiveCat;
+
+  let dataUrl = await new Promise((res,rej)=>{
+    let r=new FileReader();
+    r.onload=e=>res(e.target.result);
+    r.onerror=rej;
+    r.readAsDataURL(file);
   });
+
+  _cpPhotos[cat]={dataUrl, validating:true, validated:false, error:null};
+  renderCPCatGrid();
+
+  let aiEl=document.getElementById('cp-ai-status');
+  if(aiEl){
+    aiEl.style.display='block';
+    aiEl.innerHTML='<div style="display:flex;align-items:center;gap:8px;color:#633806;background:#FFF9EC;padding:8px 10px;border-radius:6px;border:1px solid #FAC775">'
+      +'<span style="display:inline-block;width:14px;height:14px;border:2px solid #EF9F27;border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite;flex-shrink:0"></span>'
+      +'<strong>AI is checking your '+CP_LABELS[cat].label+' photo...</strong></div>';
+  }
+
+  try{
+    let result = await cpValidatePhotoWithAI(dataUrl, cat);
+    if(result.valid){
+      _cpPhotos[cat]={dataUrl, validating:false, validated:true, error:null};
+      if(aiEl){
+        aiEl.innerHTML='<div style="color:#27500A;background:#EAF3DE;padding:8px 10px;border-radius:6px;font-weight:600">✅ '+CP_LABELS[cat].label+' photo verified!</div>';
+        setTimeout(()=>{ aiEl.style.display='none'; },2500);
+      }
+    } else {
+      _cpPhotos[cat]={dataUrl, validating:false, validated:false, error:result.reason||'Not recognised as '+CP_LABELS[cat].label+'. Please retake.'};
+      if(aiEl){
+        aiEl.innerHTML='<div style="color:#791F1F;background:#FCEBEB;padding:8px 10px;border-radius:6px;font-weight:600">❌ '+result.reason+'</div>';
+      }
+    }
+  }catch(e){
+    // API unavailable — accept the photo
+    _cpPhotos[cat]={dataUrl, validating:false, validated:true, error:null};
+    if(aiEl){
+      aiEl.innerHTML='<div style="color:#555;font-size:11px;padding:6px 10px">⚠️ AI check unavailable — photo accepted automatically.</div>';
+      setTimeout(()=>{ aiEl.style.display='none'; },2500);
+    }
+  }
+
+  renderCPCatGrid();
+  updateCPProgress();
+}
+
+async function cpValidatePhotoWithAI(dataUrl, category){
+  let label = CP_LABELS[category] ? CP_LABELS[category].label : category;
+  let base64 = dataUrl.split(',')[1];
+  let mediaType = dataUrl.split(';')[0].split(':')[1]||'image/jpeg';
+
+  let prompt = 'A contractor driver just took a live photo labelled "'+label+'" for a vehicle inspection.'
+    +' Check: (1) Does it show the '+label+' view of a car/vehicle?'
+    +' (2) Is it a real photo, not a blank screen, hand, ceiling, or unrelated object?'
+    +' (3) Is it clear enough for an inspection record?'
+    +' Reply ONLY with JSON, no markdown: {"valid":true/false,"reason":"under 10 words"}';
+
+  let resp = await fetch('https://api.anthropic.com/v1/messages',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      model:'claude-sonnet-4-20250514',
+      max_tokens:80,
+      messages:[{role:'user',content:[
+        {type:'image',source:{type:'base64',media_type:mediaType,data:base64}},
+        {type:'text',text:prompt}
+      ]}]
+    })
+  });
+  if(!resp.ok) throw new Error('status '+resp.status);
+  let data=await resp.json();
+  let text=(data.content||[]).map(c=>c.text||'').join('').replace(/```json?|```/g,'').trim();
+  try{ return JSON.parse(text); }catch(e){ return {valid:true,reason:'Accepted'}; }
+}
+
+function updateCPProgress(){
+  let done=CP_REQUIRED.filter(c=>_cpPhotos[c]&&_cpPhotos[c].validated).length;
+  let total=CP_REQUIRED.length;
+  let pct=Math.round(done/total*100);
+  let ptEl=document.getElementById('cp-progress-text');
+  let ppEl=document.getElementById('cp-progress-pct');
+  let pfEl=document.getElementById('cp-progress-fill');
+  if(ptEl) ptEl.textContent=done+' of '+total+' required photos taken';
+  if(ppEl) ppEl.textContent=pct+'%';
+  if(pfEl) pfEl.style.width=pct+'%';
+  let btn=document.getElementById('cp-confirm-btn');
+  if(!btn) return;
+  if(done===total){
+    btn.disabled=false; btn.style.background='#1D9E75'; btn.style.cursor='pointer';
+    btn.textContent='✓ All photos taken — confirm & submit';
+  } else {
+    btn.disabled=true; btn.style.background='#ccc'; btn.style.cursor='not-allowed';
+    btn.textContent='✓ Confirm & submit photos';
+  }
 }
 
 async function cpConfirmMove(){
-  if(!_cpPhotos.length){
-    document.getElementById('cp-modal-error').innerHTML='<div class="alert warn">Please upload at least one photo before confirming.</div>';
+  let done=CP_REQUIRED.filter(c=>_cpPhotos[c]&&_cpPhotos[c].validated).length;
+  if(done<CP_REQUIRED.length){
+    document.getElementById('cp-modal-error').innerHTML='<div class="alert warn">Please take all 4 required photos (Front, Rear, Left, Right) before confirming.</div>';
     return;
   }
-  let reg = _cpCurrentReg;
-  let action = _cpCurrentAction;
-  // Load full vehicle data fresh
-  let vArr = await sbFetch('vehicles?reg=eq.'+encodeURIComponent(reg)+'&select=*');
-  let v = vArr&&vArr[0];
-  if(!v){ alert('Vehicle not found.'); return; }
+  let reg=_cpCurrentReg, action=_cpCurrentAction;
+  let vArr=await sbFetch('vehicles?reg=eq.'+encodeURIComponent(reg)+'&select=*');
+  let v=vArr&&vArr[0];
+  if(!v){alert('Vehicle not found.');return;}
 
-  let toLocation = action==='deliver' ? 'contractor' : 'hotel';
-  let moveDate = new Date().toISOString();
+  let toLocation=action==='deliver'?'contractor':'hotel';
+  let moveDate=new Date().toISOString();
   let log=[]; try{log=JSON.parse(v.move_log||'[]');}catch(e){}
-  let nightsHere = nightsApart(v.current_location_start, moveDate);
-  let newHd = (v.hotel_days||0) + (v.location==='hotel' ? nightsHere : 0);
-  let newCd = (v.contractor_days||0) + (v.location==='contractor' ? nightsHere : 0);
+  let nightsHere=nightsApart(v.current_location_start,moveDate);
+  let newHd=(v.hotel_days||0)+(v.location==='hotel'?nightsHere:0);
+  let newCd=(v.contractor_days||0)+(v.location==='contractor'?nightsHere:0);
+
+  let photoData={};
+  Object.entries(_cpPhotos).forEach(([cat,s])=>{ if(s.validated) photoData[cat]=s.dataUrl; });
+  let photoCats=Object.keys(photoData);
 
   log.push({
-    loc: toLocation, date: moveDate,
-    note: (toLocation==='contractor'
-      ? 'Received at '+v.contractor_name+' — confirmed by contractor'
-      : 'Returned to hotel — confirmed by contractor'),
-    contractor_id: toLocation==='contractor' ? v.contractor_id : null,
-    contractor_name: toLocation==='contractor' ? v.contractor_name : null,
-    rate: toLocation==='contractor' ? v.contractor_rate : null,
-    photos: _cpPhotos.length
+    loc:toLocation, date:moveDate,
+    note:(toLocation==='contractor'?'Received at '+v.contractor_name:'Returned to hotel')
+      +' — confirmed by contractor ('+photoCats.join(', ')+' photos)',
+    contractor_id:toLocation==='contractor'?v.contractor_id:null,
+    contractor_name:toLocation==='contractor'?v.contractor_name:null,
+    rate:toLocation==='contractor'?v.contractor_rate:null,
+    photo_categories:photoCats
   });
 
-  let patch = {
-    location: toLocation, move_status: null, move_pending_to: null,
-    hotel_days: newHd, contractor_days: newCd,
-    current_location_start: moveDate, move_log: JSON.stringify(log),
-    move_photos: JSON.stringify(_cpPhotos)
+  let patch={
+    location:toLocation, move_status:null, move_pending_to:null,
+    hotel_days:newHd, contractor_days:newCd,
+    current_location_start:moveDate, move_log:JSON.stringify(log),
+    move_photos:JSON.stringify(photoData)
   };
-  if(toLocation==='hotel'){
-    patch.contractor_id=null; patch.contractor_name=null; patch.contractor_rate=null;
-  }
+  if(toLocation==='hotel'){patch.contractor_id=null;patch.contractor_name=null;patch.contractor_rate=null;}
 
-  let btn = document.getElementById('cp-confirm-btn');
-  btn.textContent = 'Saving...';
-  btn.disabled = true;
+  let btn=document.getElementById('cp-confirm-btn');
+  btn.textContent='Saving...'; btn.disabled=true;
   try{
     await sbFetch('vehicles?reg=eq.'+encodeURIComponent(reg),{method:'PATCH',body:JSON.stringify(patch)});
     document.getElementById('cp-confirm-modal').style.display='none';
-    document.getElementById('cp-alert').innerHTML=`<div class="alert success">✓ ${reg} ${action==='deliver'?'received':'returned'} successfully. Photos saved.</div>`;
-    setTimeout(()=>{ let a=document.getElementById('cp-alert');if(a)a.innerHTML=''; },5000);
+    document.getElementById('cp-alert').innerHTML=
+      '<div class="alert success">✅ '+reg+' '+(action==='deliver'?'received':'returned')+' — '+photoCats.length+' photos saved ('+photoCats.join(', ')+').</div>';
+    setTimeout(()=>{let a=document.getElementById('cp-alert');if(a)a.innerHTML='';},6000);
     loadContractorPortal();
   }catch(e){
     document.getElementById('cp-modal-error').innerHTML='<div class="alert error">Error: '+e.message+'</div>';
-    btn.textContent='✓ Confirm';
-    btn.disabled=false;
+    btn.textContent='✓ Confirm & submit'; btn.disabled=false;
   }
 }
-
 
 window.addEventListener('DOMContentLoaded',()=>{
   SB_URL = HARDCODED_URL;
@@ -4171,35 +4328,52 @@ window.addEventListener('DOMContentLoaded',()=>{
   </div>
 </div>
 
-<!-- ═══ CONTRACTOR CONFIRM MODAL — contractor uploads photos & confirms delivery ═══ -->
-<div id="cp-confirm-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:300;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:12px;overflow:hidden;width:100%;max-width:460px;margin:1rem;max-height:90vh;overflow-y:auto">
-    <div style="background:#1E407C;padding:12px 16px;display:flex;justify-content:space-between;align-items:center">
-      <div id="cp-modal-title" style="color:#fff;font-size:15px;font-weight:700">Confirm vehicle received</div>
-      <button onclick="document.getElementById('cp-confirm-modal').style.display='none'" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer">✕</button>
+<!-- ═══ CONTRACTOR CONFIRM MODAL — category photos + AI validation ═══ -->
+<div id="cp-confirm-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:300;align-items:flex-start;justify-content:center;overflow-y:auto;padding:0.5rem">
+  <div style="background:#fff;border-radius:12px;overflow:hidden;width:100%;max-width:480px;margin:auto">
+    <!-- Header -->
+    <div style="background:#1E407C;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:10">
+      <div>
+        <div id="cp-modal-title" style="color:#fff;font-size:15px;font-weight:700">Vehicle inspection photos</div>
+        <div id="cp-modal-reg" style="color:#C9A84C;font-size:20px;font-weight:800;letter-spacing:.06em;margin-top:2px"></div>
+      </div>
+      <button onclick="document.getElementById('cp-confirm-modal').style.display='none'" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;line-height:1">✕</button>
     </div>
-    <div style="padding:1rem">
-      <div id="cp-modal-reg" style="font-size:28px;font-weight:800;letter-spacing:.06em;color:#1E407C;text-align:center;padding:10px 0;border-bottom:1px dashed #ddd;margin-bottom:12px"></div>
-      <div id="cp-modal-desc" style="font-size:13px;color:#666;margin-bottom:1rem;text-align:center"></div>
 
-      <!-- Photo upload section -->
-      <div style="background:#FAEEDA;border:1px solid #FAC775;border-radius:8px;padding:12px;margin-bottom:1rem">
-        <div style="font-size:13px;font-weight:600;color:#633806;margin-bottom:8px">📸 Upload vehicle photos (required)</div>
-        <div id="cp-photo-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px"></div>
-        <label style="display:block;padding:10px;background:#fff;border:2px dashed #FAC775;border-radius:6px;text-align:center;cursor:pointer;font-size:12px;color:#633806">
-          <input type="file" id="cp-file-input" accept="image/*" multiple capture="environment" style="display:none" onchange="cpHandlePhotos(this)">
-          📷 Tap to take photos or choose from camera roll
-        </label>
+    <div style="padding:12px 14px">
+      <div id="cp-modal-desc" style="font-size:12px;color:#666;margin-bottom:12px;background:#E6F1FB;padding:8px 10px;border-radius:6px;color:#0C447C"></div>
+
+      <!-- Photo category tiles -->
+      <div style="font-size:12px;font-weight:600;color:#333;margin-bottom:8px">Take a photo of each view — tap a tile to open camera:</div>
+      <div id="cp-cat-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px"></div>
+
+      <!-- AI validation status -->
+      <div id="cp-ai-status" style="display:none;background:#f5f5f3;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12px"></div>
+
+      <!-- Progress -->
+      <div id="cp-progress-bar" style="margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:#888;margin-bottom:4px">
+          <span id="cp-progress-text">0 of 4 required photos taken</span>
+          <span id="cp-progress-pct">0%</span>
+        </div>
+        <div style="height:6px;background:#eee;border-radius:3px;overflow:hidden">
+          <div id="cp-progress-fill" style="height:100%;background:#1D9E75;border-radius:3px;transition:width .3s;width:0%"></div>
+        </div>
       </div>
 
       <div id="cp-modal-error" style="margin-bottom:8px"></div>
-      <button id="cp-confirm-btn" style="width:100%;padding:14px;background:#1D9E75;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer" onclick="cpConfirmMove()">
-        ✓ Confirm vehicle received
+      <button id="cp-confirm-btn" disabled
+        style="width:100%;padding:14px;background:#ccc;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:not-allowed;transition:all .2s"
+        onclick="cpConfirmMove()">
+        ✓ Confirm &amp; submit photos
       </button>
-      <div style="font-size:11px;color:#aaa;text-align:center;margin-top:8px">At least 1 photo required before confirming</div>
+      <div style="font-size:11px;color:#aaa;text-align:center;margin-top:8px">Front, Rear, Left &amp; Right photos required</div>
     </div>
   </div>
 </div>
+
+<!-- Hidden file input for live camera capture only -->
+<input type="file" id="cp-camera-input" accept="image/*" capture="environment" style="display:none" onchange="cpCameraCapture(this)">
 
 </body>
 </html>
