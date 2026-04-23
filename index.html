@@ -3788,12 +3788,12 @@ async function requestReturn(reg){
 const CP_REQUIRED = ['front','rear','left','right'];
 const CP_OPTIONAL = ['interior','damage'];
 const CP_LABELS = {
-  front:    {label:'Front',      icon:'🚘', hint:'Face the front bumper'},
-  rear:     {label:'Rear',       icon:'🔙', hint:'Face the rear/back of vehicle'},
-  left:     {label:'Left side',  icon:'◀️', hint:'Driver side, full length'},
-  right:    {label:'Right side', icon:'▶️', hint:'Passenger side, full length'},
-  interior: {label:'Interior',   icon:'🪑', hint:'Through driver window, seats visible'},
-  damage:   {label:'Damage',     icon:'⚠️', hint:'Any scratches/dents, or clear bodywork'},
+  front:    {label:'Front',      hint:'Face the front bumper'},
+  rear:     {label:'Rear',       hint:'Face the rear/back of vehicle'},
+  left:     {label:'Left side',  hint:'Driver side, full length'},
+  right:    {label:'Right side', hint:'Passenger side, full length'},
+  interior: {label:'Interior',   hint:'Through driver window, seats visible'},
+  damage:   {label:'Damage',     hint:'Any scratches/dents, or clear bodywork'},
 };
 
 let _cpPhotos = {};        // {category: {dataUrl, validated, validating, error}}
@@ -3844,20 +3844,24 @@ function renderCPList(elId, list, action){
     el.innerHTML='<div style="background:#f5f5f3;border-radius:8px;padding:14px;color:#aaa;font-size:13px;text-align:center">No vehicles pending</div>';
     return;
   }
-  el.innerHTML = list.map(v=>`
-    <div style="background:#fff;border:1px solid ${action==='deliver'?'#FAC775':'#1D9E75'};border-radius:10px;padding:14px;margin-bottom:10px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <div style="font-size:26px;font-weight:800;letter-spacing:.06em;color:#1E407C">${v.reg}</div>
-        <span style="background:${action==='deliver'?'#FAEEDA':'#E1F5EE'};color:${action==='deliver'?'#633806':'#085041'};padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600">
-          ${action==='deliver'?'🚗 Collect from hotel':'🔄 Return to hotel'}
-        </span>
-      </div>
-      <div style="font-size:13px;color:#555;margin-bottom:10px">${v.name}</div>
-      <button onclick="openCPConfirmModal('${v.reg}','${action}')"
-        style="width:100%;padding:12px;background:${action==='deliver'?'#1E407C':'#1D9E75'};color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">
-        ${action==='deliver'?'📸 Upload photos & confirm received':'📸 Upload photos & confirm returned'}
-      </button>
-    </div>`).join('');
+  let isDeliver = action==='deliver';
+  el.innerHTML = list.map(v=>{
+    let borderCol = isDeliver ? '#FAC775' : '#1D9E75';
+    let badgeBg   = isDeliver ? '#FAEEDA' : '#E1F5EE';
+    let badgeCol  = isDeliver ? '#633806' : '#085041';
+    let badgeText = isDeliver ? 'Collect from hotel' : 'Return to hotel';
+    let btnBg     = isDeliver ? '#1E407C' : '#1D9E75';
+    let btnText   = isDeliver ? 'Take photos + Confirm received' : 'Take photos + Confirm returned';
+    return '<div style="background:#fff;border:1px solid '+borderCol+';border-radius:10px;padding:14px;margin-bottom:10px">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
+      +'<div style="font-size:26px;font-weight:800;letter-spacing:.06em;color:#1E407C">'+v.reg+'</div>'
+      +'<span style="background:'+badgeBg+';color:'+badgeCol+';padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600">'+badgeText+'</span>'
+      +'</div>'
+      +'<div style="font-size:13px;color:#555;margin-bottom:10px">'+v.name+'</div>'
+      +'<button onclick="openCPConfirmModal(\''+v.reg+'\',\''+action+'\')"'
+      +' style="width:100%;padding:12px;background:'+btnBg+';color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">'+btnText+'</button>'
+      +'</div>';
+  }).join('');
 }
 
 function renderCPReturnSection(toReturn, withMe){
@@ -3866,33 +3870,31 @@ function renderCPReturnSection(toReturn, withMe){
   let html = '';
   if(toReturn.length) html += renderCPListHTML(toReturn, 'return');
   if(withMe.length){
-    html += `<div style="font-size:12px;font-weight:600;color:#555;margin:${toReturn.length?'16px':0} 0 8px;text-transform:uppercase;letter-spacing:.04em">Currently parked with you</div>`;
-    html += withMe.map(v=>`
-      <div style="background:#fff;border:1px solid #eee;border-radius:10px;padding:14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
-        <div>
-          <div style="font-size:22px;font-weight:800;letter-spacing:.06em;color:#1E407C">${v.reg}</div>
-          <div style="font-size:12px;color:#888">${v.name}</div>
-        </div>
-        <span style="background:#f5f5f3;color:#888;padding:4px 10px;border-radius:20px;font-size:11px">Parked with you</span>
-      </div>`).join('');
+    html += '<div style="font-size:12px;font-weight:600;color:#555;margin:'+(toReturn.length?'16px':'0')+' 0 8px;text-transform:uppercase;letter-spacing:.04em">Currently parked with you</div>';
+    html += withMe.map(v=>{
+      return '<div style="background:#fff;border:1px solid #eee;border-radius:10px;padding:14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">'
+        +'<div><div style="font-size:22px;font-weight:800;letter-spacing:.06em;color:#1E407C">'+v.reg+'</div>'
+        +'<div style="font-size:12px;color:#888">'+v.name+'</div></div>'
+        +'<span style="background:#f5f5f3;color:#888;padding:4px 10px;border-radius:20px;font-size:11px">Parked with you</span>'
+        +'</div>';
+    }).join('');
   }
   if(!html) html='<div style="background:#f5f5f3;border-radius:8px;padding:14px;color:#aaa;font-size:13px;text-align:center">No vehicles to return</div>';
   returnEl.innerHTML = html;
 }
 
 function renderCPListHTML(list, action){
-  return list.map(v=>`
-    <div style="background:#fff;border:1px solid #1D9E75;border-radius:10px;padding:14px;margin-bottom:10px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <div style="font-size:26px;font-weight:800;letter-spacing:.06em;color:#1E407C">${v.reg}</div>
-        <span style="background:#E1F5EE;color:#085041;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600">🔄 Return to hotel</span>
-      </div>
-      <div style="font-size:13px;color:#555;margin-bottom:10px">${v.name}</div>
-      <button onclick="openCPConfirmModal('${v.reg}','return')"
-        style="width:100%;padding:12px;background:#1D9E75;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">
-        📸 Upload photos & confirm returned
-      </button>
-    </div>`).join('');
+  return list.map(v=>{
+    return '<div style="background:#fff;border:1px solid #1D9E75;border-radius:10px;padding:14px;margin-bottom:10px">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
+      +'<div style="font-size:26px;font-weight:800;letter-spacing:.06em;color:#1E407C">'+v.reg+'</div>'
+      +'<span style="background:#E1F5EE;color:#085041;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600">Return to hotel</span>'
+      +'</div>'
+      +'<div style="font-size:13px;color:#555;margin-bottom:10px">'+v.name+'</div>'
+      +'<button onclick="openCPConfirmModal(\''+v.reg+'\',\'return\')"'
+      +' style="width:100%;padding:12px;background:#1D9E75;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">Take photos + Confirm returned</button>'
+      +'</div>';
+  }).join('');
 }
 
 function openCPConfirmModal(reg, action){
@@ -3933,92 +3935,147 @@ function renderCPCatGrid(){
     if(state){
       if(state.validating){
         bg='#FFF9EC'; border='#EF9F27';
-        statusBar='<div style="font-size:10px;color:#633806;margin-top:4px;display:flex;align-items:center;gap:4px"><span style="display:inline-block;width:10px;height:10px;border:2px solid #EF9F27;border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite"></span>AI checking...</div>';
+        statusBar='<div style="font-size:10px;color:#633806;margin-top:4px;display:flex;align-items:center;gap:4px">'
+          +'<span style="display:inline-block;width:10px;height:10px;border:2px solid #EF9F27;border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite"></span>'
+          +'AI checking...</div>';
         imgHtml='<img src="'+state.dataUrl+'" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:4px;margin-top:6px;opacity:0.6">';
       } else if(state.validated){
         bg='#EAF3DE'; border='#1D9E75';
-        statusBar='<div style="font-size:10px;color:#27500A;margin-top:4px;font-weight:600">✅ Photo verified</div>';
+        statusBar='<div style="font-size:10px;color:#27500A;margin-top:4px;font-weight:600">Verified</div>';
         imgHtml='<img src="'+state.dataUrl+'" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:4px;margin-top:6px;border:2px solid #1D9E75">';
       } else if(state.error){
         bg='#FCEBEB'; border='#E24B4A';
-        statusBar='<div style="font-size:10px;color:#791F1F;margin-top:4px">❌ '+state.error+'</div><div style="font-size:10px;color:#1E407C;text-decoration:underline;cursor:pointer;margin-top:2px" onclick="cpOpenCamera(\''+cat+'\')">📷 Retake</div>';
+        statusBar='<div style="font-size:10px;color:#791F1F;margin-top:4px">'+state.error+'</div>'
+          +'<div style="font-size:10px;color:#1E407C;text-decoration:underline;cursor:pointer;margin-top:3px" onclick="cpOpenCamera(\''+cat+'\')">Retake photo</div>';
         imgHtml=state.dataUrl?'<img src="'+state.dataUrl+'" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:4px;margin-top:6px;opacity:0.4">':'';
       }
     }
 
     let badge=isRequired
-      ?'<span style="font-size:9px;background:#E24B4A;color:#fff;padding:1px 5px;border-radius:10px">Required</span>'
-      :'<span style="font-size:9px;background:#888;color:#fff;padding:1px 5px;border-radius:10px">Optional</span>';
-    let clickable=!state?.validating;
+      ?'<span style="font-size:9px;background:#E24B4A;color:#fff;padding:1px 5px;border-radius:10px;margin-left:4px">Required</span>'
+      :'<span style="font-size:9px;background:#888;color:#fff;padding:1px 5px;border-radius:10px;margin-left:4px">Optional</span>';
+    let clickable=!(state&&state.validating);
+    let verifiedMark = (state&&state.validated) ? '<span style="color:#1D9E75;font-size:16px;margin-left:auto">&#10003;</span>' : '';
 
     return '<div onclick="'+(clickable?'cpOpenCamera(\''+cat+'\')':'')+'"'
       +' style="border:2px solid '+border+';border-radius:10px;padding:10px;background:'+bg
-      +';cursor:'+(clickable?'pointer':'default')+';transition:all .15s">'
-      +'<div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:2px">'
-      +'<span style="font-size:18px;line-height:1.2">'+info.icon+'</span>'
-      +'<div style="flex:1"><div style="font-size:12px;font-weight:700">'+info.label+' '+badge+'</div>'
-      +'<div style="font-size:10px;color:#888">'+info.hint+'</div></div>'
-      +(state&&state.validated?'<span style="font-size:16px">✅</span>':'')
+      +';cursor:'+(clickable?'pointer':'default')+';transition:all .15s;user-select:none">'
+      +'<div style="display:flex;align-items:flex-start;gap:6px">'
+      +'<div style="flex:1">'
+      +'<div style="font-size:12px;font-weight:700">'+info.label+badge+'</div>'
+      +'<div style="font-size:10px;color:#888;margin-top:1px">'+info.hint+'</div>'
+      +'</div>'
+      +verifiedMark
       +'</div>'
       +imgHtml+statusBar
       +'</div>';
   }).join('');
 }
 
+// ── Camera system using getUserMedia (no file picker, no gallery) ──
+let _camStream = null;
+let _camFacing = 'environment'; // rear camera by default
+
 function cpOpenCamera(cat){
-  if(_cpPhotos[cat]&&_cpPhotos[cat].validating) return;
+  if(_cpPhotos[cat] && _cpPhotos[cat].validating) return;
   _cpActiveCat = cat;
-  let input = document.getElementById('cp-camera-input');
-  input.value='';
-  input.click();
+  let info = CP_LABELS[cat] || {label:cat, hint:''};
+  document.getElementById('cam-cat-label').textContent = info.label;
+  document.getElementById('cam-cat-hint').textContent = info.hint;
+  document.getElementById('cp-camera-overlay').style.display = 'flex';
+  document.getElementById('cp-camera-overlay').style.flexDirection = 'column';
+  cpStartCamera();
 }
 
-async function cpCameraCapture(input){
-  let file = input.files[0];
-  if(!file||!_cpActiveCat) return;
-  let cat = _cpActiveCat;
+async function cpStartCamera(){
+  // Stop any existing stream
+  if(_camStream){ _camStream.getTracks().forEach(t=>t.stop()); _camStream=null; }
+  try{
+    _camStream = await navigator.mediaDevices.getUserMedia({
+      video:{ facingMode:_camFacing, width:{ideal:1280}, height:{ideal:960} },
+      audio:false
+    });
+    let video = document.getElementById('cam-video');
+    video.srcObject = _camStream;
+  }catch(e){
+    // getUserMedia failed (desktop browser, permissions denied, etc.)
+    // Fall back to file input with capture attribute
+    cpCloseCamera();
+    let inp = document.createElement('input');
+    inp.type='file'; inp.accept='image/*'; inp.capture='environment';
+    inp.style.display='none';
+    inp.onchange = ()=>{
+      if(inp.files[0]) cpProcessFile(inp.files[0]);
+      document.body.removeChild(inp);
+    };
+    document.body.appendChild(inp);
+    inp.click();
+  }
+}
 
+async function cpSwitchCamera(){
+  _camFacing = _camFacing==='environment' ? 'user' : 'environment';
+  await cpStartCamera();
+}
+
+function cpCapture(){
+  let video = document.getElementById('cam-video');
+  let canvas = document.getElementById('cam-canvas');
+  canvas.width = video.videoWidth || 1280;
+  canvas.height = video.videoHeight || 960;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  let dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+  cpCloseCamera();
+  cpProcessDataUrl(dataUrl, _cpActiveCat);
+}
+
+function cpCloseCamera(){
+  if(_camStream){ _camStream.getTracks().forEach(t=>t.stop()); _camStream=null; }
+  document.getElementById('cp-camera-overlay').style.display = 'none';
+  let video = document.getElementById('cam-video');
+  video.srcObject = null;
+}
+
+async function cpProcessFile(file){
   let dataUrl = await new Promise((res,rej)=>{
-    let r=new FileReader();
-    r.onload=e=>res(e.target.result);
-    r.onerror=rej;
-    r.readAsDataURL(file);
+    let r=new FileReader(); r.onload=e=>res(e.target.result); r.onerror=rej; r.readAsDataURL(file);
   });
+  cpProcessDataUrl(dataUrl, _cpActiveCat);
+}
 
-  _cpPhotos[cat]={dataUrl, validating:true, validated:false, error:null};
+async function cpProcessDataUrl(dataUrl, cat){
+  _cpPhotos[cat] = {dataUrl, validating:true, validated:false, error:null};
   renderCPCatGrid();
 
-  let aiEl=document.getElementById('cp-ai-status');
+  let aiEl = document.getElementById('cp-ai-status');
   if(aiEl){
     aiEl.style.display='block';
-    aiEl.innerHTML='<div style="display:flex;align-items:center;gap:8px;color:#633806;background:#FFF9EC;padding:8px 10px;border-radius:6px;border:1px solid #FAC775">'
+    aiEl.innerHTML = '<div style="display:flex;align-items:center;gap:8px;color:#633806;background:#FFF9EC;padding:8px 10px;border-radius:6px;border:1px solid #FAC775">'
       +'<span style="display:inline-block;width:14px;height:14px;border:2px solid #EF9F27;border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite;flex-shrink:0"></span>'
-      +'<strong>AI is checking your '+CP_LABELS[cat].label+' photo...</strong></div>';
+      +'<strong>AI checking '+CP_LABELS[cat].label+' photo...</strong></div>';
   }
 
   try{
     let result = await cpValidatePhotoWithAI(dataUrl, cat);
     if(result.valid){
-      _cpPhotos[cat]={dataUrl, validating:false, validated:true, error:null};
+      _cpPhotos[cat] = {dataUrl, validating:false, validated:true, error:null};
       if(aiEl){
-        aiEl.innerHTML='<div style="color:#27500A;background:#EAF3DE;padding:8px 10px;border-radius:6px;font-weight:600">✅ '+CP_LABELS[cat].label+' photo verified!</div>';
-        setTimeout(()=>{ aiEl.style.display='none'; },2500);
+        aiEl.innerHTML='<div style="color:#27500A;background:#EAF3DE;padding:8px 10px;border-radius:6px;font-weight:600">Photo verified - '+CP_LABELS[cat].label+' accepted</div>';
+        setTimeout(()=>{ aiEl.style.display='none'; }, 2500);
       }
     } else {
-      _cpPhotos[cat]={dataUrl, validating:false, validated:false, error:result.reason||'Not recognised as '+CP_LABELS[cat].label+'. Please retake.'};
+      _cpPhotos[cat] = {dataUrl, validating:false, validated:false, error: result.reason||'Photo not recognised. Please retake.'};
       if(aiEl){
-        aiEl.innerHTML='<div style="color:#791F1F;background:#FCEBEB;padding:8px 10px;border-radius:6px;font-weight:600">❌ '+result.reason+'</div>';
+        aiEl.innerHTML='<div style="color:#791F1F;background:#FCEBEB;padding:8px 10px;border-radius:6px;font-weight:600">'+result.reason+'</div>';
       }
     }
   }catch(e){
-    // API unavailable — accept the photo
-    _cpPhotos[cat]={dataUrl, validating:false, validated:true, error:null};
+    _cpPhotos[cat] = {dataUrl, validating:false, validated:true, error:null};
     if(aiEl){
-      aiEl.innerHTML='<div style="color:#555;font-size:11px;padding:6px 10px">⚠️ AI check unavailable — photo accepted automatically.</div>';
-      setTimeout(()=>{ aiEl.style.display='none'; },2500);
+      aiEl.innerHTML='<div style="color:#555;font-size:11px;padding:6px 10px">AI check unavailable - photo accepted.</div>';
+      setTimeout(()=>{ aiEl.style.display='none'; }, 2500);
     }
   }
-
   renderCPCatGrid();
   updateCPProgress();
 }
@@ -4276,9 +4333,8 @@ window.addEventListener('DOMContentLoaded',()=>{
 
     <!-- Vehicles to deliver (hotel → contractor) -->
     <div id="cp-deliver-section" style="margin-bottom:1.5rem">
-      <h2 style="font-size:15px;font-weight:700;color:#633806;margin-bottom:10px;display:flex;align-items:center;gap:8px">
-        <span style="background:#FAEEDA;border-radius:50%;width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center">🚗</span>
-        Vehicles to collect from hotel
+      <h2 style="font-size:14px;font-weight:700;color:#633806;margin-bottom:10px;padding:8px 12px;background:#FAEEDA;border-radius:8px;border-left:4px solid #EF9F27">
+        COLLECT FROM HOTEL
       </h2>
       <div id="cp-deliver-list">
         <div style="color:#aaa;font-size:13px;padding:12px 0">Loading...</div>
@@ -4287,9 +4343,8 @@ window.addEventListener('DOMContentLoaded',()=>{
 
     <!-- Vehicles to return (contractor → hotel) -->
     <div id="cp-return-section">
-      <h2 style="font-size:15px;font-weight:700;color:#085041;margin-bottom:10px;display:flex;align-items:center;gap:8px">
-        <span style="background:#E1F5EE;border-radius:50%;width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center">🏨</span>
-        Vehicles to return to hotel
+      <h2 style="font-size:14px;font-weight:700;color:#085041;margin-bottom:10px;padding:8px 12px;background:#E1F5EE;border-radius:8px;border-left:4px solid #1D9E75">
+        RETURN TO HOTEL
       </h2>
       <div id="cp-return-list">
         <div style="color:#aaa;font-size:13px;padding:12px 0">Loading...</div>
@@ -4331,26 +4386,18 @@ window.addEventListener('DOMContentLoaded',()=>{
 <!-- ═══ CONTRACTOR CONFIRM MODAL — category photos + AI validation ═══ -->
 <div id="cp-confirm-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:300;align-items:flex-start;justify-content:center;overflow-y:auto;padding:0.5rem">
   <div style="background:#fff;border-radius:12px;overflow:hidden;width:100%;max-width:480px;margin:auto">
-    <!-- Header -->
     <div style="background:#1E407C;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:10">
       <div>
         <div id="cp-modal-title" style="color:#fff;font-size:15px;font-weight:700">Vehicle inspection photos</div>
         <div id="cp-modal-reg" style="color:#C9A84C;font-size:20px;font-weight:800;letter-spacing:.06em;margin-top:2px"></div>
       </div>
-      <button onclick="document.getElementById('cp-confirm-modal').style.display='none'" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;line-height:1">✕</button>
+      <button onclick="document.getElementById('cp-confirm-modal').style.display='none'" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;line-height:1">X</button>
     </div>
-
     <div style="padding:12px 14px">
-      <div id="cp-modal-desc" style="font-size:12px;color:#666;margin-bottom:12px;background:#E6F1FB;padding:8px 10px;border-radius:6px;color:#0C447C"></div>
-
-      <!-- Photo category tiles -->
-      <div style="font-size:12px;font-weight:600;color:#333;margin-bottom:8px">Take a photo of each view — tap a tile to open camera:</div>
+      <div id="cp-modal-desc" style="font-size:12px;margin-bottom:12px;background:#E6F1FB;padding:8px 10px;border-radius:6px;color:#0C447C"></div>
+      <div style="font-size:12px;font-weight:600;color:#333;margin-bottom:8px">Tap a tile to open camera and take a photo:</div>
       <div id="cp-cat-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px"></div>
-
-      <!-- AI validation status -->
-      <div id="cp-ai-status" style="display:none;background:#f5f5f3;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12px"></div>
-
-      <!-- Progress -->
+      <div id="cp-ai-status" style="display:none;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12px"></div>
       <div id="cp-progress-bar" style="margin-bottom:14px">
         <div style="display:flex;justify-content:space-between;font-size:11px;color:#888;margin-bottom:4px">
           <span id="cp-progress-text">0 of 4 required photos taken</span>
@@ -4360,20 +4407,39 @@ window.addEventListener('DOMContentLoaded',()=>{
           <div id="cp-progress-fill" style="height:100%;background:#1D9E75;border-radius:3px;transition:width .3s;width:0%"></div>
         </div>
       </div>
-
       <div id="cp-modal-error" style="margin-bottom:8px"></div>
       <button id="cp-confirm-btn" disabled
         style="width:100%;padding:14px;background:#ccc;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:not-allowed;transition:all .2s"
-        onclick="cpConfirmMove()">
-        ✓ Confirm &amp; submit photos
-      </button>
-      <div style="font-size:11px;color:#aaa;text-align:center;margin-top:8px">Front, Rear, Left &amp; Right photos required</div>
+        onclick="cpConfirmMove()">Confirm and submit photos</button>
+      <div style="font-size:11px;color:#aaa;text-align:center;margin-top:8px">Front, Rear, Left and Right photos required</div>
     </div>
   </div>
 </div>
 
-<!-- Hidden file input for live camera capture only -->
-<input type="file" id="cp-camera-input" accept="image/*" capture="environment" style="display:none" onchange="cpCameraCapture(this)">
+<!-- ═══ IN-BROWSER CAMERA OVERLAY — live camera only, no gallery ═══ -->
+<div id="cp-camera-overlay" style="display:none;position:fixed;inset:0;background:#000;z-index:400;flex-direction:column">
+  <div style="background:#1E407C;padding:10px 16px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
+    <div>
+      <div id="cam-cat-label" style="color:#C9A84C;font-size:15px;font-weight:700"></div>
+      <div id="cam-cat-hint" style="color:rgba(255,255,255,.7);font-size:11px;margin-top:1px"></div>
+    </div>
+    <button onclick="cpCloseCamera()" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;padding:6px 14px;border-radius:6px;font-size:13px;cursor:pointer">Cancel</button>
+  </div>
+  <!-- Live video preview -->
+  <video id="cam-video" autoplay playsinline muted style="flex:1;width:100%;object-fit:cover;background:#000"></video>
+  <!-- Guide overlay -->
+  <div style="position:absolute;inset:0;pointer-events:none;display:flex;align-items:center;justify-content:center">
+    <div style="border:3px solid rgba(255,255,255,0.5);border-radius:12px;width:85%;max-width:360px;aspect-ratio:4/3"></div>
+  </div>
+  <!-- Capture button -->
+  <div style="padding:16px;background:rgba(0,0,0,0.7);display:flex;justify-content:center;align-items:center;gap:16px;flex-shrink:0">
+    <button onclick="cpSwitchCamera()" style="background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.3);color:#fff;padding:10px 16px;border-radius:8px;font-size:12px;cursor:pointer">Flip</button>
+    <button onclick="cpCapture()" style="width:70px;height:70px;border-radius:50%;background:#fff;border:4px solid #1D9E75;cursor:pointer;font-size:24px;display:flex;align-items:center;justify-content:center">&#9679;</button>
+    <div style="width:70px"></div>
+  </div>
+  <!-- Hidden canvas for capture -->
+  <canvas id="cam-canvas" style="display:none"></canvas>
+</div>
 
 </body>
 </html>
