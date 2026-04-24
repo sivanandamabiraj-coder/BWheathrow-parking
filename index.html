@@ -668,7 +668,236 @@ on conflict (key) do nothing;</textarea>
         </div>
         <div style="font-size:11px;color:#aaa;margin-top:8px" id="rpt-count"></div>
       </div>
+
       <!-- Security & Notifications panel -->
+
+    </div>
+
+    <div id="tab-audit" class="section">
+      <div class="card" style="padding:0;overflow:hidden">
+        <div style="padding:12px 16px;border-bottom:1px solid #eee;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span style="font-size:14px;font-weight:600">Audit log</span>
+          <input type="text" id="audit-search" placeholder="Search reg..." style="width:130px;height:30px;font-size:12px" oninput="renderAudit()">
+          <select id="audit-filter-action" style="width:140px;height:30px;font-size:12px" onchange="renderAudit()">
+            <option value="">All actions</option>
+            <option value="DELETE">Deletions only</option>
+            <option value="CHECKIN">Check-ins</option>
+            <option value="CHECKOUT">Check-outs</option>
+            <option value="MOVE">Location moves</option>
+          </select>
+          <input type="date" id="audit-from" style="width:130px;height:30px;font-size:12px" oninput="renderAudit()">
+          <input type="date" id="audit-to" style="width:130px;height:30px;font-size:12px" oninput="renderAudit()">
+          <button class="btn" style="margin-left:auto;font-size:12px;padding:5px 10px" onclick="loadAudit()">↻ Refresh</button>
+        </div>
+        <div style="overflow-x:auto">
+          <table>
+            <thead><tr>
+              <th style="width:85px">Date/time</th>
+              <th style="width:75px">Action</th>
+              <th style="width:85px">Reg</th>
+              <th style="width:110px">Customer</th>
+              <th style="width:90px">Staff</th>
+              <th>Details / Reason</th>
+            </tr></thead>
+            <tbody id="audit-tbody"><tr><td colspan="6" style="text-align:center;padding:2rem;color:#aaa">Loading...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-settings" class="section">
+
+      <!-- Tabs within settings -->
+      <div style="display:flex;gap:6px;margin-bottom:0.6rem;flex-wrap:wrap">
+        <button class="btn active" id="stab-pricing-btn" onclick="switchSettingsTab('pricing',this)" style="font-size:12px;padding:6px 14px">Space allocation</button>
+        <button class="btn" id="stab-contractors-btn" onclick="switchSettingsTab('contractors',this)" style="font-size:12px;padding:6px 14px">Contractors</button>
+        <button class="btn" id="stab-users-btn" onclick="switchSettingsTab('users',this)" style="font-size:12px;padding:6px 14px">Users &amp; roles</button>
+        <button class="btn" id="stab-security-btn" onclick="switchSettingsTab('security',this)" style="font-size:12px;padding:6px 14px">Security &amp; notifications</button>
+        <button class="btn" id="stab-anpr-btn" onclick="switchSettingsTab('anpr',this)" style="font-size:12px;padding:6px 14px">🎥 ANPR Camera</button>
+      </div>
+
+      <!-- Contractors tab -->
+      <div id="stab-contractors" style="display:none">
+        <div class="card">
+          <h3>Off-site contractors</h3>
+          <div id="con-msg" style="margin-bottom:8px"></div>
+          <div style="background:#FAEEDA;border:1px solid #FAC775;border-radius:7px;padding:10px 14px;font-size:12px;color:#633806;margin-bottom:1rem">
+            <strong>Internal only — never shown to customers.</strong> Each contractor has their own pricing. Staff choose which contractor to use at check-in when the hotel is full. Rates can be changed at any time.
+          </div>
+          <div id="con-list" style="margin-bottom:1rem"></div>
+          <div style="background:#f9f9f7;border-radius:8px;padding:1rem;border:1px solid #eee">
+            <div style="font-size:13px;font-weight:600;color:#1E407C;margin-bottom:10px">Add new contractor</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:10px">
+              <div><label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Company name *</label><input type="text" id="nc-name" placeholder="ABC Parking Ltd"></div>
+              <div><label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Contact number</label><input type="text" id="nc-contact" placeholder="07700..."></div>
+              <div><label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Rate below threshold (£/night)</label><input type="number" id="nc-rate1" step="0.10" min="0" placeholder="4.50"></div>
+              <div><label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Rate above threshold (£/night)</label><input type="number" id="nc-rate2" step="0.10" min="0" placeholder="3.50"></div>
+              <div><label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Threshold (no. of vehicles)</label><input type="number" id="nc-threshold" min="1" placeholder="20"></div>
+              <div><label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Address / notes</label><input type="text" id="nc-address" placeholder="Optional"></div>
+            </div>
+            <button class="btn primary" onclick="addContractor()">Add contractor</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="stab-pricing">
+        <div id="settings-save-msg" style="margin-bottom:6px"></div>
+
+        <!-- SPACE ALLOCATION -->
+        <div class="card">
+          <h3>Space allocation</h3>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:1rem">
+            <div>
+              <label style="font-size:12px;color:#555;display:block;margin-bottom:4px">Total hotel spaces</label>
+              <input type="number" id="s-total-spaces" step="1" min="1">
+            </div>
+            <div>
+              <label style="font-size:12px;color:#555;display:block;margin-bottom:4px">Daily parking slots</label>
+              <input type="number" id="s-daily-cap" step="1" min="0">
+            </div>
+            <div>
+              <label style="font-size:12px;color:#555;display:block;margin-bottom:4px">Long-stay parking slots</label>
+              <input type="number" id="s-long-cap" step="1" min="0">
+            </div>
+          </div>
+          <div style="background:#FAEEDA;border:1px solid #FAC775;border-radius:7px;padding:8px 12px;font-size:12px;color:#633806;margin-bottom:1rem">
+            Daily + Long-stay slots must equal Total hotel spaces.
+          </div>
+        </div>
+
+        <button class="btn primary" onclick="saveSettings()">Save settings</button>
+        <button class="btn" style="margin-left:8px" onclick="loadSettings()">Reset to saved</button>
+      </div>
+
+      <!-- Users panel -->
+      <div id="stab-users" style="display:none">
+        <div class="card">
+          <h3>Add new user</h3>
+          <div id="user-save-msg" style="margin-bottom:6px"></div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:12px">
+            <div><label style="font-size:12px;color:#555;display:block;margin-bottom:4px">Full name</label><input type="text" id="nu-name" placeholder="e.g. Jane Smith"></div>
+            <div><label style="font-size:12px;color:#555;display:block;margin-bottom:4px">Username</label><input type="text" id="nu-user" placeholder="e.g. jsmith"></div>
+            <div><label style="font-size:12px;color:#555;display:block;margin-bottom:4px">Password</label><input type="password" id="nu-pass" placeholder="Min 6 characters"></div>
+            <div><label style="font-size:12px;color:#555;display:block;margin-bottom:4px">Role</label>
+              <select id="nu-role" onchange="toggleContractorSelector(this.value)">
+                <option value="staff">Staff — check in/out, view active</option>
+                <option value="manager">Manager — + reports, history</option>
+                <option value="admin">Admin — full access + settings</option>
+                <option value="contractor">Contractor — vehicle portal only</option>
+              </select>
+            </div>
+            <div id="nu-contractor-row" style="display:none"><label style="font-size:12px;color:#555;display:block;margin-bottom:4px">Link to contractor</label>
+              <select id="nu-contractor-id">
+                <option value="">Select contractor...</option>
+              </select>
+            </div>
+          </div>
+          <button class="btn primary" onclick="addUser()">Add user</button>
+        </div>
+        <div class="card" style="padding:0;overflow:hidden">
+          <div style="padding:12px 16px;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:14px;font-weight:600">All users</span>
+            <button class="btn" style="font-size:12px;padding:5px 10px" onclick="loadUsers()">↻ Refresh</button>
+          </div>
+          <div style="overflow-x:auto">
+            <table>
+              <thead><tr>
+                <th style="width:120px">Full name</th>
+                <th style="width:110px">Username</th>
+                <th style="width:90px">Role</th>
+                <th style="width:80px">Status</th>
+                <th>Actions</th>
+              </tr></thead>
+              <tbody id="users-tbody"><tr><td colspan="5" style="text-align:center;padding:2rem;color:#aaa">Loading...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+      <!-- ANPR Camera Integration panel -->
+      <div id="stab-anpr" style="display:none">
+        <div class="card">
+          <h3>🎥 ANPR Camera Integration</h3>
+          <div id="anpr-save-msg" style="margin-bottom:8px"></div>
+          <div style="background:#E6F1FB;border:1px solid #B5D4F4;border-radius:7px;padding:10px 14px;font-size:12px;color:#0C447C;margin-bottom:1rem">
+            Connect your ANPR (Automatic Number Plate Recognition) camera system. When a plate is read, the system can auto-match it against active bookings, log the event, and alert staff to unrecognised vehicles.
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+            <div><label style="font-size:12px;color:#555;display:block;margin-bottom:4px">ANPR webhook URL (this system receives from camera)</label>
+              <input type="text" id="anpr-webhook-url" readonly style="font-size:11px;font-family:monospace;background:#f0f0ee" value="" placeholder="Generating..."></div>
+            <div><label style="font-size:12px;color:#555;display:block;margin-bottom:4px">Camera system API endpoint (push reads to)</label>
+              <input type="text" id="anpr-camera-endpoint" placeholder="http://192.168.1.100/api/plates"></div>
+            <div><label style="font-size:12px;color:#555;display:block;margin-bottom:4px">Camera API key / token</label>
+              <input type="password" id="anpr-camera-key" placeholder="Optional auth token"></div>
+            <div><label style="font-size:12px;color:#555;display:block;margin-bottom:4px">Alert email for unknown plates</label>
+              <input type="email" id="anpr-alert-email" placeholder="security@arielhotel.co.uk"></div>
+          </div>
+          <div style="margin-bottom:12px">
+            <label style="font-size:12px;color:#555;display:block;margin-bottom:6px">ANPR actions on plate read:</label>
+            <div style="display:flex;gap:1rem;flex-wrap:wrap;font-size:13px">
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="anpr-auto-checkin" checked> Auto-match to active booking</label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="anpr-log-events" checked> Log all ANPR events</label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="anpr-alert-unknown"> Alert staff on unknown plate</label>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn primary" onclick="saveAnprSettings()">Save ANPR settings</button>
+            <button class="btn" onclick="testAnprConnection()">Test connection</button>
+            <button class="btn" onclick="simulateAnprRead()">🧪 Simulate plate read</button>
+          </div>
+        </div>
+
+        <div class="card" style="padding:0;overflow:hidden">
+          <div style="padding:12px 16px;border-bottom:1px solid #eee;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <span style="font-size:14px;font-weight:600">ANPR Event Log</span>
+            <span style="font-size:12px;color:#888" id="anpr-log-count"></span>
+            <input type="text" id="anpr-log-search" placeholder="Search plate..." style="width:130px;height:30px;font-size:12px" oninput="renderAnprLog()">
+            <select id="anpr-log-filter" style="width:140px;height:30px;font-size:12px" onchange="renderAnprLog()">
+              <option value="">All events</option>
+              <option value="match">Matched</option>
+              <option value="unknown">Unknown</option>
+              <option value="simulate">Simulated</option>
+            </select>
+            <button class="btn" style="margin-left:auto;font-size:12px;padding:5px 10px" onclick="loadAnprLog()">↻ Refresh</button>
+          </div>
+          <div style="overflow-x:auto">
+            <table>
+              <thead><tr>
+                <th style="width:120px">Date/time</th>
+                <th style="width:90px">Plate read</th>
+                <th style="width:80px">Result</th>
+                <th style="width:110px">Matched to</th>
+                <th>Camera / source</th>
+              </tr></thead>
+              <tbody id="anpr-log-tbody"><tr><td colspan="5" style="text-align:center;padding:2rem;color:#aaa">No events yet</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Integration guide</h3>
+          <div style="font-size:13px;color:#555;line-height:1.9">
+            <strong>How ANPR integration works:</strong><br>
+            Your ANPR camera (Hikvision, AXIS, Genetec, etc.) sends a webhook POST request when it reads a plate. This system receives it, matches the plate to active bookings, and logs the entry/exit.
+            <br><br>
+            <strong>Webhook format (POST JSON):</strong>
+            <textarea readonly onclick="this.select()" rows="6" style="font-family:monospace;font-size:11px;background:#0f0f11;color:#5DCAA5;border:1px solid #333;border-radius:6px;padding:10px;width:100%;margin-top:6px">
+{
+  "plate": "AB12CDE",
+  "timestamp": "2026-04-24T14:30:00Z",
+  "camera_id": "carpark-entrance",
+  "confidence": 0.98,
+  "direction": "entry"
+}</textarea>
+            <br>
+            <strong>Supported camera brands:</strong> Hikvision · AXIS · Dahua · Genetec · OpenALPR · Plate Recognizer<br>
+            <strong>Connection:</strong> Point your camera's webhook/HTTP notification to the URL shown above (your system URL + /anpr-hook)
+          </div>
+        </div>
+      </div>
+
       <div id="stab-security" style="display:none">
 
         <div class="card">
@@ -897,233 +1126,6 @@ create policy "photos_insert" on storage.objects
           </textarea>
         </div>
 
-      </div>
-
-    </div>
-
-    <div id="tab-audit" class="section">
-      <div class="card" style="padding:0;overflow:hidden">
-        <div style="padding:12px 16px;border-bottom:1px solid #eee;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <span style="font-size:14px;font-weight:600">Audit log</span>
-          <input type="text" id="audit-search" placeholder="Search reg..." style="width:130px;height:30px;font-size:12px" oninput="renderAudit()">
-          <select id="audit-filter-action" style="width:140px;height:30px;font-size:12px" onchange="renderAudit()">
-            <option value="">All actions</option>
-            <option value="DELETE">Deletions only</option>
-            <option value="CHECKIN">Check-ins</option>
-            <option value="CHECKOUT">Check-outs</option>
-            <option value="MOVE">Location moves</option>
-          </select>
-          <input type="date" id="audit-from" style="width:130px;height:30px;font-size:12px" oninput="renderAudit()">
-          <input type="date" id="audit-to" style="width:130px;height:30px;font-size:12px" oninput="renderAudit()">
-          <button class="btn" style="margin-left:auto;font-size:12px;padding:5px 10px" onclick="loadAudit()">↻ Refresh</button>
-        </div>
-        <div style="overflow-x:auto">
-          <table>
-            <thead><tr>
-              <th style="width:85px">Date/time</th>
-              <th style="width:75px">Action</th>
-              <th style="width:85px">Reg</th>
-              <th style="width:110px">Customer</th>
-              <th style="width:90px">Staff</th>
-              <th>Details / Reason</th>
-            </tr></thead>
-            <tbody id="audit-tbody"><tr><td colspan="6" style="text-align:center;padding:2rem;color:#aaa">Loading...</td></tr></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <div id="tab-settings" class="section">
-
-      <!-- Tabs within settings -->
-      <div style="display:flex;gap:6px;margin-bottom:0.6rem;flex-wrap:wrap">
-        <button class="btn active" id="stab-pricing-btn" onclick="switchSettingsTab('pricing',this)" style="font-size:12px;padding:6px 14px">Space allocation</button>
-        <button class="btn" id="stab-contractors-btn" onclick="switchSettingsTab('contractors',this)" style="font-size:12px;padding:6px 14px">Contractors</button>
-        <button class="btn" id="stab-users-btn" onclick="switchSettingsTab('users',this)" style="font-size:12px;padding:6px 14px">Users &amp; roles</button>
-        <button class="btn" id="stab-security-btn" onclick="switchSettingsTab('security',this)" style="font-size:12px;padding:6px 14px">Security &amp; notifications</button>
-        <button class="btn" id="stab-anpr-btn" onclick="switchSettingsTab('anpr',this)" style="font-size:12px;padding:6px 14px">🎥 ANPR Camera</button>
-      </div>
-
-      <!-- Contractors tab -->
-      <div id="stab-contractors" style="display:none">
-        <div class="card">
-          <h3>Off-site contractors</h3>
-          <div id="con-msg" style="margin-bottom:8px"></div>
-          <div style="background:#FAEEDA;border:1px solid #FAC775;border-radius:7px;padding:10px 14px;font-size:12px;color:#633806;margin-bottom:1rem">
-            <strong>Internal only — never shown to customers.</strong> Each contractor has their own pricing. Staff choose which contractor to use at check-in when the hotel is full. Rates can be changed at any time.
-          </div>
-          <div id="con-list" style="margin-bottom:1rem"></div>
-          <div style="background:#f9f9f7;border-radius:8px;padding:1rem;border:1px solid #eee">
-            <div style="font-size:13px;font-weight:600;color:#1E407C;margin-bottom:10px">Add new contractor</div>
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:10px">
-              <div><label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Company name *</label><input type="text" id="nc-name" placeholder="ABC Parking Ltd"></div>
-              <div><label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Contact number</label><input type="text" id="nc-contact" placeholder="07700..."></div>
-              <div><label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Rate below threshold (£/night)</label><input type="number" id="nc-rate1" step="0.10" min="0" placeholder="4.50"></div>
-              <div><label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Rate above threshold (£/night)</label><input type="number" id="nc-rate2" step="0.10" min="0" placeholder="3.50"></div>
-              <div><label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Threshold (no. of vehicles)</label><input type="number" id="nc-threshold" min="1" placeholder="20"></div>
-              <div><label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Address / notes</label><input type="text" id="nc-address" placeholder="Optional"></div>
-            </div>
-            <button class="btn primary" onclick="addContractor()">Add contractor</button>
-          </div>
-        </div>
-      </div>
-
-      <div id="stab-pricing">
-        <div id="settings-save-msg" style="margin-bottom:6px"></div>
-
-        <!-- SPACE ALLOCATION -->
-        <div class="card">
-          <h3>Space allocation</h3>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:1rem">
-            <div>
-              <label style="font-size:12px;color:#555;display:block;margin-bottom:4px">Total hotel spaces</label>
-              <input type="number" id="s-total-spaces" step="1" min="1">
-            </div>
-            <div>
-              <label style="font-size:12px;color:#555;display:block;margin-bottom:4px">Daily parking slots</label>
-              <input type="number" id="s-daily-cap" step="1" min="0">
-            </div>
-            <div>
-              <label style="font-size:12px;color:#555;display:block;margin-bottom:4px">Long-stay parking slots</label>
-              <input type="number" id="s-long-cap" step="1" min="0">
-            </div>
-          </div>
-          <div style="background:#FAEEDA;border:1px solid #FAC775;border-radius:7px;padding:8px 12px;font-size:12px;color:#633806;margin-bottom:1rem">
-            Daily + Long-stay slots must equal Total hotel spaces.
-          </div>
-        </div>
-
-        <button class="btn primary" onclick="saveSettings()">Save settings</button>
-        <button class="btn" style="margin-left:8px" onclick="loadSettings()">Reset to saved</button>
-      </div>
-
-      <!-- Users panel -->
-      <div id="stab-users" style="display:none">
-        <div class="card">
-          <h3>Add new user</h3>
-          <div id="user-save-msg" style="margin-bottom:6px"></div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:12px">
-            <div><label style="font-size:12px;color:#555;display:block;margin-bottom:4px">Full name</label><input type="text" id="nu-name" placeholder="e.g. Jane Smith"></div>
-            <div><label style="font-size:12px;color:#555;display:block;margin-bottom:4px">Username</label><input type="text" id="nu-user" placeholder="e.g. jsmith"></div>
-            <div><label style="font-size:12px;color:#555;display:block;margin-bottom:4px">Password</label><input type="password" id="nu-pass" placeholder="Min 6 characters"></div>
-            <div><label style="font-size:12px;color:#555;display:block;margin-bottom:4px">Role</label>
-              <select id="nu-role" onchange="toggleContractorSelector(this.value)">
-                <option value="staff">Staff — check in/out, view active</option>
-                <option value="manager">Manager — + reports, history</option>
-                <option value="admin">Admin — full access + settings</option>
-                <option value="contractor">Contractor — vehicle portal only</option>
-              </select>
-            </div>
-            <div id="nu-contractor-row" style="display:none"><label style="font-size:12px;color:#555;display:block;margin-bottom:4px">Link to contractor</label>
-              <select id="nu-contractor-id">
-                <option value="">Select contractor...</option>
-              </select>
-            </div>
-          </div>
-          <button class="btn primary" onclick="addUser()">Add user</button>
-        </div>
-        <div class="card" style="padding:0;overflow:hidden">
-          <div style="padding:12px 16px;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between">
-            <span style="font-size:14px;font-weight:600">All users</span>
-            <button class="btn" style="font-size:12px;padding:5px 10px" onclick="loadUsers()">↻ Refresh</button>
-          </div>
-          <div style="overflow-x:auto">
-            <table>
-              <thead><tr>
-                <th style="width:120px">Full name</th>
-                <th style="width:110px">Username</th>
-                <th style="width:90px">Role</th>
-                <th style="width:80px">Status</th>
-                <th>Actions</th>
-              </tr></thead>
-              <tbody id="users-tbody"><tr><td colspan="5" style="text-align:center;padding:2rem;color:#aaa">Loading...</td></tr></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-    </div>
-
-      <!-- ANPR Camera Integration panel -->
-      <div id="stab-anpr" style="display:none">
-        <div class="card">
-          <h3>🎥 ANPR Camera Integration</h3>
-          <div id="anpr-save-msg" style="margin-bottom:8px"></div>
-          <div style="background:#E6F1FB;border:1px solid #B5D4F4;border-radius:7px;padding:10px 14px;font-size:12px;color:#0C447C;margin-bottom:1rem">
-            Connect your ANPR (Automatic Number Plate Recognition) camera system. When a plate is read, the system can auto-match it against active bookings, log the event, and alert staff to unrecognised vehicles.
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-            <div><label style="font-size:12px;color:#555;display:block;margin-bottom:4px">ANPR webhook URL (this system receives from camera)</label>
-              <input type="text" id="anpr-webhook-url" readonly style="font-size:11px;font-family:monospace;background:#f0f0ee" value="" placeholder="Generating..."></div>
-            <div><label style="font-size:12px;color:#555;display:block;margin-bottom:4px">Camera system API endpoint (push reads to)</label>
-              <input type="text" id="anpr-camera-endpoint" placeholder="http://192.168.1.100/api/plates"></div>
-            <div><label style="font-size:12px;color:#555;display:block;margin-bottom:4px">Camera API key / token</label>
-              <input type="password" id="anpr-camera-key" placeholder="Optional auth token"></div>
-            <div><label style="font-size:12px;color:#555;display:block;margin-bottom:4px">Alert email for unknown plates</label>
-              <input type="email" id="anpr-alert-email" placeholder="security@arielhotel.co.uk"></div>
-          </div>
-          <div style="margin-bottom:12px">
-            <label style="font-size:12px;color:#555;display:block;margin-bottom:6px">ANPR actions on plate read:</label>
-            <div style="display:flex;gap:1rem;flex-wrap:wrap;font-size:13px">
-              <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="anpr-auto-checkin" checked> Auto-match to active booking</label>
-              <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="anpr-log-events" checked> Log all ANPR events</label>
-              <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="anpr-alert-unknown"> Alert staff on unknown plate</label>
-            </div>
-          </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn primary" onclick="saveAnprSettings()">Save ANPR settings</button>
-            <button class="btn" onclick="testAnprConnection()">Test connection</button>
-            <button class="btn" onclick="simulateAnprRead()">🧪 Simulate plate read</button>
-          </div>
-        </div>
-
-        <div class="card" style="padding:0;overflow:hidden">
-          <div style="padding:12px 16px;border-bottom:1px solid #eee;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            <span style="font-size:14px;font-weight:600">ANPR Event Log</span>
-            <span style="font-size:12px;color:#888" id="anpr-log-count"></span>
-            <input type="text" id="anpr-log-search" placeholder="Search plate..." style="width:130px;height:30px;font-size:12px" oninput="renderAnprLog()">
-            <select id="anpr-log-filter" style="width:140px;height:30px;font-size:12px" onchange="renderAnprLog()">
-              <option value="">All events</option>
-              <option value="match">Matched</option>
-              <option value="unknown">Unknown</option>
-              <option value="simulate">Simulated</option>
-            </select>
-            <button class="btn" style="margin-left:auto;font-size:12px;padding:5px 10px" onclick="loadAnprLog()">↻ Refresh</button>
-          </div>
-          <div style="overflow-x:auto">
-            <table>
-              <thead><tr>
-                <th style="width:120px">Date/time</th>
-                <th style="width:90px">Plate read</th>
-                <th style="width:80px">Result</th>
-                <th style="width:110px">Matched to</th>
-                <th>Camera / source</th>
-              </tr></thead>
-              <tbody id="anpr-log-tbody"><tr><td colspan="5" style="text-align:center;padding:2rem;color:#aaa">No events yet</td></tr></tbody>
-            </table>
-          </div>
-        </div>
-
-        <div class="card">
-          <h3>Integration guide</h3>
-          <div style="font-size:13px;color:#555;line-height:1.9">
-            <strong>How ANPR integration works:</strong><br>
-            Your ANPR camera (Hikvision, AXIS, Genetec, etc.) sends a webhook POST request when it reads a plate. This system receives it, matches the plate to active bookings, and logs the entry/exit.
-            <br><br>
-            <strong>Webhook format (POST JSON):</strong>
-            <textarea readonly onclick="this.select()" rows="6" style="font-family:monospace;font-size:11px;background:#0f0f11;color:#5DCAA5;border:1px solid #333;border-radius:6px;padding:10px;width:100%;margin-top:6px">
-{
-  "plate": "AB12CDE",
-  "timestamp": "2026-04-24T14:30:00Z",
-  "camera_id": "carpark-entrance",
-  "confidence": 0.98,
-  "direction": "entry"
-}</textarea>
-            <br>
-            <strong>Supported camera brands:</strong> Hikvision · AXIS · Dahua · Genetec · OpenALPR · Plate Recognizer<br>
-            <strong>Connection:</strong> Point your camera's webhook/HTTP notification to the URL shown above (your system URL + /anpr-hook)
-          </div>
-        </div>
       </div>
 
 
