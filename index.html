@@ -2804,65 +2804,107 @@ function toggleKeyVisibility(){
 }
 
 async function sendTestEmail(){
-  // Always reload from Supabase first so we use live DB values
-  await loadEmailCFG();
-  // Use form field values if filled, otherwise fall back to DB values
-  let key  = document.getElementById('s-resend-key')?.value.trim()  || emailCFG.apiKey;
-  let from = document.getElementById('s-from-email')?.value.trim()  || emailCFG.fromEmail;
-  let hotel= document.getElementById('s-hotel-name')?.value.trim()  || emailCFG.hotelName || 'Best Western Ariel Hotel';
-  let m=document.getElementById('email-save-msg');
-  if(!key||!from){
-    if(m)m.innerHTML='<div class="alert warn">No API key or From address found. Please fill in the fields above and click Save & Activate first.</div>';
+  let m = document.getElementById('email-save-msg');
+  if(m) m.innerHTML='<div class="alert info" style="font-size:12px">⏳ Step 1/4: Loading email config from database...</div>';
+
+  // ── Step 1: Load config directly from Supabase (bypass all caching) ──
+  let key='', from='', hotel='Best Western Ariel Hotel', replyTo='';
+  try{
+    let rows = await sbFetch('app_settings?key=like.email_%25&select=key,value');
+    if(!Array.isArray(rows)||rows.length===0){
+      if(m) m.innerHTML='<div class="alert error">❌ No email settings found in database. Run the migration SQL first, then Save & Activate.</div>';
+      return;
+    }
+    let map={};
+    rows.forEach(r=>{ map[r.key]=r.value; });
+    key     = map.email_api_key   ||'';
+    from    = map.email_from      ||'';
+    hotel   = map.email_hotel_name||'Best Western Ariel Hotel';
+    replyTo = map.email_reply_to  ||from;
+
+    if(m) m.innerHTML='<div class="alert info" style="font-size:12px">⏳ Step 2/4: Config loaded — key: '+(key?key.slice(0,8)+'...':'EMPTY')+' from: '+(from||'EMPTY')+'</div>';
+  }catch(e){
+    if(m) m.innerHTML='<div class="alert error">❌ Failed to load config from database: '+e.message+'</div>';
     return;
   }
-  // Repopulate form fields so user can see what's being used
-  populateSecurityFields();
-  let toAddr = prompt('Send test email to:', from);
-  if(!toAddr||!toAddr.includes('@')) return;
 
-  if(m) m.innerHTML='<div class="alert info">Sending test email...</div>';
-  showLoading('Sending test email to '+toAddr+'...');
+  if(!key){
+    if(m) m.innerHTML='<div class="alert error">❌ No API key in database. Go to Settings → Security & notifications → enter your Resend key → Save & Activate.</div>';
+    return;
+  }
+  if(!from){
+    if(m) m.innerHTML='<div class="alert error">❌ No From email in database. Go to Settings → Security & notifications → enter From email → Save & Activate.</div>';
+    return;
+  }
+
+  // ── Step 2: Ask where to send ──
+  let toAddr = prompt('Send test email to (must be your Resend account email for free plan):', replyTo||from);
+  if(!toAddr||!toAddr.includes('@')){
+    if(m) m.innerHTML='';
+    return;
+  }
+
+  if(m) m.innerHTML='<div class="alert info" style="font-size:12px">⏳ Step 3/4: Calling Resend API...</div>';
+
+  // ── Step 3: Call Resend directly ──
   try{
-    // Save current form values to emailCFG temporarily for this test
-    let testCFG={...emailCFG, apiKey:key, fromEmail:from, hotelName:hotel,
-      replyEmail:document.getElementById('s-reply-email')?.value.trim()||from};
-    let r=await fetch('https://api.resend.com/emails',{
-      method:'POST',
-      headers:{'Authorization':'Bearer '+key,'Content-Type':'application/json'},
-      body:JSON.stringify({
-        from: hotel+' <'+from+'>',
-        reply_to: document.getElementById('s-reply-email')?.value.trim()||from,
-        to:[toAddr],
-        subject: hotel+' — Test email ✓',
-        html: `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:20px">
-          <div style="background:#1E407C;padding:16px 20px;border-radius:8px 8px 0 0;border-bottom:3px solid #C9A84C">
-            <h1 style="color:#fff;margin:0;font-size:18px">${hotel}</h1>
-            <p style="color:rgba(255,255,255,.7);margin:4px 0 0;font-size:12px">Email System Test</p>
-          </div>
-          <div style="background:#f9f9f7;padding:20px;border-radius:0 0 8px 8px;border:1px solid #eee;border-top:none">
-            <p style="color:#27500A;font-weight:600">✓ Email notifications are working correctly!</p>
-            <p style="color:#555;font-size:13px">Sent at: ${new Date().toLocaleString('en-GB')}</p>
-            <p style="color:#555;font-size:13px">From: ${from}</p>
-            <p style="color:#555;font-size:13px">The following emails will be sent automatically:</p>
-            <ul style="font-size:13px;color:#555;line-height:2;padding-left:1.2rem">
-              <li>Check-in confirmation — immediately when vehicle checked in</li>
-              <li>Checkout receipt — immediately on checkout</li>
-              <li>Collection reminder — 2 days before return date</li>
-              <li>Overstay notice — automatically when vehicle is overdue</li>
-            </ul>
-          </div></body></html>`
-      })
+    let body = JSON.stringify({
+      from: hotel+' <'+from+'>',
+      reply_to: replyTo||from,
+      to: [toAddr],
+      subject: hotel+' — Test email ✓',
+      html: '<div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:20px">'+
+        '<div style="background:#1E407C;padding:16px 20px;border-radius:8px 8px 0 0;border-bottom:3px solid #C9A84C">'+
+        '<h1 style="color:#fff;margin:0;font-size:18px">'+hotel+'</h1>'+
+        '<p style="color:rgba(255,255,255,.7);margin:4px 0 0;font-size:12px">Email System Test</p></div>'+
+        '<div style="background:#f9f9f7;padding:20px;border-radius:0 0 8px 8px;border:1px solid #eee;border-top:none">'+
+        '<p style="color:#27500A;font-weight:700;font-size:15px">✓ Email is working correctly!</p>'+
+        '<p style="color:#555;font-size:13px">Sent: '+new Date().toLocaleString('en-GB')+'</p>'+
+        '<p style="color:#555;font-size:13px">From: '+from+'</p>'+
+        '<p style="color:#555;font-size:13px">Check-in confirmations, reminders and overstay notices will now send automatically.</p>'+
+        '</div></div>'
     });
-    hideLoading();
+
+    if(m) m.innerHTML='<div class="alert info" style="font-size:12px">⏳ Step 3/4: Request sent to Resend, waiting for response...</div>';
+
+    let r = await fetch('https://api.resend.com/emails',{
+      method:'POST',
+      headers:{
+        'Authorization':'Bearer '+key,
+        'Content-Type':'application/json'
+      },
+      body: body
+    });
+
+    let responseText = await r.text();
+    if(m) m.innerHTML='<div class="alert info" style="font-size:12px">⏳ Step 4/4: Got response HTTP '+r.status+': '+responseText.slice(0,150)+'</div>';
+
     if(r.ok){
-      if(m)m.innerHTML='<div class="alert success">✓ Test email sent to <strong>'+toAddr+'</strong> — check your inbox! If it arrived, click Save & Activate to enable all automatic emails.</div>';
+      // Also log to email_queue
+      sbFetch('email_queue',{method:'POST',body:JSON.stringify({
+        to_email:toAddr, subject:hotel+' — Test email ✓',
+        email_type:'manual', status:'sent', sent_at:new Date().toISOString()
+      }),headers:{'Prefer':'return=minimal'}}).catch(()=>{});
+
+      if(m) m.innerHTML='<div class="alert success" style="font-size:13px">'+
+        '✅ <strong>Test email sent successfully to '+toAddr+'</strong><br>'+
+        '<span style="font-size:12px">Check your inbox (and spam folder). '+
+        'Resend ID: '+(JSON.parse(responseText).id||'ok')+'</span></div>';
     } else {
-      let t=await r.text();
-      if(m)m.innerHTML='<div class="alert error">Resend API error: '+t.slice(0,200)+'</div>';
+      if(m) m.innerHTML='<div class="alert error">'+
+        '❌ <strong>Resend rejected the request (HTTP '+r.status+')</strong><br>'+
+        '<span style="font-size:12px">'+responseText.slice(0,300)+'</span><br><br>'+
+        '<strong>Common causes:</strong><br>'+
+        '<span style="font-size:12px">'+
+        '• Invalid API key — double-check it starts with <code>re_</code><br>'+
+        '• From address must be <code>onboarding@resend.dev</code> on free plan<br>'+
+        '• To address must match your Resend account email on free plan'+
+        '</span></div>';
     }
   }catch(e){
-    hideLoading();
-    if(m)m.innerHTML='<div class="alert error">Failed: '+e.message+'</div>';
+    if(m) m.innerHTML='<div class="alert error">'+
+      '❌ <strong>Network error: '+e.message+'</strong><br>'+
+      '<span style="font-size:12px">This usually means a browser extension (ad blocker) is blocking the request to api.resend.com. Try disabling your ad blocker and trying again.</span></div>';
   }
 }
 
