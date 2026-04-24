@@ -73,6 +73,7 @@ TYPE html>
   .alert.error{background:#FCEBEB;color:#791F1F;border:1px solid #F7C1C1}
   .spinner{display:inline-block;width:14px;height:14px;border:2px solid #ccc;border-top-color:#378ADD;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle}
   @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
   .loading-overlay{display:none;position:fixed;inset:0;background:rgba(255,255,255,0.7);z-index:100;align-items:center;justify-content:center;flex-direction:column;gap:10px}
   .loading-overlay.show{display:flex}
   @media(max-width:600px){.form-row{grid-template-columns:1fr}nav button{padding:5px 8px;font-size:12px}main{padding:0.5rem 0.6rem}}
@@ -293,7 +294,43 @@ on conflict do nothing;
 alter table vehicles add column if not exists move_status text;
 alter table vehicles add column if not exists move_pending_to text;
 alter table vehicles add column if not exists move_photos text;
-alter table app_users add column if not exists contractor_id bigint references contractors(id);</textarea>
+alter table app_users add column if not exists contractor_id bigint references contractors(id);
+-- New: email + loyalty + ANPR support
+alter table vehicles add column if not exists email text;
+alter table vehicles add column if not exists loyalty_visits integer default 1;
+alter table vehicles add column if not exists reminder_sent_at timestamptz;
+alter table vehicles add column if not exists overstay_notice_sent_at timestamptz;
+alter table pending_checkins add column if not exists email text;
+
+-- Email queue table (stores all outgoing emails for audit + Edge Function sending)
+create table if not exists email_queue (
+  id bigint generated always as identity primary key,
+  to_email text not null,
+  subject text not null,
+  html_body text,
+  email_type text,        -- 'checkin'|'checkout'|'reminder'|'overstay'|'pending'|'approved'|'manual'
+  related_reg text,
+  status text default 'pending',  -- 'pending'|'sent'|'failed'
+  error_msg text,
+  resend_id text,
+  created_at timestamptz default now(),
+  sent_at timestamptz
+);
+alter table email_queue enable row level security;
+create policy "eq_insert" on email_queue for insert with check (true);
+create policy "eq_read"   on email_queue for select using (true);
+create policy "eq_update" on email_queue for update using (true);
+
+-- Email settings keys (added to app_settings)
+insert into app_settings (key, value) values
+  ('email_api_key',''),('email_from',''),
+  ('email_hotel_name','Best Western Ariel Hotel'),
+  ('email_reply_to',''),
+  ('email_on_checkin','true'),('email_on_checkout','true'),
+  ('email_on_pending','true'),('email_on_approved','true'),
+  ('email_on_reminder','true'),
+  ('email_overstay_days','1'),('email_overstay_rate','10')
+on conflict (key) do nothing;</textarea>
     </div>
       <ol>
         <li>In Supabase left sidebar click <strong>API Keys</strong> (or Project Settings → General for the URL)</li>
@@ -370,6 +407,7 @@ alter table app_users add column if not exists contractor_id bigint references c
         <button id="nav-settings" style="display:none" onclick="showTab('settings',this)">Settings</button>
       </nav>
       <span class="sheet-status ok" id="db-status" style="font-size:10px;color:rgba(255,255,255,.6);white-space:nowrap;margin-left:4px">● Live</span>
+      <span id="anpr-indicator" style="display:none;font-size:10px;color:#1D9E75;background:rgba(29,158,117,.15);border:1px solid rgba(29,158,117,.4);border-radius:12px;padding:2px 8px;margin-left:6px;white-space:nowrap;align-items:center"></span>
       <span id="current-user-badge" style="font-size:11px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);border-radius:20px;padding:2px 8px;display:none;color:#fff;white-space:nowrap;margin-left:6px"></span>
       <button id="logout-btn" style="display:none;font-size:11px;padding:3px 8px;border-radius:5px;border:1px solid rgba(255,255,255,.25);background:transparent;cursor:pointer;color:rgba(255,255,255,.7);white-space:nowrap;margin-left:4px" onclick="doLogout()">Sign out</button>
     </div>
@@ -447,6 +485,10 @@ alter table app_users add column if not exists contractor_id bigint references c
         <div class="card"><h3>Forecast contractor cost</h3><div id="dash-forecast"></div></div>
       </div>
       <div class="card"><h3>Active vehicles — recent</h3><div id="dash-table"></div></div>
+      <div class="card" style="border-left:4px solid #C9A84C">
+        <h3 style="color:#B8860B">🏅 Loyalty — Repeat customers</h3>
+        <div id="dash-loyalty"></div>
+      </div>
     </div>
 
     <div id="tab-checkin" class="section">
@@ -460,6 +502,10 @@ alter table app_users add column if not exists contractor_id bigint references c
         <div class="form-row">
           <div class="form-group"><label>Mobile number</label><input type="text" id="ci-phone" placeholder="+44..."></div>
           <div class="form-group"><label>Room number</label><input type="text" id="ci-room" placeholder="e.g. 215" maxlength="10"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Email (for confirmation)</label><input type="email" id="ci-email" placeholder="guest@example.com"></div>
+          <div class="form-group" id="ci-loyalty-display" style="display:flex;align-items:flex-end;padding-bottom:2px"></div>
         </div>
         <div class="form-row">
           <div class="form-group"><label>Check-in date &amp; time *</label><input type="datetime-local" id="ci-checkin" onchange="updateSpacePreview()"></div>
@@ -626,34 +672,143 @@ alter table app_users add column if not exists contractor_id bigint references c
       <div id="stab-security" style="display:none">
 
         <div class="card">
-          <h3>Email notifications (Resend — free)</h3>
+          <h3>📧 Automatic Email Notifications</h3>
           <div id="email-save-msg" style="margin-bottom:8px"></div>
-          <div style="background:#E6F1FB;border:1px solid #B5D4F4;border-radius:7px;padding:10px 14px;font-size:12px;color:#0C447C;margin-bottom:1rem">
-            Resend is free for up to 100 emails/day. Get your API key at <strong>resend.com</strong> (free account, no card needed).
-            Then set your <strong>From</strong> address once you have a custom domain (e.g. <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="88f8e9fae3e1e6efc8e9fae1ede4e0e7fcede4a6ebe7a6fde3">[email&#160;protected]</a>).
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-            <div><label style="font-size:12px;color:#555;display:block;margin-bottom:4px">Resend API key</label>
-              <input type="password" id="s-resend-key" placeholder="re_xxxxxxxxxxxx"></div>
-            <div><label style="font-size:12px;color:#555;display:block;margin-bottom:4px">From email address</label>
-              <input type="text" id="s-from-email" placeholder="parking@arielhotel.co.uk"></div>
-            <div><label style="font-size:12px;color:#555;display:block;margin-bottom:4px">Hotel name (shown in emails)</label>
-              <input type="text" id="s-hotel-name" placeholder="Best Western Ariel Hotel"></div>
-            <div><label style="font-size:12px;color:#555;display:block;margin-bottom:4px">Reply-to email</label>
-              <input type="text" id="s-reply-email" placeholder="reception@arielhotel.co.uk"></div>
-          </div>
-          <div style="margin-bottom:12px">
-            <label style="font-size:12px;color:#555;display:block;margin-bottom:6px">Send email on:</label>
-            <div style="display:flex;gap:1rem;flex-wrap:wrap;font-size:13px">
-              <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="email-on-checkin" checked> Check-in confirmation</label>
-              <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="email-on-checkout" checked> Checkout receipt</label>
-              <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="email-on-pending" checked> Guest self-check-in received</label>
-              <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="email-on-approved"> Self-check-in approved</label>
+
+          <!-- Status badge -->
+          <div id="email-status-badge" style="margin-bottom:12px"></div>
+
+          <!-- Setup guide -->
+          <div style="background:#E6F1FB;border:1px solid #B5D4F4;border-radius:8px;padding:12px 16px;font-size:12px;color:#0C447C;margin-bottom:1rem">
+            <strong>How to set up automatic emails (5 minutes, free):</strong>
+            <ol style="margin:8px 0 0;padding-left:1.2rem;line-height:2.2">
+              <li>Go to <a href="https://resend.com" target="_blank" style="color:#185FA5;font-weight:600">resend.com</a> → Sign up free (100 emails/day free forever)</li>
+              <li>In Resend dashboard → <strong>API Keys</strong> → <strong>Create API Key</strong> → copy the key (starts with <code style="background:#d4e8f7;padding:1px 5px;border-radius:3px">re_</code>)</li>
+              <li>Go to <strong>Domains</strong> → Add your domain (e.g. arielhotel.co.uk) and verify the DNS records — or use Resend's free shared domain to start</li>
+              <li>Paste the key below → enter your From address → click <strong>Save &amp; Activate</strong></li>
+            </ol>
+            <div style="margin-top:8px;padding:8px 10px;background:rgba(30,64,124,.08);border-radius:6px;font-size:11px">
+              Once saved, settings are stored in the database and shared across all staff computers automatically.
+              Reminder and overstay emails are sent automatically every 5 minutes by the system.
             </div>
           </div>
-          <div style="display:flex;gap:8px">
-            <button class="btn primary" onclick="saveEmailSettings()">Save email settings</button>
-            <button class="btn" onclick="sendTestEmail()">Send test email</button>
+
+          <!-- Credentials -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+            <div>
+              <label style="font-size:12px;color:#555;display:block;margin-bottom:4px">Resend API key <span style="color:#E24B4A">*</span></label>
+              <div style="display:flex;gap:6px">
+                <input type="password" id="s-resend-key" placeholder="re_xxxxxxxxxxxxxxxxxxxx" style="flex:1">
+                <button onclick="toggleKeyVisibility()" style="padding:8px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;font-size:12px;white-space:nowrap">👁</button>
+              </div>
+            </div>
+            <div>
+              <label style="font-size:12px;color:#555;display:block;margin-bottom:4px">From email address <span style="color:#E24B4A">*</span></label>
+              <input type="text" id="s-from-email" placeholder="parking@arielhotel.co.uk">
+            </div>
+            <div>
+              <label style="font-size:12px;color:#555;display:block;margin-bottom:4px">Hotel name (shown in every email)</label>
+              <input type="text" id="s-hotel-name" placeholder="Best Western Ariel Hotel">
+            </div>
+            <div>
+              <label style="font-size:12px;color:#555;display:block;margin-bottom:4px">Reply-to email</label>
+              <input type="text" id="s-reply-email" placeholder="reception@arielhotel.co.uk">
+            </div>
+          </div>
+
+          <!-- Trigger toggles -->
+          <div style="background:#f9f9f7;border-radius:8px;padding:14px 16px;margin-bottom:14px">
+            <div style="font-size:13px;font-weight:600;color:#1E407C;margin-bottom:10px">Automatic triggers</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px 10px;background:#fff;border-radius:6px;border:1px solid #eee">
+                <input type="checkbox" id="email-on-checkin" checked>
+                <div><div style="font-weight:600">Check-in confirmation</div><div style="font-size:11px;color:#888">Sent immediately when vehicle checked in</div></div>
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px 10px;background:#fff;border-radius:6px;border:1px solid #eee">
+                <input type="checkbox" id="email-on-checkout" checked>
+                <div><div style="font-weight:600">Checkout receipt</div><div style="font-size:11px;color:#888">Sent immediately on vehicle checkout</div></div>
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px 10px;background:#fff;border-radius:6px;border:1px solid #eee">
+                <input type="checkbox" id="email-on-pending" checked>
+                <div><div style="font-weight:600">Self check-in received</div><div style="font-size:11px;color:#888">Sent when guest submits online form</div></div>
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px 10px;background:#fff;border-radius:6px;border:1px solid #eee">
+                <input type="checkbox" id="email-on-approved" checked>
+                <div><div style="font-weight:600">Self check-in approved</div><div style="font-size:11px;color:#888">Sent when staff approves a pending request</div></div>
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px 10px;background:#EAF3DE;border-radius:6px;border:1px solid #C0DD97">
+                <input type="checkbox" id="email-on-reminder" checked>
+                <div><div style="font-weight:600;color:#27500A">Collection reminder 🔔</div><div style="font-size:11px;color:#2d6b1f">Auto-sent 2 days before return date</div></div>
+              </label>
+              <div style="padding:8px 10px;background:#FAEEDA;border-radius:6px;border:1px solid #FAC775">
+                <div style="font-size:13px;font-weight:600;color:#633806;margin-bottom:6px">Overstay notice ⚠ — auto-send after:</div>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <input type="number" id="s-overstay-days" value="1" min="0" max="14" style="width:60px;padding:4px 8px;border:1px solid #FAC775;border-radius:5px;font-size:13px">
+                  <span style="font-size:12px;color:#633806">day(s) overdue</span>
+                  <span style="font-size:11px;color:#aaa;margin-left:4px">(0 = disabled)</span>
+                </div>
+                <div style="margin-top:6px;display:flex;align-items:center;gap:8px">
+                  <span style="font-size:12px;color:#633806">Daily rate to quote: £</span>
+                  <input type="number" id="s-overstay-rate" value="10" min="0" step="0.50" style="width:70px;padding:4px 8px;border:1px solid #FAC775;border-radius:5px;font-size:13px">
+                  <span style="font-size:11px;color:#aaa">/day</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Scheduler status -->
+          <div style="background:#f9f9f7;border-radius:7px;padding:8px 12px;font-size:11px;color:#888;margin-bottom:12px;display:flex;align-items:center;gap:8px">
+            <span id="email-scheduler-status">Auto-scheduler: not started</span>
+            <span style="margin-left:auto"><button onclick="runEmailScheduler()" style="font-size:11px;padding:3px 10px;border:1px solid #ddd;border-radius:5px;background:#fff;cursor:pointer">Run now</button></span>
+          </div>
+
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn primary" onclick="saveEmailSettings()">💾 Save &amp; Activate</button>
+            <button class="btn" onclick="sendTestEmail()">📨 Send test email</button>
+            <button class="btn" onclick="openEmailLog()">📋 View email log</button>
+          </div>
+        </div>
+
+        <div class="card" style="border-left:4px solid #1D9E75">
+          <h3 style="color:#085041">🤖 Server-side Auto-Send (Supabase Edge Function)</h3>
+          <div style="background:#EAF3DE;border:1px solid #C0DD97;border-radius:7px;padding:10px 14px;font-size:12px;color:#27500A;margin-bottom:1rem">
+            <strong>Why you need this:</strong> Without the Edge Function, automatic emails only send while a staff member has this page open.
+            With it, the server sends reminders and overstay notices <strong>every 5 minutes, 24/7</strong> — even at 3am.
+          </div>
+          <div style="font-size:13px;color:#555;line-height:2;margin-bottom:1rem">
+            <strong>One-time setup (15 minutes):</strong>
+            <ol style="padding-left:1.2rem;margin:8px 0">
+              <li>Install Supabase CLI: <code style="background:#f0f0ee;padding:1px 6px;border-radius:4px;font-size:11px">npm install -g supabase</code></li>
+              <li>Link your project: <code style="background:#f0f0ee;padding:1px 6px;border-radius:4px;font-size:11px">supabase link --project-ref kcmzncomwnjejcchtlas</code></li>
+              <li>Create the function folder and paste the code below</li>
+              <li>Deploy: <code style="background:#f0f0ee;padding:1px 6px;border-radius:4px;font-size:11px">supabase functions deploy send-emails --no-verify-jwt</code></li>
+              <li>Enable the cron schedule in Supabase → <strong>Database → Extensions</strong> → enable <strong>pg_cron</strong></li>
+              <li>Run the cron SQL below in Supabase SQL Editor</li>
+            </ol>
+          </div>
+          <div style="margin-bottom:10px">
+            <div style="font-size:12px;font-weight:600;color:#555;margin-bottom:4px">Edge Function code <span style="font-weight:400;color:#aaa">(save as supabase/functions/send-emails/index.ts)</span></div>
+            <textarea readonly onclick="this.select()" rows="5" style="font-family:monospace;font-size:11px;background:#0f0f11;color:#5DCAA5;border:1px solid #333;border-radius:6px;padding:10px;width:100%">Download the file: send-emails/index.ts (available in the deployment package)</textarea>
+          </div>
+          <div style="margin-bottom:10px">
+            <div style="font-size:12px;font-weight:600;color:#555;margin-bottom:4px">Cron schedule SQL (run in Supabase SQL Editor)</div>
+            <textarea readonly onclick="this.select()" rows="8" style="font-family:monospace;font-size:11px;background:#0f0f11;color:#5DCAA5;border:1px solid #333;border-radius:6px;padding:10px;width:100%">-- Enable pg_cron extension first (Supabase Dashboard → Database → Extensions)
+select cron.schedule(
+  'send-parking-emails',
+  '*/5 * * * *',
+  $$
+  select net.http_post(
+    url:='https://kcmzncomwnjejcchtlas.supabase.co/functions/v1/send-emails',
+    headers:='{"Authorization":"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtjbXpuY29td25qZWpjY2h0bGFzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwOTI1MzAsImV4cCI6MjA5MTY2ODUzMH0.fsrJFLFxzT3ZFzM-oe96hptWDRr-cKg1S8anyfkWHgY"}'::jsonb
+  ) $$
+);
+-- To check it's running: select * from cron.job;
+-- To remove: select cron.unschedule('send-parking-emails');</textarea>
+          </div>
+          <div style="background:#f9f9f7;border-radius:7px;padding:8px 12px;font-size:11px;color:#888">
+            Once deployed, you can test it by opening: 
+            <code style="font-size:10px">https://kcmzncomwnjejcchtlas.supabase.co/functions/v1/send-emails</code>
+            in your browser — it returns a JSON summary of emails sent.
           </div>
         </div>
 
@@ -786,6 +941,7 @@ create policy "photos_insert" on storage.objects
         <button class="btn" id="stab-contractors-btn" onclick="switchSettingsTab('contractors',this)" style="font-size:12px;padding:6px 14px">Contractors</button>
         <button class="btn" id="stab-users-btn" onclick="switchSettingsTab('users',this)" style="font-size:12px;padding:6px 14px">Users &amp; roles</button>
         <button class="btn" id="stab-security-btn" onclick="switchSettingsTab('security',this)" style="font-size:12px;padding:6px 14px">Security &amp; notifications</button>
+        <button class="btn" id="stab-anpr-btn" onclick="switchSettingsTab('anpr',this)" style="font-size:12px;padding:6px 14px">🎥 ANPR Camera</button>
       </div>
 
       <!-- Contractors tab -->
@@ -888,13 +1044,89 @@ create policy "photos_insert" on storage.objects
 
     </div>
 
+      <!-- ANPR Camera Integration panel -->
+      <div id="stab-anpr" style="display:none">
+        <div class="card">
+          <h3>🎥 ANPR Camera Integration</h3>
+          <div id="anpr-save-msg" style="margin-bottom:8px"></div>
+          <div style="background:#E6F1FB;border:1px solid #B5D4F4;border-radius:7px;padding:10px 14px;font-size:12px;color:#0C447C;margin-bottom:1rem">
+            Connect your ANPR (Automatic Number Plate Recognition) camera system. When a plate is read, the system can auto-match it against active bookings, log the event, and alert staff to unrecognised vehicles.
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+            <div><label style="font-size:12px;color:#555;display:block;margin-bottom:4px">ANPR webhook URL (this system receives from camera)</label>
+              <input type="text" id="anpr-webhook-url" readonly style="font-size:11px;font-family:monospace;background:#f0f0ee" value="" placeholder="Generating..."></div>
+            <div><label style="font-size:12px;color:#555;display:block;margin-bottom:4px">Camera system API endpoint (push reads to)</label>
+              <input type="text" id="anpr-camera-endpoint" placeholder="http://192.168.1.100/api/plates"></div>
+            <div><label style="font-size:12px;color:#555;display:block;margin-bottom:4px">Camera API key / token</label>
+              <input type="password" id="anpr-camera-key" placeholder="Optional auth token"></div>
+            <div><label style="font-size:12px;color:#555;display:block;margin-bottom:4px">Alert email for unknown plates</label>
+              <input type="email" id="anpr-alert-email" placeholder="security@arielhotel.co.uk"></div>
+          </div>
+          <div style="margin-bottom:12px">
+            <label style="font-size:12px;color:#555;display:block;margin-bottom:6px">ANPR actions on plate read:</label>
+            <div style="display:flex;gap:1rem;flex-wrap:wrap;font-size:13px">
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="anpr-auto-checkin" checked> Auto-match to active booking</label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="anpr-log-events" checked> Log all ANPR events</label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="anpr-alert-unknown"> Alert staff on unknown plate</label>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn primary" onclick="saveAnprSettings()">Save ANPR settings</button>
+            <button class="btn" onclick="testAnprConnection()">Test connection</button>
+            <button class="btn" onclick="simulateAnprRead()">🧪 Simulate plate read</button>
+          </div>
+        </div>
+
+        <div class="card" style="padding:0;overflow:hidden">
+          <div style="padding:12px 16px;border-bottom:1px solid #eee;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <span style="font-size:14px;font-weight:600">ANPR Event Log</span>
+            <span style="font-size:12px;color:#888" id="anpr-log-count"></span>
+            <input type="text" id="anpr-log-search" placeholder="Search plate..." style="width:130px;height:30px;font-size:12px" oninput="renderAnprLog()">
+            <select id="anpr-log-filter" style="width:140px;height:30px;font-size:12px" onchange="renderAnprLog()">
+              <option value="">All events</option>
+              <option value="match">Matched</option>
+              <option value="unknown">Unknown</option>
+              <option value="simulate">Simulated</option>
+            </select>
+            <button class="btn" style="margin-left:auto;font-size:12px;padding:5px 10px" onclick="loadAnprLog()">↻ Refresh</button>
+          </div>
+          <div style="overflow-x:auto">
+            <table>
+              <thead><tr>
+                <th style="width:120px">Date/time</th>
+                <th style="width:90px">Plate read</th>
+                <th style="width:80px">Result</th>
+                <th style="width:110px">Matched to</th>
+                <th>Camera / source</th>
+              </tr></thead>
+              <tbody id="anpr-log-tbody"><tr><td colspan="5" style="text-align:center;padding:2rem;color:#aaa">No events yet</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Integration guide</h3>
+          <div style="font-size:13px;color:#555;line-height:1.9">
+            <strong>How ANPR integration works:</strong><br>
+            Your ANPR camera (Hikvision, AXIS, Genetec, etc.) sends a webhook POST request when it reads a plate. This system receives it, matches the plate to active bookings, and logs the entry/exit.
+            <br><br>
+            <strong>Webhook format (POST JSON):</strong>
+            <textarea readonly onclick="this.select()" rows="6" style="font-family:monospace;font-size:11px;background:#0f0f11;color:#5DCAA5;border:1px solid #333;border-radius:6px;padding:10px;width:100%;margin-top:6px">
+{
+  "plate": "AB12CDE",
+  "timestamp": "2026-04-24T14:30:00Z",
+  "camera_id": "carpark-entrance",
+  "confidence": 0.98,
+  "direction": "entry"
+}</textarea>
+            <br>
+            <strong>Supported camera brands:</strong> Hikvision · AXIS · Dahua · Genetec · OpenALPR · Plate Recognizer<br>
+            <strong>Connection:</strong> Point your camera's webhook/HTTP notification to the URL shown above (your system URL + /anpr-hook)
+          </div>
+        </div>
+      </div>
 
 
-
-  
-
-
-</div>
 
 
 
@@ -1165,8 +1397,9 @@ function updateDash(){
   let in2days=addDays(td,2);
   let overdue=vehicles.filter(v=>v.location==='contractor'&&v.return_date<td);
   let alertHtml='';
-  if(overdue.length) alertHtml+=`<div class="alert warn" style="margin-bottom:8px"><strong>${overdue.length} vehicle(s) overdue</strong> — should have returned: ${overdue.map(v=>'<strong>'+v.reg+'</strong> (was '+fmtDT(v.return_date)+')').join(', ')}</div>`;
+  if(overdue.length) alertHtml+=`<div class="alert warn" style="margin-bottom:8px"><strong>${overdue.length} vehicle(s) overdue</strong> — should have returned: ${overdue.map(v=>'<strong>'+v.reg+'</strong> (was '+fmtDT(v.return_date)+')'+' <button onclick="sendOverstayEmail(\''+v.reg+'\')" style="font-size:11px;padding:2px 8px;border:1px solid #C0392B;border-radius:4px;background:#fff;color:#C0392B;cursor:pointer;margin-left:4px">Send notice</button>').join(', ')}</div>`;
   document.getElementById('dash-alerts').innerHTML=alertHtml;
+  // Auto email scheduler runs on its own interval — no need to call from here
 
   // ── Due back in next 2 days ──
   let dueSoon=vehicles.filter(v=>v.return_date>=td&&v.return_date<=in2days).sort((a,b)=>a.return_date>b.return_date?1:-1);
@@ -1229,6 +1462,23 @@ function updateDash(){
   // ── Recent vehicles table ──
   let recent=vehicles.slice(0,8);
   document.getElementById('dash-table').innerHTML=recent.length?`<table><thead><tr><th>Reg</th><th>Name</th><th>Location</th><th>Return</th><th>Cont. cost</th></tr></thead><tbody>${recent.map(v=>`<tr><td><strong>${v.reg}</strong></td><td>${v.name}</td><td><span class="badge ${v.location}">${v.location==='hotel'?'Hotel':(v.contractor_name||'Contractor')}</span></td><td>${fmtDT(v.return_date)}</td><td style="color:#633806;font-weight:600">£${estimateCost(v).contCost.toFixed(2)}</td></tr>`).join('')}</tbody></table>`:'<p style="color:#aaa;text-align:center;padding:1rem">No active vehicles</p>';
+
+  // ── Loyalty widget ──
+  let loyaltyEl=document.getElementById('dash-loyalty');
+  if(loyaltyEl){
+    let all=[...vehicles,...historyData];
+    let counts={};all.forEach(v=>{counts[v.reg]=(counts[v.reg]||0)+1;});
+    let repeats=Object.entries(counts).filter(([r,c])=>c>=2).sort((a,b)=>b[1]-a[1]).slice(0,8);
+    if(!repeats.length){loyaltyEl.innerHTML='<p style="font-size:12px;color:#aaa">No repeat customers yet. Loyalty tiers: Bronze 2+, Silver 5+, Gold 10+ visits</p>';}
+    else loyaltyEl.innerHTML=repeats.map(([reg,cnt])=>{
+      let v=all.find(x=>x.reg===reg);
+      return`<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #f0f0f0">
+        <span style="font-size:14px;font-weight:700;color:#1E407C;min-width:90px">${reg}</span>
+        <span style="font-size:12px;color:#555;flex:1">${v?v.name:''}</span>
+        ${renderLoyaltyBadge(cnt)}
+      </div>`;
+    }).join('');
+  }
 
   // ── Contractor cost to date ──
   let contCostToDate=0,hotelNightsToDate=0,contNightsToDate=0;
@@ -1368,6 +1618,7 @@ async function checkIn(){
   try{
     await sbFetch('vehicles',{method:'POST',body:JSON.stringify({
       reg, name, phone:phone||null,
+      email: document.getElementById('ci-email')?.value.trim()||null,
       location: loc,
       check_in_date: checkinDate,
       return_date: ret,
@@ -1388,8 +1639,20 @@ async function checkIn(){
     })});
     await loadData(true);
     hideLoading();
-    alertEl.innerHTML='<div class="alert success">✓ <strong>'+reg+'</strong> checked in — '+(loc==='hotel'?'Hotel':'Off-site: '+conName)+'</div>';
-    ['ci-reg','ci-name','ci-phone','ci-checkin','ci-room','ci-return'].forEach(id=>{
+    // Count loyalty visits (including this one)
+    let loyaltyCount = await getLoyaltyVisits(reg);
+    let loyaltyMsg = loyaltyCount>1 ? ' 🏅 Visit #'+loyaltyCount+'!' : '';
+    alertEl.innerHTML='<div class="alert success">✓ <strong>'+reg+'</strong> checked in — '+(loc==='hotel'?'Hotel':'Off-site: '+conName)+loyaltyMsg+'</div>';
+    // Send check-in confirmation email
+    let email = document.getElementById('ci-email')?.value.trim()||null;
+    if(email && emailCFG.onCheckin){
+      sendEmail({
+        to: email,
+        subject: (emailCFG.hotelName||'Best Western Ariel Hotel')+' — Parking Confirmed ('+reg+')',
+        html: emailCheckinHTML({reg, name, check_in_date:checkinDate, return_date:ret, room_number:room, email, loyalty_visits:loyaltyCount}, loc)
+      }).catch(e=>console.warn('Check-in email:',e));
+    }
+    ['ci-reg','ci-name','ci-phone','ci-checkin','ci-room','ci-return','ci-email'].forEach(id=>{
       let el=document.getElementById(id); if(el) el.value='';
     });
     let ov=document.getElementById('ci-location-override'); if(ov) ov.value='auto';
@@ -1399,6 +1662,30 @@ async function checkIn(){
     hideLoading();
     alertEl.innerHTML='<div class="alert error">Check-in failed: '+e.message+'</div>';
   }
+}
+
+// ════════════════════════════════════════════
+// LOYALTY PROGRAMME
+// ════════════════════════════════════════════
+async function getLoyaltyVisits(reg){
+  try{
+    // Count all completed + active bookings for this reg
+    let hist = historyData.filter(v=>v.reg===reg);
+    let active = vehicles.filter(v=>v.reg===reg);
+    return hist.length + active.length; // includes current booking
+  }catch(e){ return 1; }
+}
+
+function getLoyaltyTier(visits){
+  if(visits>=10) return {tier:'Gold',icon:'🥇',color:'#B8860B',bg:'#FFF8E1',label:'Gold Member'};
+  if(visits>=5)  return {tier:'Silver',icon:'🥈',color:'#607D8B',bg:'#ECEFF1',label:'Silver Member'};
+  if(visits>=2)  return {tier:'Bronze',icon:'🥉',color:'#8D6E63',bg:'#FBE9E7',label:'Bronze Member'};
+  return {tier:'New',icon:'⭐',color:'#1E407C',bg:'#E6F1FB',label:'First Visit'};
+}
+
+function renderLoyaltyBadge(visits){
+  let t = getLoyaltyTier(visits);
+  return '<span style="background:'+t.bg+';color:'+t.color+';border:1px solid '+t.color+'40;border-radius:20px;padding:2px 10px;font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:4px">'+t.icon+' '+t.label+' · '+visits+' visit'+(visits!==1?'s':'')+'</span>';
 }
 
 let _pendingMove=null;
@@ -1600,6 +1887,10 @@ function showDetail(reg){
           <input type="text" id="ed-room-${reg}" value="${v.room_number||''}" style="width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
         </div>
         <div>
+          <label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Email (for notifications)</label>
+          <input type="email" id="ed-email-${reg}" value="${v.email||''}" style="width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px" placeholder="guest@example.com">
+        </div>
+        <div>
           <label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Drop-off date &amp; time</label>
           <input type="datetime-local" id="ed-checkin-${reg}" value="${v.check_in_date||''}" style="width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
         </div>
@@ -1645,6 +1936,7 @@ async function saveBookingEdit(reg){
   let name=(document.getElementById('ed-name-'+reg)?.value||'').trim();
   let phone=(document.getElementById('ed-phone-'+reg)?.value||'').trim();
   let room=(document.getElementById('ed-room-'+reg)?.value||'').trim()||null;
+  let email=(document.getElementById('ed-email-'+reg)?.value||'').trim()||null;
   let checkin=document.getElementById('ed-checkin-'+reg)?.value||'';
   let ret=document.getElementById('ed-return-'+reg)?.value||'';
   let conSel=document.getElementById('ed-contractor-'+reg);
@@ -1666,6 +1958,7 @@ async function saveBookingEdit(reg){
   try{
     let patch={
       reg:newReg, name, phone:phone||null, room_number:room,
+      email:email||null,
       check_in_date:checkin, return_date:ret,
       contractor_id: conId?parseInt(conId):null,
       contractor_name: conName||null,
@@ -1754,6 +2047,7 @@ function renderActive(){
       <td>
         <strong>${v.reg}</strong>
         ${v.ref_code?'<br><span style="font-size:10px;color:#0C447C;background:#E6F1FB;padding:1px 5px;border-radius:3px">'+v.ref_code+'</span>':''}
+        ${(()=>{let cnt=[...vehicles,...historyData].filter(x=>x.reg===v.reg).length;return cnt>=2?'<br>'+renderLoyaltyBadge(cnt):'';})()}
         ${transitBadge}
       </td>
       <td style="overflow:hidden;text-overflow:ellipsis">${v.name}</td>
@@ -1779,6 +2073,8 @@ function renderActive(){
         <button class="btn" style="font-size:11px;padding:4px 8px" onclick="printReceipt('${v.reg}','active')">Print</button>
         <button class="btn" style="font-size:11px;padding:4px 8px;color:#185FA5;border-color:#B5D4F4" onclick="openPhotos('${v.reg}')">Photos</button>
         ${can('manager')?'<button class="btn" style="font-size:11px;padding:4px 8px;color:#E24B4A;border-color:#F7C1C1" onclick="openDeleteModal(\''+v.reg+'\')">Delete</button>':''}
+        ${isOverdue&&can('staff')?'<button class="btn" style="font-size:11px;padding:4px 8px;background:#C0392B;color:#fff;border-color:#C0392B" onclick="sendOverstayEmail(\''+v.reg+'\')" title="Send overstay notice">⚠ Overstay</button>':''}
+        ${!isOverdue&&can('staff')?'<button class="btn" style="font-size:11px;padding:4px 8px;color:#EF9F27;border-color:#EF9F27" onclick="sendReminderEmail(\''+v.reg+'\')" title="Send reminder email">🔔</button>':''}
       </td>
     </tr>`;
   }).join('');
@@ -1801,7 +2097,7 @@ function searchCheckout(){
   ).join('');
   div.innerHTML=`<div class="card" style="max-width:480px">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1rem">
-      <div><div style="font-size:18px;font-weight:600">${v.reg}</div><div style="color:#888;font-size:13px">${v.name}${v.phone?' · '+v.phone:''}${v.room_number?' · Room '+v.room_number:''}</div></div>
+      <div><div style="font-size:18px;font-weight:600">${v.reg}</div><div style="color:#888;font-size:13px">${v.name}${v.phone?' · '+v.phone:''}${v.room_number?' · Room '+v.room_number:''}${v.email?'<br><span style="font-size:11px">✉ '+v.email+'</span>':''}</div></div>
       <span class="badge ${v.location}">${v.location==='hotel'?'Hotel':(v.contractor_name||'Off-site')}</span>
     </div>
     <table style="margin-bottom:1rem;width:100%">
@@ -1812,14 +2108,19 @@ function searchCheckout(){
       ${contRows}
       <tr style="border-top:2px solid #eee"><td style="padding:8px 0;font-weight:700;font-size:14px;color:#633806">Total contractor cost</td><td style="text-align:right;padding:8px 0;font-size:22px;font-weight:800;color:#633806">£${contCost.toFixed(2)}</td></tr>
     </table>
-    <button class="btn success" style="width:100%;justify-content:center;background:#1E407C;border-color:#1E407C" onclick="confirmCheckout('${v.reg}',${hd},${cd},${contCost},'${coDate}')">Confirm check-out</button>
+    <div style="display:flex;gap:8px;margin-top:0">
+      <button class="btn success" style="flex:1;justify-content:center;background:#1E407C;border-color:#1E407C" onclick="confirmCheckout('${v.reg}',${hd},${cd},${contCost},'${coDate}')">Confirm check-out</button>
+      ${v.email?'':''}
+      <button class="btn" style="font-size:12px;padding:5px 12px;color:#EF9F27;border-color:#EF9F27" onclick="sendReminderEmail('${v.reg}')" title="Send collection reminder">🔔 Remind</button>
+    </div>
   </div>`;
 }
 
 async function confirmCheckout(reg,hd,cd,contCost,coDate){
   let checkoutDate=coDate||nowLocal();
+  let v=vehicles.find(x=>x.reg===reg);
   showLoading('Processing...');
-  await sbFetch('vehicles?reg=eq.'+reg,{method:'PATCH',body:JSON.stringify({
+  await sbFetch('vehicles?reg=eq.'+encodeURIComponent(reg),{method:'PATCH',body:JSON.stringify({
     status:'checked-out',
     hotel_days:hd, contractor_days:cd,
     check_out_date:checkoutDate,
@@ -1830,6 +2131,11 @@ async function confirmCheckout(reg,hd,cd,contCost,coDate){
   document.getElementById('co-reg').value='';
   document.getElementById('co-date').value='';
   document.getElementById('co-result').innerHTML=`<div class="alert success">Vehicle <strong>${reg}</strong> checked out ${fmtDT(checkoutDate)} — ${cd>0?'Contractor cost: £'+contCost.toFixed(2):'No off-site cost'}</div>`;
+  if(v && v.email && emailCFG.onCheckout){
+    sendEmail({to:v.email,subject:(emailCFG.hotelName||'Best Western Ariel Hotel')+' — Parking Checkout Receipt ('+reg+')',
+      html:emailCheckoutHTML({...v,check_out_date:checkoutDate},hd,cd,contCost)
+    }).catch(e=>console.warn('Checkout email:',e));
+  }
 }
 
 function clearHistoryFilters(){
@@ -1861,7 +2167,7 @@ function renderHistory(){
     totalContCost+=e.contCost;
     let conNames=e.contSegments.length?e.contSegments.map(s=>s.name).join(', '):'–';
     return`<tr>
-      <td><strong>${r.reg}</strong>${r.ref_code?'<br><span style="font-size:10px;color:#0C447C">'+r.ref_code+'</span>':''}</td>
+      <td><strong>${r.reg}</strong>${r.ref_code?'<br><span style="font-size:10px;color:#0C447C">'+r.ref_code+'</span>':''}${(()=>{let cnt=[...vehicles,...historyData].filter(v=>v.reg===r.reg).length;return cnt>=2?'<br>'+renderLoyaltyBadge(cnt):'';})()}</td>
       <td>${r.name}</td>
       <td>${fmtDT(r.check_in_date)}</td>
       <td>${fmtDT(r.check_out_date)}</td>
@@ -2316,10 +2622,77 @@ function showPhotoQRPanel(){
 // ════════════════════════════════════════════
 // EMAIL NOTIFICATIONS (Resend)
 // ════════════════════════════════════════════
+// ── Email config — loaded from Supabase app_settings (shared across all devices)
+// Keys stored: email_api_key, email_from, email_hotel_name, email_reply_to,
+//              email_on_checkin, email_on_checkout, email_on_pending,
+//              email_on_approved, email_on_reminder, email_overstay_days,
+//              email_overstay_rate
 let emailCFG = {
   apiKey:'', fromEmail:'', hotelName:'Best Western Ariel Hotel',
-  replyEmail:'', onCheckin:true, onCheckout:true, onPending:true, onApproved:false
+  replyEmail:'', onCheckin:true, onCheckout:true, onPending:true,
+  onApproved:true, onReminder:true,
+  overstayDays:1,    // send overstay notice after this many days overdue
+  overstayRate:10    // default daily rate to quote in overstay email (£)
 };
+let _emailCFGLoaded = false; // prevent double-loading
+
+async function loadEmailCFG(){
+  // Fast: try localStorage cache first
+  try{
+    let cached=localStorage.getItem('heathrow_email_cfg');
+    if(cached){ emailCFG={...emailCFG,...JSON.parse(cached)}; }
+  }catch(e){}
+  // Then fetch from Supabase to get latest (shared across devices)
+  try{
+    let rows=await sbFetch('app_settings?key=like.email_%25&select=key,value');
+    if(Array.isArray(rows)&&rows.length){
+      let map={};
+      rows.forEach(r=>{ map[r.key]=r.value; });
+      if(map.email_api_key    !== undefined) emailCFG.apiKey      = map.email_api_key;
+      if(map.email_from       !== undefined) emailCFG.fromEmail   = map.email_from;
+      if(map.email_hotel_name !== undefined) emailCFG.hotelName   = map.email_hotel_name||'Best Western Ariel Hotel';
+      if(map.email_reply_to   !== undefined) emailCFG.replyEmail  = map.email_reply_to;
+      if(map.email_on_checkin !== undefined) emailCFG.onCheckin   = map.email_on_checkin==='true';
+      if(map.email_on_checkout!== undefined) emailCFG.onCheckout  = map.email_on_checkout==='true';
+      if(map.email_on_pending !== undefined) emailCFG.onPending   = map.email_on_pending==='true';
+      if(map.email_on_approved!== undefined) emailCFG.onApproved  = map.email_on_approved==='true';
+      if(map.email_on_reminder!== undefined) emailCFG.onReminder  = map.email_on_reminder==='true';
+      if(map.email_overstay_days !== undefined) emailCFG.overstayDays = parseInt(map.email_overstay_days)||1;
+      if(map.email_overstay_rate !== undefined) emailCFG.overstayRate = parseFloat(map.email_overstay_rate)||10;
+      // Refresh cache
+      localStorage.setItem('heathrow_email_cfg', JSON.stringify(emailCFG));
+    }
+  }catch(e){ console.warn('loadEmailCFG from Supabase:',e.message); }
+  _emailCFGLoaded=true;
+}
+
+async function saveEmailCFGToSupabase(cfg){
+  // Upsert each key into app_settings
+  let pairs=[
+    {key:'email_api_key',    value:cfg.apiKey||''},
+    {key:'email_from',       value:cfg.fromEmail||''},
+    {key:'email_hotel_name', value:cfg.hotelName||'Best Western Ariel Hotel'},
+    {key:'email_reply_to',   value:cfg.replyEmail||''},
+    {key:'email_on_checkin', value:String(cfg.onCheckin!==false)},
+    {key:'email_on_checkout',value:String(cfg.onCheckout!==false)},
+    {key:'email_on_pending', value:String(cfg.onPending!==false)},
+    {key:'email_on_approved',value:String(!!cfg.onApproved)},
+    {key:'email_on_reminder',value:String(!!cfg.onReminder)},
+    {key:'email_overstay_days',value:String(cfg.overstayDays||1)},
+    {key:'email_overstay_rate',value:String(cfg.overstayRate||10)},
+  ];
+  for(let p of pairs){
+    await sbFetch('app_settings?key=eq.'+encodeURIComponent(p.key),{
+      method:'PATCH',
+      body:JSON.stringify({value:p.value}),
+      headers:{'Prefer':'return=minimal'}
+    }).catch(async ()=>{
+      // Row may not exist yet — insert it
+      await sbFetch('app_settings',{method:'POST',body:JSON.stringify(p),headers:{'Prefer':'return=minimal'}}).catch(()=>{});
+    });
+  }
+  localStorage.setItem('heathrow_email_cfg', JSON.stringify(cfg));
+}
 
 // Login attempt tracking (brute force protection)
 let loginAttempts = 0;
@@ -2328,12 +2701,10 @@ const MAX_ATTEMPTS = 5;
 let sessionTimer = null;
 let SESSION_TIMEOUT_MS = 60 * 60 * 1000; // 1 hour default
 
-function loadSecuritySettings(){
+async function loadSecuritySettings(){
+  // Load email config fresh from Supabase into the UI
+  await loadEmailCFG();
   try{
-    let saved = localStorage.getItem('heathrow_email_cfg');
-    if(saved) emailCFG = {...emailCFG, ...JSON.parse(saved)};
-    let secSaved = localStorage.getItem('heathrow_sec_cfg');
-    let sec = secSaved ? JSON.parse(secSaved) : {};
     let s=id=>document.getElementById(id);
     if(s('s-resend-key'))    s('s-resend-key').value    = emailCFG.apiKey||'';
     if(s('s-from-email'))    s('s-from-email').value    = emailCFG.fromEmail||'';
@@ -2343,24 +2714,66 @@ function loadSecuritySettings(){
     if(s('email-on-checkout')) s('email-on-checkout').checked = emailCFG.onCheckout!==false;
     if(s('email-on-pending'))  s('email-on-pending').checked  = emailCFG.onPending!==false;
     if(s('email-on-approved')) s('email-on-approved').checked = !!emailCFG.onApproved;
+    if(s('email-on-reminder')) s('email-on-reminder').checked = !!emailCFG.onReminder;
+    if(s('s-overstay-days'))   s('s-overstay-days').value    = emailCFG.overstayDays||1;
+    if(s('s-overstay-rate'))   s('s-overstay-rate').value    = emailCFG.overstayRate||10;
+    let secSaved = localStorage.getItem('heathrow_sec_cfg');
+    let sec = secSaved ? JSON.parse(secSaved) : {};
     if(s('s-session-timeout')) s('s-session-timeout').value = sec.sessionTimeout||60;
     if(s('s-max-attempts'))    s('s-max-attempts').value    = sec.maxAttempts||5;
+    // Show connection status
+    updateEmailStatus();
   }catch(e){console.warn('loadSecuritySettings:',e);}
 }
 
-function saveEmailSettings(){
-  emailCFG.apiKey      = document.getElementById('s-resend-key').value.trim();
-  emailCFG.fromEmail   = document.getElementById('s-from-email').value.trim();
-  emailCFG.hotelName   = document.getElementById('s-hotel-name').value.trim()||'Best Western Ariel Hotel';
-  emailCFG.replyEmail  = document.getElementById('s-reply-email').value.trim();
-  emailCFG.onCheckin   = document.getElementById('email-on-checkin').checked;
-  emailCFG.onCheckout  = document.getElementById('email-on-checkout').checked;
-  emailCFG.onPending   = document.getElementById('email-on-pending').checked;
-  emailCFG.onApproved  = document.getElementById('email-on-approved').checked;
-  localStorage.setItem('heathrow_email_cfg', JSON.stringify(emailCFG));
+function updateEmailStatus(){
+  let el=document.getElementById('email-status-badge');
+  if(!el) return;
+  if(emailCFG.apiKey && emailCFG.fromEmail){
+    el.innerHTML='<span style="color:#27500A;background:#EAF3DE;border:1px solid #C0DD97;border-radius:20px;padding:3px 12px;font-size:12px;font-weight:600">✓ Email configured — auto-send active</span>';
+  } else {
+    el.innerHTML='<span style="color:#791F1F;background:#FCEBEB;border:1px solid #F7C1C1;border-radius:20px;padding:3px 12px;font-size:12px;font-weight:600">⚠ Email not configured — enter API key and From address below</span>';
+  }
+}
+
+async function saveEmailSettings(){
+  let g=id=>document.getElementById(id);
+  emailCFG.apiKey      = g('s-resend-key')?.value.trim()||'';
+  emailCFG.fromEmail   = g('s-from-email')?.value.trim()||'';
+  emailCFG.hotelName   = g('s-hotel-name')?.value.trim()||'Best Western Ariel Hotel';
+  emailCFG.replyEmail  = g('s-reply-email')?.value.trim()||'';
+  emailCFG.onCheckin   = g('email-on-checkin')?.checked!==false;
+  emailCFG.onCheckout  = g('email-on-checkout')?.checked!==false;
+  emailCFG.onPending   = g('email-on-pending')?.checked!==false;
+  emailCFG.onApproved  = !!g('email-on-approved')?.checked;
+  emailCFG.onReminder  = !!g('email-on-reminder')?.checked;
+  emailCFG.overstayDays= parseInt(g('s-overstay-days')?.value)||1;
+  emailCFG.overstayRate= parseFloat(g('s-overstay-rate')?.value)||10;
+
+  if(!emailCFG.apiKey){
+    let m=document.getElementById('email-save-msg');
+    m.innerHTML='<div class="alert warn">Please enter your Resend API key before saving.</div>';
+    return;
+  }
+  if(!emailCFG.fromEmail){
+    let m=document.getElementById('email-save-msg');
+    m.innerHTML='<div class="alert warn">Please enter a From email address before saving.</div>';
+    return;
+  }
+
   let m=document.getElementById('email-save-msg');
-  m.innerHTML='<div class="alert success">Email settings saved.</div>';
-  setTimeout(()=>m.innerHTML='',3000);
+  m.innerHTML='<div class="alert info">Saving to database...</div>';
+  showLoading('Saving email settings...');
+  try{
+    await saveEmailCFGToSupabase(emailCFG);
+    hideLoading();
+    m.innerHTML='<div class="alert success">✓ Email settings saved to database — all devices will use these settings automatically.</div>';
+    updateEmailStatus();
+    setTimeout(()=>m.innerHTML='',5000);
+  }catch(e){
+    hideLoading();
+    m.innerHTML='<div class="alert error">Save failed: '+e.message+'</div>';
+  }
 }
 
 function saveSecuritySettings(){
@@ -2374,28 +2787,144 @@ function saveSecuritySettings(){
   resetSessionTimer();
 }
 
-async function sendTestEmail(){
-  let key=document.getElementById('s-resend-key').value.trim();
-  let from=document.getElementById('s-from-email').value.trim();
-  let hotel=document.getElementById('s-hotel-name').value.trim()||'Best Western Ariel Hotel';
-  if(!key||!from){alert('Please enter your Resend API key and From email first.');return;}
-  if(!currentUser||!currentUser.username){alert('No user logged in — cannot send test.');return;}
-  showLoading('Sending test email...');
-  try{
-    await sendEmail({
-      to: currentUser.email||from,
-      subject: hotel+' — Test email',
-      html: `<h2>${hotel}</h2><p>This is a test email from your parking management system.</p><p>Email notifications are working correctly.</p>`
-    });
-    document.getElementById('email-save-msg').innerHTML='<div class="alert success">Test email sent to '+from+'</div>';
-  }catch(e){
-    document.getElementById('email-save-msg').innerHTML='<div class="alert error">Failed: '+e.message+'</div>';
-  }
-  hideLoading();
+function toggleKeyVisibility(){
+  let inp=document.getElementById('s-resend-key');
+  if(inp) inp.type = inp.type==='password' ? 'text' : 'password';
 }
 
-async function sendEmail({to,subject,html}){
-  if(!emailCFG.apiKey||!emailCFG.fromEmail||!to) return;
+async function sendTestEmail(){
+  let key=document.getElementById('s-resend-key')?.value.trim();
+  let from=document.getElementById('s-from-email')?.value.trim();
+  let hotel=document.getElementById('s-hotel-name')?.value.trim()||'Best Western Ariel Hotel';
+  let m=document.getElementById('email-save-msg');
+  if(!key||!from){
+    if(m)m.innerHTML='<div class="alert warn">Please enter your Resend API key and From address first, then click Save & Activate before testing.</div>';
+    return;
+  }
+  let toAddr = prompt('Send test email to:', from);
+  if(!toAddr||!toAddr.includes('@')) return;
+
+  if(m) m.innerHTML='<div class="alert info">Sending test email...</div>';
+  showLoading('Sending test email to '+toAddr+'...');
+  try{
+    // Save current form values to emailCFG temporarily for this test
+    let testCFG={...emailCFG, apiKey:key, fromEmail:from, hotelName:hotel,
+      replyEmail:document.getElementById('s-reply-email')?.value.trim()||from};
+    let r=await fetch('https://api.resend.com/emails',{
+      method:'POST',
+      headers:{'Authorization':'Bearer '+key,'Content-Type':'application/json'},
+      body:JSON.stringify({
+        from: hotel+' <'+from+'>',
+        reply_to: document.getElementById('s-reply-email')?.value.trim()||from,
+        to:[toAddr],
+        subject: hotel+' — Test email ✓',
+        html: `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:20px">
+          <div style="background:#1E407C;padding:16px 20px;border-radius:8px 8px 0 0;border-bottom:3px solid #C9A84C">
+            <h1 style="color:#fff;margin:0;font-size:18px">${hotel}</h1>
+            <p style="color:rgba(255,255,255,.7);margin:4px 0 0;font-size:12px">Email System Test</p>
+          </div>
+          <div style="background:#f9f9f7;padding:20px;border-radius:0 0 8px 8px;border:1px solid #eee;border-top:none">
+            <p style="color:#27500A;font-weight:600">✓ Email notifications are working correctly!</p>
+            <p style="color:#555;font-size:13px">Sent at: ${new Date().toLocaleString('en-GB')}</p>
+            <p style="color:#555;font-size:13px">From: ${from}</p>
+            <p style="color:#555;font-size:13px">The following emails will be sent automatically:</p>
+            <ul style="font-size:13px;color:#555;line-height:2;padding-left:1.2rem">
+              <li>Check-in confirmation — immediately when vehicle checked in</li>
+              <li>Checkout receipt — immediately on checkout</li>
+              <li>Collection reminder — 2 days before return date</li>
+              <li>Overstay notice — automatically when vehicle is overdue</li>
+            </ul>
+          </div></body></html>`
+      })
+    });
+    hideLoading();
+    if(r.ok){
+      if(m)m.innerHTML='<div class="alert success">✓ Test email sent to <strong>'+toAddr+'</strong> — check your inbox! If it arrived, click Save & Activate to enable all automatic emails.</div>';
+    } else {
+      let t=await r.text();
+      if(m)m.innerHTML='<div class="alert error">Resend API error: '+t.slice(0,200)+'</div>';
+    }
+  }catch(e){
+    hideLoading();
+    if(m)m.innerHTML='<div class="alert error">Failed: '+e.message+'</div>';
+  }
+}
+
+async function openEmailLog(){
+  showLoading('Loading email log...');
+  try{
+    let rows=await sbFetch('email_queue?order=created_at.desc&limit=50&select=*');
+    hideLoading();
+    if(!rows||!rows.length){alert('No emails in the queue yet.');return;}
+    let w=window.open('','_blank','width=900,height=700');
+    let rows_html=rows.map(r=>{
+      let dt=r.created_at?new Date(r.created_at).toLocaleString('en-GB'):'–';
+      let badge=r.status==='sent'
+        ?'<span style="background:#EAF3DE;color:#27500A;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600">✓ Sent</span>'
+        :r.status==='failed'
+        ?'<span style="background:#FCEBEB;color:#791F1F;padding:2px 8px;border-radius:20px;font-size:11px">✗ Failed</span>'
+        :'<span style="background:#FAEEDA;color:#633806;padding:2px 8px;border-radius:20px;font-size:11px">⏳ Pending</span>';
+      return`<tr><td style="padding:8px;border-bottom:1px solid #eee;font-size:12px">${dt}</td>
+        <td style="padding:8px;border-bottom:1px solid #eee;font-size:12px">${r.to_email}</td>
+        <td style="padding:8px;border-bottom:1px solid #eee;font-size:12px">${badge}</td>
+        <td style="padding:8px;border-bottom:1px solid #eee;font-size:11px;color:#555">${r.email_type||'–'}</td>
+        <td style="padding:8px;border-bottom:1px solid #eee;font-size:11px;font-weight:600">${r.related_reg||'–'}</td>
+        <td style="padding:8px;border-bottom:1px solid #eee;font-size:11px;color:#888;max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.subject||'–'}</td>
+        <td style="padding:8px;border-bottom:1px solid #eee;font-size:11px;color:#E24B4A">${r.error_msg||''}</td>
+      </tr>`;
+    }).join('');
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Email Log</title>
+    <style>*{box-sizing:border-box}body{font-family:Arial,sans-serif;padding:1.5rem;color:#1a1a1a}
+    h1{font-size:18px;margin-bottom:1rem}table{width:100%;border-collapse:collapse}
+    th{background:#1E407C;color:#fff;padding:8px 10px;text-align:left;font-size:12px}
+    @media print{button{display:none}}</style></head><body>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+      <h1>Email Log — last 50 emails</h1>
+      <button onclick="window.print()" style="padding:7px 16px;background:#1E407C;color:#fff;border:none;border-radius:6px;cursor:pointer">Print</button>
+    </div>
+    <table><thead><tr>
+      <th>Date/time</th><th>To</th><th>Status</th><th>Type</th><th>Reg</th><th>Subject</th><th>Error</th>
+    </tr></thead><tbody>${rows_html}</tbody></table>
+    </body></html>`);
+    w.document.close();
+  }catch(e){
+    hideLoading();
+    // Table may not exist yet
+    if(e.message.includes('relation')||e.message.includes('does not exist')){
+      alert('Email log table not yet created. Run the migration SQL in Supabase to enable the email log.');
+    } else {
+      alert('Error loading email log: '+e.message);
+    }
+  }
+}
+
+// ── Core email send — calls Resend directly AND queues in Supabase ──
+async function sendEmail({to, subject, html, type='manual', reg='', queueOnly=false}){
+  if(!to) return;
+  // Ensure config is loaded
+  if(!_emailCFGLoaded) await loadEmailCFG();
+  if(!emailCFG.apiKey||!emailCFG.fromEmail) throw new Error('Email not configured. Go to Settings → Security & Notifications.');
+
+  // 1. Queue in Supabase email_queue table (for audit + Edge Function fallback)
+  let queueRow = {
+    to_email: to, subject, html_body: html,
+    email_type: type, related_reg: reg||null,
+    status: 'pending',
+    created_at: new Date().toISOString()
+  };
+  let queueId = null;
+  try{
+    let res = await sbFetch('email_queue',{
+      method:'POST',
+      body: JSON.stringify(queueRow),
+      headers:{'Prefer':'return=representation'}
+    });
+    queueId = res&&res[0]?res[0].id:null;
+  }catch(e){ console.warn('email_queue insert failed (table may not exist yet):',e.message); }
+
+  if(queueOnly) return; // Edge Function will send it
+
+  // 2. Send immediately via Resend from browser
   let r=await fetch('https://api.resend.com/emails',{
     method:'POST',
     headers:{'Authorization':'Bearer '+emailCFG.apiKey,'Content-Type':'application/json'},
@@ -2405,12 +2934,32 @@ async function sendEmail({to,subject,html}){
       to:[to], subject, html
     })
   });
-  if(!r.ok){let t=await r.text();throw new Error(t.slice(0,100));}
-  return r.json();
+  if(!r.ok){
+    let t=await r.text();
+    // Mark queue row as failed so Edge Function retries
+    if(queueId) sbFetch('email_queue?id=eq.'+queueId,{method:'PATCH',body:JSON.stringify({status:'failed',error_msg:t.slice(0,200)})}).catch(()=>{});
+    throw new Error(t.slice(0,120));
+  }
+  let result = await r.json();
+  // Mark queue row as sent
+  if(queueId) sbFetch('email_queue?id=eq.'+queueId,{method:'PATCH',body:JSON.stringify({status:'sent',sent_at:new Date().toISOString(),resend_id:result.id||null})}).catch(()=>{});
+  return result;
+}
+
+// ── Queue an email for the Edge Function to send (no browser API call) ──
+async function queueEmail({to, subject, html, type, reg}){
+  return sendEmail({to, subject, html, type, reg, queueOnly:true});
 }
 
 function emailCheckinHTML(v,loc){
   let hotel=emailCFG.hotelName||'Best Western Ariel Hotel';
+  let loyalty='';
+  if(v.loyalty_visits>1){
+    let t=getLoyaltyTier(v.loyalty_visits);
+    loyalty=`<div style="background:${t.bg};border:1px solid ${t.color}40;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:13px;color:${t.color}">
+      ${t.icon} <strong>${t.label}</strong> — Thank you for your ${v.loyalty_visits} visits! Your loyalty is appreciated.
+    </div>`;
+  }
   return `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:20px;color:#1a1a1a">
   <div style="background:#1E407C;padding:16px 20px;border-radius:8px 8px 0 0;border-bottom:3px solid #C9A84C">
     <h1 style="color:#fff;margin:0;font-size:18px">${hotel}</h1>
@@ -2419,15 +2968,20 @@ function emailCheckinHTML(v,loc){
   <div style="background:#f9f9f7;padding:20px;border-radius:0 0 8px 8px;border:1px solid #eee;border-top:none">
     <p>Dear ${v.name||'Guest'},</p>
     <p>Thank you for parking with us. Your vehicle has been checked in successfully.</p>
+    ${loyalty}
     <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:13px">
       <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#888">Registration</td><td style="padding:8px;border-bottom:1px solid #eee;font-weight:700">${v.reg}</td></tr>
       <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#888">Location</td><td style="padding:8px;border-bottom:1px solid #eee">${loc==='hotel'?'Hotel car park (in-house)':'Contractor facility'}</td></tr>
-      <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#888">Check-in</td><td style="padding:8px;border-bottom:1px solid #eee">${v.check_in_date||'–'}</td></tr>
-      <tr><td style="padding:8px;color:#888">Expected return</td><td style="padding:8px;font-weight:700">${v.return_date||'–'}</td></tr>
+      ${v.room_number?`<tr><td style="padding:8px;border-bottom:1px solid #eee;color:#888">Room</td><td style="padding:8px;border-bottom:1px solid #eee">${v.room_number}</td></tr>`:''}
+      <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#888">Check-in</td><td style="padding:8px;border-bottom:1px solid #eee">${fmtDT(v.check_in_date)}</td></tr>
+      <tr><td style="padding:8px;color:#888">Expected collection</td><td style="padding:8px;font-weight:700">${fmtDT(v.return_date)}</td></tr>
     </table>
+    <p style="background:#E6F1FB;padding:10px 14px;border-radius:6px;font-size:13px;color:#0C447C">
+      Please collect your vehicle by <strong>${fmtDT(v.return_date)}</strong>. If you need to extend your stay, please contact reception.
+    </p>
     <p style="font-size:12px;color:#888">If you have any queries please contact reception.</p>
     <hr style="border:none;border-top:1px solid #eee;margin:16px 0">
-    <p style="font-size:11px;color:#aaa">${hotel} &nbsp;·&nbsp; Airport Parking</p>
+    <p style="font-size:11px;color:#aaa">${hotel} &nbsp;·&nbsp; Bath Road, Hayes, Middlesex, UB3 5AJ</p>
   </div></body></html>`;
 }
 
@@ -2477,6 +3031,384 @@ function emailPendingHTML(p){
     <p style="font-size:11px;color:#aaa">${hotel} &nbsp;·&nbsp; Airport Parking</p>
   </div></body></html>`;
 }
+
+// ════════════════════════════════════════════
+// REMINDER EMAILS (2 days before return)
+// ════════════════════════════════════════════
+function emailReminderHTML(v){
+  let hotel=emailCFG.hotelName||'Best Western Ariel Hotel';
+  let daysLeft=nightsApart(today(),v.return_date);
+  return `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:20px;color:#1a1a1a">
+  <div style="background:#1E407C;padding:16px 20px;border-radius:8px 8px 0 0;border-bottom:3px solid #C9A84C">
+    <h1 style="color:#fff;margin:0;font-size:18px">${hotel}</h1>
+    <p style="color:rgba(255,255,255,.7);margin:4px 0 0;font-size:12px">Airport Parking — Collection Reminder</p>
+  </div>
+  <div style="background:#f9f9f7;padding:20px;border-radius:0 0 8px 8px;border:1px solid #eee;border-top:none">
+    <p>Dear ${v.name||'Guest'},</p>
+    <p>This is a friendly reminder that your vehicle is due for collection <strong>${daysLeft<=0?'today':daysLeft===1?'tomorrow':'in '+daysLeft+' day'+(daysLeft!==1?'s':'')}</strong>.</p>
+    <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:13px">
+      <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#888">Registration</td><td style="padding:8px;border-bottom:1px solid #eee;font-weight:700">${v.reg}</td></tr>
+      ${v.room_number?`<tr><td style="padding:8px;border-bottom:1px solid #eee;color:#888">Room</td><td style="padding:8px;border-bottom:1px solid #eee">${v.room_number}</td></tr>`:''}
+      <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#888">Checked in</td><td style="padding:8px;border-bottom:1px solid #eee">${fmtDT(v.check_in_date)}</td></tr>
+      <tr><td style="padding:8px;color:#888">Collection due</td><td style="padding:8px;font-weight:700;color:#E24B4A;font-size:15px">${fmtDT(v.return_date)}</td></tr>
+    </table>
+    <div style="background:#FAEEDA;border:1px solid #FAC775;border-radius:8px;padding:12px 16px;margin:12px 0;font-size:13px;color:#633806">
+      <strong>⏰ Please collect your vehicle on time.</strong> If you need to extend your parking, please contact reception as soon as possible to avoid additional charges.
+    </div>
+    <p style="font-size:12px;color:#888">Please contact reception if you have any questions: <strong>+44 20 8759 2552</strong></p>
+    <hr style="border:none;border-top:1px solid #eee;margin:16px 0">
+    <p style="font-size:11px;color:#aaa">${hotel} &nbsp;·&nbsp; Bath Road, Hayes, Middlesex, UB3 5AJ</p>
+  </div></body></html>`;
+}
+
+async function sendReminderEmail(reg){
+  let v=vehicles.find(x=>x.reg===reg);
+  if(!v){alert('Vehicle not found.');return;}
+  let email=prompt('Send reminder to email address for '+reg+' ('+v.name+'):');
+  if(!email||!email.includes('@')){alert('Please enter a valid email.');return;}
+  showLoading('Sending reminder...');
+  try{
+    await sendEmail({
+      to:email,
+      subject:(emailCFG.hotelName||'Best Western Ariel Hotel')+' — Parking Collection Reminder ('+reg+')',
+      html:emailReminderHTML(v)
+    });
+    // Mark reminder sent in DB
+    await sbFetch('vehicles?reg=eq.'+encodeURIComponent(reg),{method:'PATCH',body:JSON.stringify({
+      reminder_sent_at: new Date().toISOString()
+    })}).catch(()=>{});
+    hideLoading();
+    alert('Reminder sent to '+email);
+  }catch(e){hideLoading();alert('Failed: '+e.message);}
+}
+
+// ════════════════════════════════════════════
+// AUTO EMAIL SCHEDULER
+// Runs every 5 minutes while dashboard is open.
+// Also queues emails into Supabase so the Edge Function
+// can send them even when no browser is open.
+// ════════════════════════════════════════════
+let _schedulerInterval = null;
+let _schedulerLastRun  = 0;
+
+function startEmailScheduler(){
+  if(_schedulerInterval) clearInterval(_schedulerInterval);
+  // Run immediately, then every 5 minutes
+  runEmailScheduler();
+  _schedulerInterval = setInterval(runEmailScheduler, 5 * 60 * 1000);
+}
+
+async function runEmailScheduler(){
+  // Throttle: don't run more than once per 4 minutes
+  let now = Date.now();
+  if(now - _schedulerLastRun < 4 * 60 * 1000) return;
+  _schedulerLastRun = now;
+  if(!emailCFG.apiKey||!emailCFG.fromEmail) return;
+  try{
+    await checkSendReminders();
+    await checkSendOverstayNotices();
+    updateSchedulerStatus('last run: '+new Date().toLocaleTimeString('en-GB'));
+  }catch(e){ console.warn('Email scheduler error:',e.message); }
+}
+
+function updateSchedulerStatus(msg){
+  let el=document.getElementById('email-scheduler-status');
+  if(el) el.textContent='Auto-scheduler: '+msg;
+}
+
+// ── Reminder emails (2 days before collection) ──
+async function checkSendReminders(){
+  if(!emailCFG.onReminder) return;
+  let td=today();
+  let in2=addDays(td,2);
+  let dueForReminder=vehicles.filter(v=>
+    v.return_date && v.return_date.slice(0,10)>=td &&
+    v.return_date.slice(0,10)<=in2 &&
+    v.email && !v.reminder_sent_at
+  );
+  for(let v of dueForReminder){
+    try{
+      await sendEmail({
+        to: v.email,
+        subject: (emailCFG.hotelName||'Best Western Ariel Hotel')+' — Collection Reminder: '+v.reg,
+        html: emailReminderHTML(v),
+        type: 'reminder',
+        reg: v.reg
+      });
+      await sbFetch('vehicles?reg=eq.'+encodeURIComponent(v.reg),{
+        method:'PATCH',
+        body:JSON.stringify({reminder_sent_at:new Date().toISOString()}),
+        headers:{'Prefer':'return=minimal'}
+      }).catch(()=>{});
+      console.log('Reminder sent for',v.reg,'→',v.email);
+    }catch(e){ console.warn('Reminder failed for',v.reg,':',e.message); }
+  }
+}
+
+// ── Overstay emails (auto, N days after return_date) ──
+async function checkSendOverstayNotices(){
+  if(!emailCFG.overstayDays) return;
+  let td=today();
+  let overdueVehicles=vehicles.filter(v=>{
+    if(!v.email) return false;
+    if(!v.return_date) return false;
+    let overDays=nightsApart(v.return_date.slice(0,10), td);
+    if(overDays < (emailCFG.overstayDays||1)) return false;
+    // Don't send if already sent in last 24h (use reminder_sent_at as proxy)
+    if(v.overstay_notice_sent_at){
+      let lastSent=new Date(v.overstay_notice_sent_at);
+      if((Date.now()-lastSent.getTime()) < 24*60*60*1000) return false;
+    }
+    return true;
+  });
+  for(let v of overdueVehicles){
+    let overDays=nightsApart(v.return_date.slice(0,10), td);
+    try{
+      await sendEmail({
+        to: v.email,
+        subject: (emailCFG.hotelName||'Best Western Ariel Hotel')+' — URGENT: Parking Overstay ('+v.reg+')',
+        html: emailOverstayHTML(v, overDays, emailCFG.overstayRate||10),
+        type: 'overstay',
+        reg: v.reg
+      });
+      await sbFetch('vehicles?reg=eq.'+encodeURIComponent(v.reg),{
+        method:'PATCH',
+        body:JSON.stringify({overstay_notice_sent_at:new Date().toISOString()}),
+        headers:{'Prefer':'return=minimal'}
+      }).catch(()=>{});
+      console.log('Overstay notice sent for',v.reg,'→',v.email,'(',overDays,'days overdue)');
+    }catch(e){ console.warn('Overstay notice failed for',v.reg,':',e.message); }
+  }
+}
+
+// ════════════════════════════════════════════
+// OVERSTAY / PAYMENT REQUEST EMAILS
+// ════════════════════════════════════════════
+function emailOverstayHTML(v, extraDays, dailyRate){
+  let hotel=emailCFG.hotelName||'Best Western Ariel Hotel';
+  let e=estimateCost(v, today());
+  let extraCharge=(extraDays*(dailyRate||0)).toFixed(2);
+  return `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:20px;color:#1a1a1a">
+  <div style="background:#C0392B;padding:16px 20px;border-radius:8px 8px 0 0;border-bottom:3px solid #C9A84C">
+    <h1 style="color:#fff;margin:0;font-size:18px">${hotel}</h1>
+    <p style="color:rgba(255,255,255,.8);margin:4px 0 0;font-size:12px">Airport Parking — Overstay Notice & Payment Required</p>
+  </div>
+  <div style="background:#f9f9f7;padding:20px;border-radius:0 0 8px 8px;border:1px solid #eee;border-top:none">
+    <p>Dear ${v.name||'Guest'},</p>
+    <div style="background:#FCEBEB;border:1px solid #F7C1C1;border-radius:8px;padding:14px 16px;margin:12px 0">
+      <strong style="color:#791F1F;font-size:15px">⚠ Your parking period has expired</strong><br>
+      <span style="font-size:13px;color:#791F1F">Your vehicle <strong>${v.reg}</strong> was due for collection on <strong>${fmtDT(v.return_date)}</strong>. 
+      You are currently <strong>${extraDays} day${extraDays!==1?'s':''}</strong> overdue.</span>
+    </div>
+    <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:13px">
+      <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#888">Registration</td><td style="padding:8px;border-bottom:1px solid #eee;font-weight:700">${v.reg}</td></tr>
+      <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#888">Originally due</td><td style="padding:8px;border-bottom:1px solid #eee;color:#E24B4A;font-weight:600">${fmtDT(v.return_date)}</td></tr>
+      <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#888">Days overdue</td><td style="padding:8px;border-bottom:1px solid #eee;color:#E24B4A;font-weight:700">${extraDays} day${extraDays!==1?'s':''}</td></tr>
+      ${dailyRate?`<tr><td style="padding:8px;border-bottom:1px solid #eee;color:#888">Daily overstay rate</td><td style="padding:8px;border-bottom:1px solid #eee">£${(+dailyRate).toFixed(2)}/day</td></tr>
+      <tr style="background:#FCEBEB"><td style="padding:10px 8px;font-weight:700;color:#791F1F">Overstay charge</td><td style="padding:10px 8px;font-weight:700;font-size:16px;color:#791F1F">£${extraCharge}</td></tr>`:''}
+    </table>
+    <div style="background:#EAF3DE;border:1px solid #C0DD97;border-radius:8px;padding:12px 16px;margin:12px 0;font-size:13px;color:#27500A">
+      <strong>To resolve this, please either:</strong><br>
+      1. Collect your vehicle as soon as possible and settle any outstanding charges at reception<br>
+      2. Call reception to arrange an extension: <strong>+44 20 8759 2552</strong>
+    </div>
+    <p style="font-size:12px;color:#888">Failure to respond may result in further action. Please contact us immediately.</p>
+    <hr style="border:none;border-top:1px solid #eee;margin:16px 0">
+    <p style="font-size:11px;color:#aaa">${hotel} &nbsp;·&nbsp; Bath Road, Hayes, Middlesex, UB3 5AJ</p>
+  </div></body></html>`;
+}
+
+async function sendOverstayEmail(reg){
+  let v=vehicles.find(x=>x.reg===reg);
+  if(!v){alert('Vehicle not found.');return;}
+  let extraDays=nightsApart(v.return_date,today());
+  if(extraDays<=0){alert(reg+' is not overdue yet (due: '+fmtDT(v.return_date)+').');return;}
+
+  let email=prompt('Send overstay notice to email for '+reg+' ('+v.name+'):\n(Leave blank to enter manually)','');
+  if(email===null) return;
+  if(!email||!email.includes('@')){email=prompt('Please enter a valid email address:','');}
+  if(!email||!email.includes('@')){alert('No valid email entered.');return;}
+
+  let rateStr=prompt('Daily overstay rate £ (leave blank to omit from email):','10.00');
+  let dailyRate=rateStr?parseFloat(rateStr)||0:0;
+
+  showLoading('Sending overstay notice...');
+  try{
+    await sendEmail({
+      to:email,
+      subject:(emailCFG.hotelName||'Best Western Ariel Hotel')+' — URGENT: Parking Overstay Notice ('+reg+')',
+      html:emailOverstayHTML(v,extraDays,dailyRate)
+    });
+    hideLoading();
+    alert('Overstay notice sent to '+email);
+  }catch(e){hideLoading();alert('Failed: '+e.message);}
+}
+
+// ════════════════════════════════════════════
+// ANPR CAMERA INTEGRATION
+// ════════════════════════════════════════════
+let anprCFG = {
+  cameraEndpoint:'', cameraKey:'', alertEmail:'',
+  autoCheckin:true, logEvents:true, alertUnknown:false
+};
+let anprLogData = [];
+
+function loadAnprSettings(){
+  try{
+    let saved=localStorage.getItem('heathrow_anpr_cfg');
+    if(saved) anprCFG={...anprCFG,...JSON.parse(saved)};
+    let s=id=>document.getElementById(id);
+    // Generate webhook URL from current page origin
+    let webhookUrl = window.location.origin + '/anpr-hook';
+    if(s('anpr-webhook-url')) s('anpr-webhook-url').value = webhookUrl;
+    if(s('anpr-camera-endpoint'))  s('anpr-camera-endpoint').value  = anprCFG.cameraEndpoint||'';
+    if(s('anpr-camera-key'))       s('anpr-camera-key').value       = anprCFG.cameraKey||'';
+    if(s('anpr-alert-email'))      s('anpr-alert-email').value      = anprCFG.alertEmail||'';
+    if(s('anpr-auto-checkin'))     s('anpr-auto-checkin').checked   = anprCFG.autoCheckin!==false;
+    if(s('anpr-log-events'))       s('anpr-log-events').checked     = anprCFG.logEvents!==false;
+    if(s('anpr-alert-unknown'))    s('anpr-alert-unknown').checked  = !!anprCFG.alertUnknown;
+  }catch(e){console.warn('loadAnprSettings:',e);}
+}
+
+function saveAnprSettings(){
+  anprCFG.cameraEndpoint = document.getElementById('anpr-camera-endpoint')?.value.trim()||'';
+  anprCFG.cameraKey      = document.getElementById('anpr-camera-key')?.value.trim()||'';
+  anprCFG.alertEmail     = document.getElementById('anpr-alert-email')?.value.trim()||'';
+  anprCFG.autoCheckin    = document.getElementById('anpr-auto-checkin')?.checked!==false;
+  anprCFG.logEvents      = document.getElementById('anpr-log-events')?.checked!==false;
+  anprCFG.alertUnknown   = !!document.getElementById('anpr-alert-unknown')?.checked;
+  localStorage.setItem('heathrow_anpr_cfg', JSON.stringify(anprCFG));
+  let m=document.getElementById('anpr-save-msg');
+  if(m){m.innerHTML='<div class="alert success">ANPR settings saved.</div>';setTimeout(()=>m.innerHTML='',3000);}
+}
+
+async function testAnprConnection(){
+  let endpoint=document.getElementById('anpr-camera-endpoint')?.value.trim();
+  let m=document.getElementById('anpr-save-msg');
+  if(!endpoint){if(m)m.innerHTML='<div class="alert warn">No camera endpoint configured.</div>';return;}
+  showLoading('Testing ANPR connection...');
+  try{
+    let headers={'Content-Type':'application/json'};
+    let key=document.getElementById('anpr-camera-key')?.value.trim();
+    if(key) headers['Authorization']='Bearer '+key;
+    let r=await fetch(endpoint,{method:'GET',headers}).catch(()=>null);
+    hideLoading();
+    if(r&&(r.ok||r.status<500)){
+      if(m)m.innerHTML='<div class="alert success">✓ Connection successful (HTTP '+r.status+')</div>';
+    } else {
+      if(m)m.innerHTML='<div class="alert warn">⚠ Received HTTP '+(r?r.status:'error')+'. Check endpoint URL and key.</div>';
+    }
+  }catch(e){hideLoading();if(m)m.innerHTML='<div class="alert error">Connection failed: '+e.message+'</div>';}
+  setTimeout(()=>{let m=document.getElementById('anpr-save-msg');if(m)m.innerHTML='';},5000);
+}
+
+// Handle incoming ANPR webhook (simulate or real)
+async function processAnprRead({plate, timestamp, camera_id, confidence, direction, source}){
+  plate = (plate||'').replace(/\s/g,'').toUpperCase();
+  if(!plate) return;
+  let ts = timestamp || new Date().toISOString();
+  let eventType = 'unknown';
+  let matchedName = '';
+  let matchedRef = '';
+
+  // Try to match to active booking
+  let matched = vehicles.find(v=>v.reg.replace(/\s/g,'').toUpperCase()===plate);
+  if(matched){
+    eventType='match';
+    matchedName=matched.name;
+    matchedRef=matched.ref_code||'';
+  }
+
+  // Save to local log (Supabase table would be ideal but uses localStorage for now)
+  let event = {
+    id: Date.now(),
+    ts, plate, result:eventType, matched_name:matchedName,
+    ref_code:matchedRef, camera:camera_id||'manual',
+    confidence:confidence||null, direction:direction||null,
+    source:source||'webhook'
+  };
+  anprLogData.unshift(event);
+  if(anprLogData.length>500) anprLogData=anprLogData.slice(0,500);
+  localStorage.setItem('heathrow_anpr_log', JSON.stringify(anprLogData.slice(0,200)));
+
+  // Alert on unknown plate if configured
+  if(eventType==='unknown' && anprCFG.alertUnknown && anprCFG.alertEmail && emailCFG.apiKey){
+    sendEmail({
+      to:anprCFG.alertEmail,
+      subject:'ANPR Alert — Unknown plate: '+plate,
+      html:`<h2>Unknown Vehicle Detected</h2><p>Plate <strong>${plate}</strong> was read at <strong>${camera_id||'carpark'}</strong> on ${new Date(ts).toLocaleString('en-GB')} but is not in active bookings.</p>`
+    }).catch(()=>{});
+  }
+
+  // Re-render log if visible
+  let logEl=document.getElementById('anpr-log-tbody');
+  if(logEl) renderAnprLog();
+
+  return event;
+}
+
+function simulateAnprRead(){
+  let plates=[...vehicles.map(v=>v.reg),'ZZ99XYZ','UNKNOWN1'];
+  let plate=plates[Math.floor(Math.random()*plates.length)];
+  let plateInput=prompt('Simulate ANPR plate read (enter any plate):',plate);
+  if(!plateInput) return;
+  processAnprRead({
+    plate:plateInput.trim().toUpperCase(),
+    timestamp:new Date().toISOString(),
+    camera_id:'simulated',
+    direction:'entry',
+    source:'simulate'
+  }).then(event=>{
+    let m=document.getElementById('anpr-save-msg');
+    let isMatch=event.result==='match';
+    if(m){
+      m.innerHTML=`<div class="alert ${isMatch?'success':'warn'}">
+        ${isMatch?'✓ Plate '+event.plate+' matched to booking: '+event.matched_name:'⚠ Plate '+event.plate+' not found in active bookings'}
+      </div>`;
+      setTimeout(()=>m.innerHTML='',4000);
+    }
+    renderAnprLog();
+  });
+}
+
+function loadAnprLog(){
+  try{
+    let saved=localStorage.getItem('heathrow_anpr_log');
+    anprLogData=saved?JSON.parse(saved):[];
+  }catch(e){anprLogData=[];}
+  renderAnprLog();
+}
+
+function renderAnprLog(){
+  let tbody=document.getElementById('anpr-log-tbody');
+  if(!tbody) return;
+  let q=(document.getElementById('anpr-log-search')?.value||'').toUpperCase();
+  let f=document.getElementById('anpr-log-filter')?.value||'';
+  let filtered=anprLogData.filter(e=>
+    (!q||e.plate.includes(q))&&
+    (!f||e.source===f||e.result===f)
+  );
+  let cntEl=document.getElementById('anpr-log-count');
+  if(cntEl) cntEl.textContent=filtered.length+' event(s)';
+  if(!filtered.length){tbody.innerHTML='<tr><td colspan="5" style="text-align:center;padding:2rem;color:#aaa">No ANPR events recorded yet</td></tr>';return;}
+  tbody.innerHTML=filtered.map(e=>{
+    let dt=new Date(e.ts).toLocaleString('en-GB',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'});
+    let badge=e.result==='match'
+      ?'<span style="background:#EAF3DE;color:#27500A;border-radius:20px;padding:2px 8px;font-size:11px;font-weight:600">✓ Match</span>'
+      :'<span style="background:#FCEBEB;color:#791F1F;border-radius:20px;padding:2px 8px;font-size:11px;font-weight:600">Unknown</span>';
+    if(e.source==='simulate') badge+=' <span style="background:#f0f0ee;color:#888;border-radius:20px;padding:1px 6px;font-size:10px">test</span>';
+    return`<tr>
+      <td style="font-size:11px">${dt}</td>
+      <td><strong style="font-size:13px;letter-spacing:.05em">${e.plate}</strong></td>
+      <td>${badge}</td>
+      <td style="font-size:12px;color:#555">${e.matched_name||'–'}${e.ref_code?'<br><span style="font-size:10px;color:#0C447C">'+e.ref_code+'</span>':''}</td>
+      <td style="font-size:11px;color:#888">${e.camera||'–'}${e.direction?' · '+e.direction:''}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Expose processAnprRead globally for external integrations ──
+window.processAnprRead = processAnprRead;
 
 // ── Session timeout ──
 function resetSessionTimer(){
@@ -2646,11 +3578,16 @@ async function addContractor(){
 function checkRepeatCustomer(){
   let reg=(document.getElementById('ci-reg')?.value||'').trim().toUpperCase();
   let alertEl=document.getElementById('ci-repeat-alert');
-  if(!alertEl||!reg||reg.length<3){if(alertEl)alertEl.style.display='none';return;}
+  let loyaltyEl=document.getElementById('ci-loyalty-display');
+  if(!alertEl||!reg||reg.length<3){if(alertEl)alertEl.style.display='none';if(loyaltyEl)loyaltyEl.innerHTML='';return;}
   let prev=[...vehicles,...historyData].filter(v=>v.reg===reg);
-  if(!prev.length){alertEl.style.display='none';return;}
+  if(!prev.length){alertEl.style.display='none';if(loyaltyEl)loyaltyEl.innerHTML='';return;}
   let last=prev.sort((a,b)=>(b.check_in_date||'')>(a.check_in_date||'')?1:-1)[0];
   
+  // Show loyalty badge
+  let visits=prev.length+1; // +1 for current
+  if(loyaltyEl) loyaltyEl.innerHTML=renderLoyaltyBadge(visits);
+
   // Store for prefill
   window._repeatLast=last;
   alertEl.style.display='block';
@@ -2859,6 +3796,7 @@ async function approvePending(id, reg){
     let td = today();
     await sbFetch('vehicles',{method:'POST',body:JSON.stringify({
       reg:p.reg, name:p.name, phone:p.phone, type:p.type,
+      email:p.email||null,
       location:loc, check_in_date:p.check_in_date||td,
       return_date:p.return_date,
       room_number:p.room_number||null,
@@ -2873,12 +3811,13 @@ async function approvePending(id, reg){
     await loadPending();
     hideLoading();
     // Send confirmation email to guest
-    if(emailCFG.onApproved && p.email){
-      sendEmail({to:p.email,subject:emailCFG.hotelName+' — Parking Confirmed for '+p.reg,
-        html:emailCheckinHTML({...p,check_in_date:p.check_in_date},loc)})
+    if(p.email && (emailCFG.onApproved || emailCFG.onCheckin)){
+      let loyaltyCount = await getLoyaltyVisits(p.reg);
+      sendEmail({to:p.email,
+        subject:(emailCFG.hotelName||'Best Western Ariel Hotel')+' — Parking Confirmed for '+p.reg,
+        html:emailCheckinHTML({...p,check_in_date:p.check_in_date,loyalty_visits:loyaltyCount},loc)})
         .catch(e=>console.warn('Approval email:',e));
     }
-    // Also notify on pending submission receipt
   }catch(e){hideLoading();alert('Error: '+e.message);}
 }
 
@@ -3469,7 +4408,7 @@ async function saveSettings(){
 }
 
 function switchSettingsTab(tab,el){
-  ['pricing','contractors','users','security'].forEach(t=>{
+  ['pricing','contractors','users','security','anpr'].forEach(t=>{
     let el2=document.getElementById('stab-'+t);
     if(el2)el2.style.display=tab===t?'block':'none';
   });
@@ -3479,6 +4418,7 @@ function switchSettingsTab(tab,el){
   if(tab==='contractors')renderContractorsList();
   if(tab==='users')loadUsers();
   if(tab==='security')loadSecuritySettings();
+  if(tab==='anpr'){loadAnprSettings();loadAnprLog();}
 }
 
 // ════════════════════════════════════════════
@@ -3579,11 +4519,75 @@ function launchApp(){
   Promise.all([loadSettings(), loadContractors()])
     .then(()=>{ loadData(false); populateCheckinDropdowns(); });
   setInterval(()=>loadData(true),20000);
-  let saved=localStorage.getItem('heathrow_email_cfg');
-  if(saved) try{emailCFG={...emailCFG,...JSON.parse(saved)};}catch(e){}
+  // Load email config from Supabase (shared across all devices)
+  loadEmailCFG().then(()=>{
+    // After config loaded, start auto-scheduler
+    startEmailScheduler();
+  });
+  // Also load from cache immediately so emails work right away
+  try{let c=localStorage.getItem('heathrow_email_cfg');if(c)emailCFG={...emailCFG,...JSON.parse(c)};}catch(e){}
   let secSaved=localStorage.getItem('heathrow_sec_cfg');
   if(secSaved) try{let s=JSON.parse(secSaved);SESSION_TIMEOUT_MS=(s.sessionTimeout||60)*60*1000;}catch(e){}
+  // Load ANPR config and start polling if configured
+  let anprSaved=localStorage.getItem('heathrow_anpr_cfg');
+  if(anprSaved) try{anprCFG={...anprCFG,...JSON.parse(anprSaved)};}catch(e){}
+  loadAnprLog();
+  if(anprCFG.cameraEndpoint) startAnprPolling();
   resetSessionTimer();
+}
+
+// ── ANPR polling (for cameras that push events to a local endpoint) ──
+let _anprPollInterval = null;
+let _anprLastSeen = {};
+
+function startAnprPolling(){
+  if(_anprPollInterval) clearInterval(_anprPollInterval);
+  _anprPollInterval = setInterval(pollAnprCamera, 5000); // poll every 5s
+  updateAnprIndicator(true);
+}
+
+function stopAnprPolling(){
+  if(_anprPollInterval) clearInterval(_anprPollInterval);
+  _anprPollInterval = null;
+  updateAnprIndicator(false);
+}
+
+function updateAnprIndicator(active){
+  let ind = document.getElementById('anpr-indicator');
+  if(ind){
+    ind.style.display = active ? 'inline-flex' : 'none';
+    ind.innerHTML = active
+      ? '<span style="width:8px;height:8px;border-radius:50%;background:#1D9E75;display:inline-block;margin-right:4px;animation:pulse 2s infinite"></span>ANPR'
+      : '';
+  }
+}
+
+async function pollAnprCamera(){
+  if(!anprCFG.cameraEndpoint) return;
+  try{
+    let headers={'Content-Type':'application/json'};
+    if(anprCFG.cameraKey) headers['Authorization']='Bearer '+anprCFG.cameraKey;
+    // Try GET /recent or /events endpoint — different cameras use different paths
+    let r = await fetch(anprCFG.cameraEndpoint+'/recent', {method:'GET', headers, signal:AbortSignal.timeout(4000)});
+    if(!r.ok) return;
+    let data = await r.json();
+    let events = Array.isArray(data) ? data : (data.events||data.plates||data.results||[]);
+    for(let ev of events){
+      let plate = (ev.plate||ev.plateNumber||ev.number_plate||'').replace(/\s/g,'').toUpperCase();
+      let ts = ev.timestamp||ev.time||ev.datetime||new Date().toISOString();
+      if(!plate) continue;
+      // Only process new events
+      let key = plate+'_'+ts;
+      if(_anprLastSeen[key]) continue;
+      _anprLastSeen[key] = true;
+      // Clean up old keys (keep last 200)
+      let keys = Object.keys(_anprLastSeen);
+      if(keys.length > 200) delete _anprLastSeen[keys[0]];
+      await processAnprRead({plate, timestamp:ts, camera_id:ev.camera_id||ev.camera||'camera', confidence:ev.confidence||ev.score||null, direction:ev.direction||null, source:'poll'});
+    }
+  }catch(e){
+    // Polling errors are silent — camera may be offline
+  }
 }
 
 // ════════════════════════════════════════════
