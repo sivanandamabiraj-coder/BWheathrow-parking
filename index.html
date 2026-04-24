@@ -991,10 +991,19 @@ on conflict (key) do nothing;</textarea>
             <span style="margin-left:auto"><button onclick="runEmailScheduler()" style="font-size:11px;padding:3px 10px;border:1px solid #ddd;border-radius:5px;background:#fff;cursor:pointer">Run now</button></span>
           </div>
 
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
             <button class="btn primary" onclick="saveEmailSettings()">💾 Save &amp; Activate</button>
-            <button class="btn" onclick="sendTestEmail()">📨 Send test email</button>
+            <button class="btn" onclick="showTestEmailForm()">📨 Send test email</button>
             <button class="btn" onclick="openEmailLog()">📋 View email log</button>
+          </div>
+          <div id="test-email-form" style="display:none;margin-top:12px;background:#f0f4f8;border-radius:8px;padding:14px 16px;border:1px solid #ddd">
+            <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:#1E407C">📨 Send test email</div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <input type="email" id="test-to-email" placeholder="your@email.com" style="flex:1;min-width:200px;padding:8px 10px;border:1px solid #ccc;border-radius:6px;font-size:13px">
+              <button onclick="doSendTestEmail()" style="padding:8px 16px;background:#1E407C;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;white-space:nowrap">Send now</button>
+              <button onclick="document.getElementById('test-email-form').style.display='none'" style="padding:8px 12px;background:#fff;border:1px solid #ccc;border-radius:6px;cursor:pointer;font-size:13px">Cancel</button>
+            </div>
+            <div id="test-email-result" style="margin-top:8px;font-size:12px"></div>
           </div>
         </div>
 
@@ -2802,6 +2811,88 @@ function toggleKeyVisibility(){
   let inp=document.getElementById('s-resend-key');
   if(inp) inp.type = inp.type==='password' ? 'text' : 'password';
 }
+
+function showTestEmailForm(){
+  let form = document.getElementById('test-email-form');
+  if(!form) return;
+  form.style.display = form.style.display==='none' ? 'block' : 'none';
+  // Pre-fill with reply-to if available
+  let inp = document.getElementById('test-to-email');
+  if(inp && !inp.value){
+    let replyField = document.getElementById('s-reply-email');
+    if(replyField && replyField.value) inp.value = replyField.value;
+  }
+}
+
+async function doSendTestEmail(){
+  let resultEl = document.getElementById('test-email-result');
+  let toAddr   = (document.getElementById('test-to-email')?.value||'').trim();
+
+  function show(msg, color){ if(resultEl) resultEl.innerHTML='<div style="padding:8px 10px;border-radius:6px;background:'+color+'20;border:1px solid '+color+'50;color:'+color+';font-size:12px">'+msg+'</div>'; }
+
+  if(!toAddr||!toAddr.includes('@')){ show('Please enter a valid email address.','#E24B4A'); return; }
+
+  show('⏳ Loading settings...','#378ADD');
+
+  // Get Supabase creds from localStorage
+  let sbUrl = localStorage.getItem('heathrow_sb_url')||'';
+  let sbKey  = localStorage.getItem('heathrow_sb_key')||'';
+  if(!sbUrl||!sbKey){ show('❌ Not connected. Please log out and log in again.','#E24B4A'); return; }
+
+  // Fetch email config from Supabase
+  let apiKey='', fromEmail='', hotelName='Best Western Ariel Hotel';
+  try{
+    show('⏳ Fetching API key from database...','#378ADD');
+    let resp = await fetch(sbUrl+'/rest/v1/app_settings?select=key,value&key=in.(email_api_key,email_from,email_hotel_name)',{
+      headers:{ 'apikey':sbKey, 'Authorization':'Bearer '+sbKey }
+    });
+    if(!resp.ok){ show('❌ Database error: HTTP '+resp.status+'. Try logging out and back in.','#E24B4A'); return; }
+    let rows = await resp.json();
+    rows.forEach(r=>{
+      if(r.key==='email_api_key')    apiKey    = r.value;
+      if(r.key==='email_from')       fromEmail = r.value;
+      if(r.key==='email_hotel_name') hotelName = r.value||'Best Western Ariel Hotel';
+    });
+  }catch(e){ show('❌ Network error fetching settings: '+e.message,'#E24B4A'); return; }
+
+  if(!apiKey)    { show('❌ No API key saved. Enter your Resend key above and click 💾 Save & Activate first.','#E24B4A'); return; }
+  if(!fromEmail) { show('❌ No From address saved. Enter onboarding@resend.dev above and click 💾 Save & Activate first.','#E24B4A'); return; }
+
+  show('⏳ Calling Resend API (key: '+apiKey.slice(0,8)+'... from: '+fromEmail+')...','#378ADD');
+
+  // Call Resend
+  try{
+    let r = await fetch('https://api.resend.com/emails',{
+      method:'POST',
+      headers:{ 'Authorization':'Bearer '+apiKey, 'Content-Type':'application/json' },
+      body: JSON.stringify({
+        from:     hotelName+' <'+fromEmail+'>',
+        to:       [toAddr],
+        subject:  hotelName+' — Test Email ✓',
+        html:     '<div style="font-family:Arial,sans-serif;padding:20px;max-width:480px">'+
+                  '<div style="background:#1E407C;padding:16px 20px;border-radius:8px 8px 0 0;border-bottom:3px solid #C9A84C">'+
+                  '<h1 style="color:#fff;margin:0;font-size:18px">'+hotelName+'</h1></div>'+
+                  '<div style="background:#f9f9f7;padding:20px;border-radius:0 0 8px 8px;border:1px solid #eee;border-top:none">'+
+                  '<p style="color:#27500A;font-weight:700;font-size:16px;margin-top:0">✅ Email is working!</p>'+
+                  '<p style="color:#555;font-size:13px">Sent: '+new Date().toLocaleString('en-GB')+'<br>From: '+fromEmail+'</p>'+
+                  '</div></div>'
+      })
+    });
+    let txt = await r.text();
+    if(r.ok){
+      show('✅ Sent! Check your inbox at <strong>'+toAddr+'</strong> (also check spam folder).','#27500A');
+    } else {
+      show('❌ Resend error ('+r.status+'): '+txt.slice(0,250)+'<br><br>'+
+           '• API key wrong? Re-copy from resend.com → API Keys<br>'+
+           '• From must be <strong>onboarding@resend.dev</strong> on free plan<br>'+
+           '• To address must match your Resend signup email','#E24B4A');
+    }
+  }catch(e){
+    show('❌ Network blocked: '+e.message+'<br>Disable any ad blocker and try again.','#E24B4A');
+  }
+}
+
+async function sendTestEmail(){ showTestEmailForm(); }
 
 async function sendTestEmail(){
   // ── Completely standalone — no dependencies on SB_URL, emailCFG etc. ──
