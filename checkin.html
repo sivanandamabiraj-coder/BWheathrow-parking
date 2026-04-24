@@ -364,10 +364,28 @@ async function submitAll(){
 }
 
 async function sendGuestEmail({ref,reg,name,phone,room,ci,ret,email}){
-  let saved=localStorage.getItem('heathrow_email_cfg');
-  if(!saved) return;
-  let cfg; try{cfg=JSON.parse(saved);}catch(e){return;}
-  if(!cfg.apiKey||!cfg.fromEmail) return;
+  // First try localStorage cache, then fall back to Supabase config
+  let cfg=null;
+  let cached=localStorage.getItem('heathrow_email_cfg');
+  if(cached) try{cfg=JSON.parse(cached);}catch(e){}
+
+  // If no key in cache, try fetching from Supabase
+  if(!cfg||!cfg.apiKey){
+    try{
+      let r=await fetch(SB_URL+'/rest/v1/app_settings?key=like.email_%25&select=key,value',{
+        headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY}
+      });
+      if(r.ok){
+        let rows=await r.json();
+        let m={};rows.forEach(x=>{m[x.key]=x.value;});
+        cfg={apiKey:m.email_api_key||'',fromEmail:m.email_from||'',
+          hotelName:m.email_hotel_name||'Best Western Ariel Hotel',
+          replyEmail:m.email_reply_to||''};
+        localStorage.setItem('heathrow_email_cfg',JSON.stringify(cfg));
+      }
+    }catch(e){}
+  }
+  if(!cfg||!cfg.apiKey||!cfg.fromEmail) return;
   let hotel=cfg.hotelName||'Best Western Ariel Hotel';
   let html=`<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:20px;color:#1a1a1a">
   <div style="background:#1E407C;padding:16px 20px;border-radius:8px 8px 0 0;border-bottom:3px solid #C9A84C">
@@ -390,7 +408,8 @@ async function sendGuestEmail({ref,reg,name,phone,room,ci,ret,email}){
     <hr style="border:none;border-top:1px solid #eee;margin:16px 0">
     <p style="font-size:11px;color:#aaa">${hotel} &nbsp;·&nbsp; Bath Road, Hayes, Middlesex, UB3 5AJ</p>
   </div></body></html>`;
-  await fetch('https://api.resend.com/emails',{
+  // Send via Resend
+  let r=await fetch('https://api.resend.com/emails',{
     method:'POST',
     headers:{'Authorization':'Bearer '+cfg.apiKey,'Content-Type':'application/json'},
     body:JSON.stringify({
@@ -399,6 +418,21 @@ async function sendGuestEmail({ref,reg,name,phone,room,ci,ret,email}){
       to:[email],subject:hotel+' — Parking request received (Ref: '+ref+')',html
     })
   });
+  // Log to email_queue for audit trail
+  let resendId='';
+  if(r.ok) try{let j=await r.json();resendId=j.id||'';}catch(e){}
+  fetch(SB_URL+'/rest/v1/email_queue',{
+    method:'POST',
+    headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,
+      'Content-Type':'application/json','Prefer':'return=minimal'},
+    body:JSON.stringify({
+      to_email:email, subject:hotel+' — Parking request received (Ref: '+ref+')',
+      email_type:'pending', related_reg:reg,
+      status:r.ok?'sent':'failed',
+      sent_at:r.ok?new Date().toISOString():null,
+      resend_id:resendId||null
+    })
+  }).catch(()=>{});
 }
 </script>
 
