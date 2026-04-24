@@ -2667,30 +2667,29 @@ async function loadEmailCFG(){
 }
 
 async function saveEmailCFGToSupabase(cfg){
-  // Upsert each key into app_settings
+  // Use upsert (POST with Prefer: resolution=merge-duplicates) so it works
+  // whether the rows exist already or not — no separate PATCH/POST needed.
   let pairs=[
-    {key:'email_api_key',    value:cfg.apiKey||''},
-    {key:'email_from',       value:cfg.fromEmail||''},
-    {key:'email_hotel_name', value:cfg.hotelName||'Best Western Ariel Hotel'},
-    {key:'email_reply_to',   value:cfg.replyEmail||''},
-    {key:'email_on_checkin', value:String(cfg.onCheckin!==false)},
-    {key:'email_on_checkout',value:String(cfg.onCheckout!==false)},
-    {key:'email_on_pending', value:String(cfg.onPending!==false)},
-    {key:'email_on_approved',value:String(!!cfg.onApproved)},
-    {key:'email_on_reminder',value:String(!!cfg.onReminder)},
+    {key:'email_api_key',      value:cfg.apiKey||''},
+    {key:'email_from',         value:cfg.fromEmail||''},
+    {key:'email_hotel_name',   value:cfg.hotelName||'Best Western Ariel Hotel'},
+    {key:'email_reply_to',     value:cfg.replyEmail||''},
+    {key:'email_on_checkin',   value:String(cfg.onCheckin!==false)},
+    {key:'email_on_checkout',  value:String(cfg.onCheckout!==false)},
+    {key:'email_on_pending',   value:String(cfg.onPending!==false)},
+    {key:'email_on_approved',  value:String(cfg.onApproved!==false)},
+    {key:'email_on_reminder',  value:String(cfg.onReminder!==false)},
     {key:'email_overstay_days',value:String(cfg.overstayDays||1)},
     {key:'email_overstay_rate',value:String(cfg.overstayRate||10)},
   ];
-  for(let p of pairs){
-    await sbFetch('app_settings?key=eq.'+encodeURIComponent(p.key),{
-      method:'PATCH',
-      body:JSON.stringify({value:p.value}),
-      headers:{'Prefer':'return=minimal'}
-    }).catch(async ()=>{
-      // Row may not exist yet — insert it
-      await sbFetch('app_settings',{method:'POST',body:JSON.stringify(p),headers:{'Prefer':'return=minimal'}}).catch(()=>{});
-    });
-  }
+  // Send all as a single upsert batch
+  await sbFetch('app_settings',{
+    method:'POST',
+    body:JSON.stringify(pairs),
+    headers:{
+      'Prefer':'resolution=merge-duplicates,return=minimal'
+    }
+  });
   localStorage.setItem('heathrow_email_cfg', JSON.stringify(cfg));
 }
 
@@ -2702,28 +2701,36 @@ let sessionTimer = null;
 let SESSION_TIMEOUT_MS = 60 * 60 * 1000; // 1 hour default
 
 async function loadSecuritySettings(){
-  // Load email config fresh from Supabase into the UI
-  await loadEmailCFG();
+  // Populate fields immediately from cache/defaults so panel is never blank
+  populateSecurityFields();
+  // Then refresh from Supabase in background
+  try{
+    await loadEmailCFG();
+    populateSecurityFields(); // repopulate with fresh data
+  }catch(e){ console.warn('loadSecuritySettings refresh:',e.message); }
+}
+
+function populateSecurityFields(){
   try{
     let s=id=>document.getElementById(id);
-    if(s('s-resend-key'))    s('s-resend-key').value    = emailCFG.apiKey||'';
-    if(s('s-from-email'))    s('s-from-email').value    = emailCFG.fromEmail||'';
-    if(s('s-hotel-name'))    s('s-hotel-name').value    = emailCFG.hotelName||'Best Western Ariel Hotel';
-    if(s('s-reply-email'))   s('s-reply-email').value   = emailCFG.replyEmail||'';
-    if(s('email-on-checkin'))  s('email-on-checkin').checked  = emailCFG.onCheckin!==false;
-    if(s('email-on-checkout')) s('email-on-checkout').checked = emailCFG.onCheckout!==false;
-    if(s('email-on-pending'))  s('email-on-pending').checked  = emailCFG.onPending!==false;
-    if(s('email-on-approved')) s('email-on-approved').checked = !!emailCFG.onApproved;
-    if(s('email-on-reminder')) s('email-on-reminder').checked = !!emailCFG.onReminder;
-    if(s('s-overstay-days'))   s('s-overstay-days').value    = emailCFG.overstayDays||1;
-    if(s('s-overstay-rate'))   s('s-overstay-rate').value    = emailCFG.overstayRate||10;
+    if(!s('s-resend-key')) return; // panel not in DOM yet
+    s('s-resend-key').value    = emailCFG.apiKey||'';
+    s('s-from-email').value    = emailCFG.fromEmail||'';
+    s('s-hotel-name').value    = emailCFG.hotelName||'Best Western Ariel Hotel';
+    s('s-reply-email').value   = emailCFG.replyEmail||'';
+    s('email-on-checkin').checked  = emailCFG.onCheckin!==false;
+    s('email-on-checkout').checked = emailCFG.onCheckout!==false;
+    s('email-on-pending').checked  = emailCFG.onPending!==false;
+    s('email-on-approved').checked = emailCFG.onApproved!==false;
+    s('email-on-reminder').checked = emailCFG.onReminder!==false;
+    if(s('s-overstay-days')) s('s-overstay-days').value = emailCFG.overstayDays||1;
+    if(s('s-overstay-rate')) s('s-overstay-rate').value = emailCFG.overstayRate||10;
     let secSaved = localStorage.getItem('heathrow_sec_cfg');
-    let sec = secSaved ? JSON.parse(secSaved) : {};
+    let sec = secSaved?JSON.parse(secSaved):{};
     if(s('s-session-timeout')) s('s-session-timeout').value = sec.sessionTimeout||60;
     if(s('s-max-attempts'))    s('s-max-attempts').value    = sec.maxAttempts||5;
-    // Show connection status
     updateEmailStatus();
-  }catch(e){console.warn('loadSecuritySettings:',e);}
+  }catch(e){ console.warn('populateSecurityFields:',e.message); }
 }
 
 function updateEmailStatus(){
@@ -4414,10 +4421,15 @@ function switchSettingsTab(tab,el){
   });
   document.querySelectorAll('[id^="stab-"][id$="-btn"]').forEach(b=>b.classList.remove('active'));
   if(el)el.classList.add('active');
-  if(tab==='pricing')loadSettings();
+  if(tab==='pricing')    loadSettings();
   if(tab==='contractors')renderContractorsList();
-  if(tab==='users')loadUsers();
-  if(tab==='security')loadSecuritySettings();
+  if(tab==='users')      loadUsers();
+  if(tab==='security'){
+    // Populate immediately from cache so panel is never blank,
+    // then silently refresh from Supabase
+    populateSecurityFields();
+    loadSecuritySettings();
+  }
   if(tab==='anpr'){loadAnprSettings();loadAnprLog();}
 }
 
