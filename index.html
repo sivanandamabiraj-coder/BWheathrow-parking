@@ -2929,12 +2929,14 @@ async function doSendTestEmail(){
     let queued = await qResp.json();
     let queueId = queued&&queued[0]?queued[0].id:'?';
 
+    // Trigger Edge Function immediately
+    triggerEmailSend();
+
     show(
-      '<strong style="color:#27500A">✅ Email queued successfully! (ID: '+queueId+')</strong><br>'+
+      '<strong style="color:#27500A">✅ Email queued — sending now!</strong><br>'+
       '<span style="font-size:12px;color:#555">'+
-      'The email will be sent to <strong>'+toAddr+'</strong> within the next 5 minutes by the server.<br>'+
-      'Check your inbox at the next clock time ending in 0 or 5 (e.g. 12:35, 12:40).<br>'+
-      'Also check your spam folder.</span>',
+      'Sending to <strong>'+toAddr+'</strong> — check your inbox in the next <strong>30 seconds</strong>.<br>'+
+      'Also check your spam folder. Queue ID: '+queueId+'</span>',
       '#27500A'
     );
 
@@ -3141,41 +3143,48 @@ async function openEmailLog(){
   }
 }
 
-// ── Core email send — calls Resend directly AND queues in Supabase ──
-async function sendEmail({to, subject, html, type='manual', reg='', queueOnly=false}){
+// ── Core email send — queues in Supabase then triggers Edge Function immediately ──
+async function sendEmail({to, subject, html, type='manual', reg=''}){
   if(!to) return;
-  // Ensure config is loaded
   if(!_emailCFGLoaded) await loadEmailCFG();
   if(!emailCFG.apiKey||!emailCFG.fromEmail) throw new Error('Email not configured. Go to Settings → Security & Notifications.');
 
-  // 1. Queue in Supabase email_queue table (for audit + Edge Function fallback)
-  let queueRow = {
-    to_email: to, subject, html_body: html,
-    email_type: type, related_reg: reg||null,
-    status: 'pending',
-    created_at: new Date().toISOString()
-  };
+  // 1. Insert into email_queue
   let queueId = null;
   try{
     let res = await sbFetch('email_queue',{
       method:'POST',
-      body: JSON.stringify(queueRow),
+      body: JSON.stringify({
+        to_email:to, subject, html_body:html,
+        email_type:type, related_reg:reg||null,
+        status:'pending', created_at:new Date().toISOString()
+      }),
       headers:{'Prefer':'return=representation'}
     });
     queueId = res&&res[0]?res[0].id:null;
-  }catch(e){ console.warn('email_queue insert failed (table may not exist yet):',e.message); }
+  }catch(e){ console.warn('email_queue insert:', e.message); }
 
-  if(queueOnly) return; // Edge Function will send it
+  // 2. Trigger Edge Function immediately (fire-and-forget)
+  triggerEmailSend();
 
-  // Email is queued in Supabase — cron sends it within 5 minutes.
-  // Cannot call Resend or Edge Function directly from browser (CORS blocked).
-  // The email_queue row inserted above is all that's needed.
-  return {queued: true, id: queueId};
+  return {queued:true, id:queueId};
 }
 
-// ── Queue an email for the Edge Function to send (no browser API call) ──
+// ── Trigger Edge Function to send queued emails immediately ──
+function triggerEmailSend(){
+  let sbUrl = localStorage.getItem('heathrow_sb_url')||SB_URL||'';
+  let sbKey  = localStorage.getItem('heathrow_sb_key')||SB_KEY||'';
+  if(!sbUrl) return;
+  fetch(sbUrl+'/functions/v1/send-emails',{
+    method:'POST',
+    headers:{'Authorization':'Bearer '+sbKey, 'Content-Type':'application/json'},
+    body: JSON.stringify({trigger:'immediate'})
+  }).then(r=>r.json()).then(d=>console.log('Email trigger:',d)).catch(e=>console.warn('Email trigger failed:',e.message));
+}
+
+// ── Queue an email (alias) ──
 async function queueEmail({to, subject, html, type, reg}){
-  return sendEmail({to, subject, html, type, reg, queueOnly:true});
+  return sendEmail({to, subject, html, type, reg});
 }
 
 function emailCheckinHTML(v,loc){
@@ -4621,6 +4630,9 @@ async function send2FACode(u){
       })
     });
   }catch(e){ console.warn('2FA email queue failed:', e.message); }
+
+  // Trigger Edge Function immediately so 2FA code arrives in seconds
+  triggerEmailSend();
 
   // Show 2FA step
   document.getElementById('login-step-1').style.display = 'none';
