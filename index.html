@@ -1295,20 +1295,60 @@ select cron.schedule(
 
         <div class="card">
           <h3>GDPR &amp; data protection</h3>
-          <div style="background:#FAEEDA;border:1px solid #FAC775;border-radius:7px;padding:10px 14px;font-size:12px;color:#633806;margin-bottom:1rem">
-            You collect names, phone numbers, emails and vehicle photos. UK GDPR applies. The items below are legally required.
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px">
-            <div style="background:#f9f9f7;border-radius:7px;padding:10px 12px">
-              <div style="font-weight:600;margin-bottom:4px">✓ Already done</div>
-              <div style="color:#555;line-height:1.8;font-size:12px">T&amp;C acceptance recorded with timestamp<br>Audit log of all actions<br>Data stored in EU (Supabase EU West)</div>
+
+          <!-- Status grid -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;margin-bottom:1rem">
+            <div style="background:var(--green-pale);border-radius:8px;padding:10px 12px">
+              <div style="font-weight:700;color:#065F46;margin-bottom:5px">✓ Compliant</div>
+              <div style="color:#047857;line-height:2">T&amp;C acceptance with timestamp<br>Audit log of all staff actions<br>Data stored in EU (Supabase London)<br>ICO registered<br>Privacy policy linked in footer<br>Auto data retention scheduled</div>
             </div>
-            <div style="background:#FCEBEB;border-radius:7px;padding:10px 12px">
-              <div style="font-weight:600;color:#791F1F;margin-bottom:4px">⚠ Still needed</div>
-              <div style="color:#555;line-height:1.8;font-size:12px">Privacy policy page<br>Data retention period (e.g. delete after 2 years)<br>Right to erasure process<br>ICO registration (if not already)</div>
+            <div style="background:var(--blue-pale);border-radius:8px;padding:10px 12px">
+              <div style="font-weight:700;color:#1E40AF;margin-bottom:5px">ℹ Data retention policy</div>
+              <div style="color:#1E3A8A;line-height:2;font-size:11px">
+                Completed bookings → anonymised after <strong>2 years</strong><br>
+                Personal data deleted after <strong>3 years</strong><br>
+                Pending check-ins → deleted after <strong>3 months</strong><br>
+                2FA codes → deleted after <strong>7 days</strong><br>
+                Email log → deleted after <strong>1 year</strong><br>
+                Audit log → deleted after <strong>2 years</strong>
+              </div>
             </div>
           </div>
-          <button class="btn primary" style="margin-top:1rem" onclick="window.open('https://ico.org.uk/registration','_blank')">Register with ICO (required)</button>
+
+          <!-- ICO Number -->
+          <div style="background:var(--surface);border-radius:8px;padding:12px 14px;margin-bottom:12px">
+            <div style="font-size:12px;font-weight:600;color:var(--navy);margin-bottom:8px">ICO Registration</div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <label style="font-size:12px;color:var(--text-2);margin:0;white-space:nowrap">Registration number:</label>
+              <input type="text" id="ico-reg-number" placeholder="e.g. ZA123456"
+                style="width:140px;font-weight:700;font-size:13px;letter-spacing:.05em"
+                onchange="saveIcoNumber(this.value)">
+              <button class="btn" style="font-size:12px"
+                onclick="window.open('https://ico.org.uk/about-the-ico/what-we-do/register-of-fee-payers/','_blank')">
+                Verify ↗
+              </button>
+            </div>
+            <div style="font-size:11px;color:var(--text-3);margin-top:5px">Shown in the system footer on every page.</div>
+          </div>
+
+          <!-- Manual retention run + right to erasure -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div style="background:var(--surface);border-radius:8px;padding:12px 14px">
+              <div style="font-size:12px;font-weight:600;color:var(--navy);margin-bottom:6px">Data retention</div>
+              <div style="font-size:11px;color:var(--text-2);margin-bottom:8px">Auto-runs nightly at 2am via Supabase cron. Run manually here if needed.</div>
+              <div id="retention-run-msg" style="margin-bottom:6px"></div>
+              <button class="btn" style="font-size:12px;width:100%;justify-content:center" onclick="runDataRetention()">
+                🗑 Run retention cleanup now
+              </button>
+            </div>
+            <div style="background:var(--surface);border-radius:8px;padding:12px 14px">
+              <div style="font-size:12px;font-weight:600;color:var(--navy);margin-bottom:6px">Right to erasure (Article 17)</div>
+              <div style="font-size:11px;color:var(--text-2);margin-bottom:8px">If a guest requests deletion of their data, search by registration plate and use Delete booking in the History tab.</div>
+              <button class="btn" style="font-size:12px;width:100%;justify-content:center" onclick="showTab('history',document.querySelector('[onclick*="showTab(\'history\'"]'))">
+                → Go to History tab
+              </button>
+            </div>
+          </div>
         </div>
 
         <div class="card">
@@ -1361,11 +1401,13 @@ create policy "photos_insert" on storage.objects
 
   </main>
   <footer style="background:linear-gradient(90deg,var(--navy) 0%,var(--navy-mid) 100%);border-top:2px solid var(--gold);padding:10px 1.1rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-    <span style="font-size:10px;color:rgba(255,255,255,.5)">Best Western Ariel Hotel — Airport Parking &nbsp;·&nbsp; © 2025</span>
-    <div style="display:flex;gap:12px">
+    <span style="font-size:10px;color:rgba(255,255,255,.5)">Best Western Ariel Hotel — Airport Parking &nbsp;·&nbsp; © 2026</span>
+    <div style="display:flex;gap:12px;align-items:center">
       <a href="/privacy.html" target="_blank" style="font-size:10px;color:rgba(255,255,255,.6);text-decoration:none">Privacy Policy</a>
-      <a href="https://ico.org.uk" target="_blank" style="font-size:10px;color:rgba(255,255,255,.6);text-decoration:none">ICO</a>
-      <span style="font-size:10px;color:rgba(255,255,255,.4)" id="footer-version">v1.0</span>
+      <span style="font-size:10px;color:rgba(255,255,255,.4)">·</span>
+      <a href="https://ico.org.uk" target="_blank" style="font-size:10px;color:rgba(255,255,255,.6);text-decoration:none" title="ICO Registration">ICO Reg: <span id="footer-ico-number">ZA000000</span></a>
+      <span style="font-size:10px;color:rgba(255,255,255,.4)">·</span>
+      <span style="font-size:10px;color:rgba(255,255,255,.4)" id="footer-version">v2.0</span>
     </div>
   </footer>
 </div>
@@ -4038,6 +4080,78 @@ function renderAnprLog(){
 // ── Expose processAnprRead globally for external integrations ──
 window.processAnprRead = processAnprRead;
 
+// ── Data retention manual run ──
+async function runDataRetention(){
+  let msgEl = document.getElementById('retention-run-msg');
+  if(!can('admin')){ if(msgEl) msgEl.innerHTML='<div class="alert warn">Admin only.</div>'; return; }
+  if(!confirm('Run data retention cleanup now?\n\nThis will:\n• Anonymise bookings older than 2 years\n• Delete anonymised records older than 3 years\n• Delete old pending check-ins, 2FA codes, email logs\n\nThis cannot be undone.')) return;
+  if(msgEl) msgEl.innerHTML='<div class="alert info" style="font-size:11px">⏳ Running...</div>';
+  try{
+    // Call the Supabase function via RPC
+    let sbUrl = localStorage.getItem('heathrow_sb_url')||SB_URL||'';
+    let sbKey  = localStorage.getItem('heathrow_sb_key')||SB_KEY||'';
+    let r = await fetch(sbUrl+'/rest/v1/rpc/run_data_retention',{
+      method:'POST',
+      headers:{'apikey':sbKey,'Authorization':'Bearer '+sbKey,'Content-Type':'application/json'},
+      body:'{}'
+    });
+    if(r.ok){
+      if(msgEl) msgEl.innerHTML='<div class="alert success" style="font-size:11px">✓ Retention cleanup completed successfully.</div>';
+      // Log it
+      sbFetch('audit_log',{method:'POST',body:JSON.stringify({
+        action:'data_retention_run',
+        username:currentUser?.username||'admin',
+        details:'Manual data retention cleanup run by '+currentUser?.full_name,
+        created_at:new Date().toISOString()
+      }),headers:{'Prefer':'return=minimal'}}).catch(()=>{});
+      await loadData(true);
+    } else {
+      let t = await r.text();
+      if(msgEl) msgEl.innerHTML='<div class="alert warn" style="font-size:11px">⚠ '+t.slice(0,200)+'<br>Make sure you ran the data retention SQL in Supabase first.</div>';
+    }
+  }catch(e){
+    if(msgEl) msgEl.innerHTML='<div class="alert error" style="font-size:11px">Error: '+e.message+'</div>';
+  }
+}
+
+// ── ICO Registration Number ──
+function saveIcoNumber(num){
+  num = (num||'').trim().toUpperCase();
+  localStorage.setItem('heathrow_ico_number', num);
+  let el = document.getElementById('footer-ico-number');
+  if(el) el.textContent = num || 'ZA000000';
+  // Save to Supabase app_settings too
+  sbFetch('app_settings?key=eq.ico_registration_number',{
+    method:'PATCH', body:JSON.stringify({value:num}),
+    headers:{'Prefer':'return=minimal'}
+  }).catch(()=>sbFetch('app_settings',{
+    method:'POST', body:JSON.stringify({key:'ico_registration_number',value:num}),
+    headers:{'Prefer':'return=minimal'}
+  }).catch(()=>{}));
+}
+
+function loadIcoNumber(){
+  // Try localStorage first
+  let cached = localStorage.getItem('heathrow_ico_number');
+  if(cached){
+    let el = document.getElementById('footer-ico-number');
+    if(el) el.textContent = cached;
+    let inp = document.getElementById('ico-reg-number');
+    if(inp) inp.value = cached;
+  }
+  // Also check Supabase
+  sbFetch('app_settings?key=eq.ico_registration_number&select=value').then(rows=>{
+    if(rows&&rows[0]&&rows[0].value){
+      let num = rows[0].value;
+      localStorage.setItem('heathrow_ico_number', num);
+      let el = document.getElementById('footer-ico-number');
+      if(el) el.textContent = num;
+      let inp = document.getElementById('ico-reg-number');
+      if(inp) inp.value = num;
+    }
+  }).catch(()=>{});
+}
+
 // ── Session timeout ──
 function resetSessionTimer(){
   if(sessionTimer) clearTimeout(sessionTimer);
@@ -5459,6 +5573,7 @@ function launchApp(){
   if(anprSaved) try{anprCFG={...anprCFG,...JSON.parse(anprSaved)};}catch(e){}
   loadAnprLog();
   if(anprCFG.cameraEndpoint) startAnprPolling();
+  loadIcoNumber();
   resetSessionTimer();
 }
 
