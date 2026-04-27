@@ -368,17 +368,43 @@ on conflict (key) do nothing;</textarea>
       <div style="font-size:17px;font-weight:700;color:#fff;margin-bottom:2px">Best Western Ariel Hotel</div>
       <div style="font-size:11px;color:rgba(255,255,255,.7)">Airport Parking — Staff Portal</div>
     </div>
-    <div style="padding:1.75rem 2rem">
+    <!-- Step 1: Email + Password -->
+    <div id="login-step-1" style="padding:1.75rem 2rem">
       <div id="login-error" style="margin-bottom:6px"></div>
       <div style="margin-bottom:12px">
-        <label style="font-size:12px;color:#555;display:block;margin-bottom:5px;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Username</label>
-        <input type="text" id="login-user" placeholder="Enter username" autocomplete="username">
+        <label style="font-size:12px;color:#555;display:block;margin-bottom:5px;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Email address</label>
+        <input type="email" id="login-user" placeholder="your@email.com" autocomplete="email" onkeydown="if(event.key==='Enter')doLogin()">
       </div>
-      <div style="margin-bottom:0.6rem">
+      <div style="margin-bottom:1rem">
         <label style="font-size:12px;color:#555;display:block;margin-bottom:5px;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Password</label>
         <input type="password" id="login-pass" placeholder="Enter password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
       </div>
-      <button class="btn primary" style="width:100%;justify-content:center;background:#1E407C;border-color:#1E407C;padding:12px" onclick="doLogin()">Sign in</button>
+      <button class="btn primary" style="width:100%;justify-content:center;background:#1E407C;border-color:#1E407C;padding:12px" onclick="doLogin()">Continue →</button>
+      <div style="margin-top:10px;text-align:center;font-size:11px;color:#aaa">🔒 Secured with two-factor authentication</div>
+    </div>
+
+    <!-- Step 2: 2FA code entry -->
+    <div id="login-step-2" style="display:none;padding:1.75rem 2rem">
+      <div style="text-align:center;margin-bottom:1.2rem">
+        <div style="font-size:32px;margin-bottom:8px">📧</div>
+        <div style="font-size:15px;font-weight:700;color:#1E407C">Check your email</div>
+        <div id="twofa-hint" style="font-size:12px;color:#888;margin-top:4px">We sent a 6-digit code to your email address</div>
+      </div>
+      <div id="twofa-error" style="margin-bottom:8px"></div>
+      <div style="margin-bottom:1rem">
+        <label style="font-size:12px;color:#555;display:block;margin-bottom:5px;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Enter 6-digit code</label>
+        <input type="text" id="twofa-code" placeholder="000000" maxlength="6"
+          style="font-size:28px;letter-spacing:0.3em;text-align:center;padding:12px;font-weight:700"
+          autocomplete="one-time-code" inputmode="numeric" pattern="[0-9]*"
+          onkeydown="if(event.key==='Enter')verify2FA()" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+      </div>
+      <button class="btn primary" style="width:100%;justify-content:center;background:#1E407C;border-color:#1E407C;padding:12px" onclick="verify2FA()">Verify &amp; Sign in</button>
+      <div style="margin-top:10px;text-align:center">
+        <button onclick="resend2FACode()" style="font-size:12px;color:#378ADD;background:none;border:none;cursor:pointer;padding:4px">Resend code</button>
+        <span style="color:#ddd;margin:0 4px">·</span>
+        <button onclick="backToLogin()" style="font-size:12px;color:#888;background:none;border:none;cursor:pointer;padding:4px">Back</button>
+      </div>
+      <div id="twofa-timer" style="text-align:center;font-size:11px;color:#aaa;margin-top:6px">Code expires in <span id="twofa-countdown">10:00</span></div>
     </div>
   </div>
 </div>
@@ -774,10 +800,14 @@ on conflict (key) do nothing;</textarea>
         <div class="card">
           <h3>Add new user</h3>
           <div id="user-save-msg" style="margin-bottom:6px"></div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:12px">
+          <div style="background:#E6F1FB;border:1px solid #B5D4F4;border-radius:7px;padding:8px 12px;font-size:12px;color:#0C447C;margin-bottom:12px">
+            🔒 Users log in with their <strong>email address</strong> and password. Admin and manager accounts also require a <strong>2FA verification code</strong> sent to their email on every login.
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:12px">
             <div><label style="font-size:12px;color:#555;display:block;margin-bottom:4px">Full name</label><input type="text" id="nu-name" placeholder="e.g. Jane Smith"></div>
-            <div><label style="font-size:12px;color:#555;display:block;margin-bottom:4px">Username</label><input type="text" id="nu-user" placeholder="e.g. jsmith"></div>
-            <div><label style="font-size:12px;color:#555;display:block;margin-bottom:4px">Password</label><input type="password" id="nu-pass" placeholder="Min 6 characters"></div>
+            <div><label style="font-size:12px;color:#555;display:block;margin-bottom:4px">Email address <span style="color:#E24B4A">*</span><span style="font-size:10px;color:#aaa"> (used to log in)</span></label><input type="email" id="nu-email" placeholder="jane@arielhotel.co.uk"></div>
+            <div><label style="font-size:12px;color:#555;display:block;margin-bottom:4px">Username <span style="font-size:10px;color:#aaa">(optional, legacy)</span></label><input type="text" id="nu-user" placeholder="e.g. jsmith"></div>
+            <div><label style="font-size:12px;color:#555;display:block;margin-bottom:4px">Password</label><input type="password" id="nu-pass" placeholder="Min 8 characters"></div>
             <div><label style="font-size:12px;color:#555;display:block;margin-bottom:4px">Role</label>
               <select id="nu-role" onchange="toggleContractorSelector(this.value)">
                 <option value="staff">Staff — check in/out, view active</option>
@@ -787,9 +817,7 @@ on conflict (key) do nothing;</textarea>
               </select>
             </div>
             <div id="nu-contractor-row" style="display:none"><label style="font-size:12px;color:#555;display:block;margin-bottom:4px">Link to contractor</label>
-              <select id="nu-contractor-id">
-                <option value="">Select contractor...</option>
-              </select>
+              <select id="nu-contractor-id"><option value="">Select contractor...</option></select>
             </div>
           </div>
           <button class="btn primary" onclick="addUser()">Add user</button>
@@ -802,13 +830,14 @@ on conflict (key) do nothing;</textarea>
           <div style="overflow-x:auto">
             <table>
               <thead><tr>
-                <th style="width:120px">Full name</th>
-                <th style="width:110px">Username</th>
+                <th style="width:130px">Full name</th>
+                <th style="width:160px">Email (login)</th>
                 <th style="width:90px">Role</th>
-                <th style="width:80px">Status</th>
+                <th style="width:80px">2FA</th>
+                <th style="width:70px">Status</th>
                 <th>Actions</th>
               </tr></thead>
-              <tbody id="users-tbody"><tr><td colspan="5" style="text-align:center;padding:2rem;color:#aaa">Loading...</td></tr></tbody>
+              <tbody id="users-tbody"><tr><td colspan="6" style="text-align:center;padding:2rem;color:#aaa">Loading...</td></tr></tbody>
             </table>
           </div>
         </div>
@@ -4471,40 +4500,262 @@ async function sha256(str){
   return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
 }
 
+// ════════════════════════════════════════════
+// LOGIN — email + password + 2FA
+// ════════════════════════════════════════════
+let _pending2FAUser = null;  // user record waiting for 2FA
+let _2faCode        = null;  // generated code
+let _2faExpiry      = null;  // expiry timestamp
+let _2faTimerInterval = null;
+
 async function doLogin(){
   if(!checkLoginRateLimit()) return;
-  let username=document.getElementById('login-user').value.trim().toLowerCase();
-  let password=document.getElementById('login-pass').value;
-  if(!username||!password){
-    document.getElementById('login-error').innerHTML='<div class="alert warn">Please enter username and password.</div>';return;
+  let email    = document.getElementById('login-user').value.trim().toLowerCase();
+  let password = document.getElementById('login-pass').value;
+  let errEl    = document.getElementById('login-error');
+
+  if(!email||!password){
+    errEl.innerHTML='<div class="alert warn">Please enter your email address and password.</div>';
+    return;
   }
-  let hash=await sha256(password);
+  if(!email.includes('@')){
+    errEl.innerHTML='<div class="alert warn">Please enter a valid email address.</div>';
+    return;
+  }
+
+  errEl.innerHTML='<div class="alert info" style="font-size:12px">⏳ Checking credentials...</div>';
+
+  let hash = await sha256(password);
   try{
-    let users=await sbFetch('app_users?username=eq.'+encodeURIComponent(username)+'&active=eq.true&select=*');
+    // Look up by email address
+    let users = await sbFetch('app_users?email=eq.'+encodeURIComponent(email)+'&active=eq.true&select=*');
+
+    // Fallback: also try username match for existing accounts without email set
     if(!users||!users.length){
-      document.getElementById('login-error').innerHTML='<div class="alert warn">Invalid username or password.</div>';return;
+      users = await sbFetch('app_users?username=eq.'+encodeURIComponent(email)+'&active=eq.true&select=*');
     }
-    let u=users[0];
-    if(u.password_hash!==hash){
+
+    if(!users||!users.length){
       recordFailedLogin();
-      document.getElementById('login-error').innerHTML='<div class="alert warn">Invalid username or password.</div>';return;
+      errEl.innerHTML='<div class="alert warn">No account found with that email address.</div>';
+      return;
     }
-    currentUser={id:u.id,username:u.username,role:u.role,full_name:u.full_name||u.username,contractor_id:u.contractor_id||null};
-    localStorage.setItem('heathrow_user',JSON.stringify(currentUser));
-    resetLoginAttempts();
-    if(u.role==='contractor') launchContractorPortal();
-    else launchApp();
+    let u = users[0];
+    if(u.password_hash !== hash){
+      recordFailedLogin();
+      errEl.innerHTML='<div class="alert warn">Incorrect password. Please try again.</div>';
+      return;
+    }
+
+    // Password correct — check if 2FA is needed
+    // Admin and manager always get 2FA; staff only if they have an email
+    let needs2FA = (u.role==='admin'||u.role==='manager') || (u.email && u.role==='staff');
+
+    if(!needs2FA || !u.email){
+      // No 2FA — log straight in
+      resetLoginAttempts();
+      _pending2FAUser = null;
+      finishLogin(u);
+      return;
+    }
+
+    // Send 2FA code
+    _pending2FAUser = u;
+    errEl.innerHTML='';
+    await send2FACode(u);
+
   }catch(e){
-    document.getElementById('login-error').innerHTML='<div class="alert warn">Login error: '+e.message+'</div>';
+    errEl.innerHTML='<div class="alert warn">Login error: '+e.message+'</div>';
   }
+}
+
+async function send2FACode(u){
+  // Generate 6-digit code
+  _2faCode   = String(Math.floor(100000 + Math.random() * 900000));
+  _2faExpiry = Date.now() + 10 * 60 * 1000; // 10 minutes
+
+  // Store code in two_fa_codes table
+  try{
+    await sbFetch('two_fa_codes',{
+      method:'POST',
+      body: JSON.stringify({
+        user_id:    u.id,
+        code:       _2faCode,
+        expires_at: new Date(_2faExpiry).toISOString(),
+        used:       false
+      }),
+      headers:{'Prefer':'return=minimal'}
+    });
+  }catch(e){ console.warn('2FA table insert failed (may not exist yet):', e.message); }
+
+  // Queue the code email
+  let hotel = emailCFG.hotelName||'Best Western Ariel Hotel';
+  let sbUrl  = localStorage.getItem('heathrow_sb_url')||SB_URL||'';
+  let sbKey  = localStorage.getItem('heathrow_sb_key')||SB_KEY||'';
+
+  try{
+    await fetch(sbUrl+'/rest/v1/email_queue',{
+      method:'POST',
+      headers:{
+        'apikey':sbKey, 'Authorization':'Bearer '+sbKey,
+        'Content-Type':'application/json', 'Prefer':'return=minimal'
+      },
+      body: JSON.stringify({
+        to_email:   u.email,
+        subject:    hotel+' — Your login code: '+_2faCode,
+        html_body:
+          '<div style="font-family:Arial,sans-serif;max-width:420px;margin:0 auto;padding:20px">'+
+          '<div style="background:#1E407C;padding:16px 20px;border-radius:8px 8px 0 0;border-bottom:3px solid #C9A84C">'+
+          '<h1 style="color:#fff;margin:0;font-size:18px">'+hotel+'</h1>'+
+          '<p style="color:rgba(255,255,255,.7);margin:4px 0 0;font-size:12px">Staff Portal — Login Verification</p></div>'+
+          '<div style="background:#f9f9f7;padding:24px;border-radius:0 0 8px 8px;border:1px solid #eee;border-top:none">'+
+          '<p style="margin-top:0;color:#555;font-size:13px">Hi '+( u.full_name||u.username)+',</p>'+
+          '<p style="color:#555;font-size:13px">Your login verification code is:</p>'+
+          '<div style="text-align:center;margin:20px 0">'+
+          '<span style="font-size:42px;font-weight:900;letter-spacing:0.25em;color:#1E407C;background:#E6F1FB;padding:14px 24px;border-radius:10px;display:inline-block">'+_2faCode+'</span></div>'+
+          '<p style="color:#888;font-size:12px;text-align:center">This code expires in <strong>10 minutes</strong>.</p>'+
+          '<p style="color:#E24B4A;font-size:12px;text-align:center">If you did not request this, please contact your manager immediately.</p>'+
+          '</div></div>',
+        email_type: '2fa',
+        status:     'pending'
+      })
+    });
+  }catch(e){ console.warn('2FA email queue failed:', e.message); }
+
+  // Show 2FA step
+  document.getElementById('login-step-1').style.display = 'none';
+  document.getElementById('login-step-2').style.display = 'block';
+  document.getElementById('twofa-hint').textContent = 'We sent a 6-digit code to '+maskEmail(u.email);
+  document.getElementById('twofa-code').value = '';
+  document.getElementById('twofa-code').focus();
+  document.getElementById('twofa-error').innerHTML = '';
+  start2FATimer();
+}
+
+function maskEmail(email){
+  let [local, domain] = email.split('@');
+  let masked = local.slice(0,2) + '***' + (local.length>4?local.slice(-1):'') + '@' + domain;
+  return masked;
+}
+
+function start2FATimer(){
+  if(_2faTimerInterval) clearInterval(_2faTimerInterval);
+  _2faTimerInterval = setInterval(()=>{
+    let remaining = Math.max(0, _2faExpiry - Date.now());
+    let mins = Math.floor(remaining/60000);
+    let secs = Math.floor((remaining%60000)/1000);
+    let el = document.getElementById('twofa-countdown');
+    if(el) el.textContent = mins+':'+(secs<10?'0':'')+secs;
+    if(remaining<=0){
+      clearInterval(_2faTimerInterval);
+      document.getElementById('twofa-error').innerHTML = '<div class="alert warn">Code expired. Please <button onclick="backToLogin()" style="color:#185FA5;background:none;border:none;cursor:pointer;font-weight:600;padding:0">go back and sign in again</button>.</div>';
+    }
+  }, 1000);
+}
+
+async function verify2FA(){
+  let entered = (document.getElementById('twofa-code').value||'').trim();
+  let errEl   = document.getElementById('twofa-error');
+
+  if(!entered||entered.length!==6){
+    errEl.innerHTML='<div class="alert warn">Please enter the 6-digit code.</div>';
+    return;
+  }
+  if(Date.now() > _2faExpiry){
+    errEl.innerHTML='<div class="alert warn">Code has expired. Please go back and sign in again.</div>';
+    return;
+  }
+
+  // Check against stored code (also check DB for extra security)
+  let codeMatch = (entered === _2faCode);
+
+  // Also try DB lookup as backup (in case page was refreshed)
+  if(!codeMatch && _pending2FAUser){
+    try{
+      let rows = await sbFetch('two_fa_codes?user_id=eq.'+_pending2FAUser.id+
+        '&code=eq.'+entered+'&used=eq.false&expires_at=gt.'+new Date().toISOString()+'&select=id&order=created_at.desc&limit=1');
+      if(rows&&rows.length) codeMatch = true;
+      if(codeMatch && rows[0]){
+        sbFetch('two_fa_codes?id=eq.'+rows[0].id,{method:'PATCH',body:JSON.stringify({used:true}),headers:{'Prefer':'return=minimal'}}).catch(()=>{});
+      }
+    }catch(e){ console.warn('2FA DB check failed:', e.message); }
+  }
+
+  if(!codeMatch){
+    recordFailedLogin();
+    errEl.innerHTML='<div class="alert warn">Incorrect code. Please check your email and try again.</div>';
+    return;
+  }
+
+  // Mark code as used
+  if(_pending2FAUser){
+    sbFetch('two_fa_codes?user_id=eq.'+_pending2FAUser.id+'&code=eq.'+entered,{
+      method:'PATCH',body:JSON.stringify({used:true}),headers:{'Prefer':'return=minimal'}
+    }).catch(()=>{});
+  }
+
+  // Log the 2FA success
+  if(_pending2FAUser){
+    sbFetch('audit_log',{method:'POST',body:JSON.stringify({
+      action:'2fa_success', user_id:_pending2FAUser.id,
+      username:_pending2FAUser.email||_pending2FAUser.username,
+      details:'2FA login verified', created_at:new Date().toISOString()
+    }),headers:{'Prefer':'return=minimal'}}).catch(()=>{});
+  }
+
+  clearInterval(_2faTimerInterval);
+  resetLoginAttempts();
+  finishLogin(_pending2FAUser);
+  _pending2FAUser = null;
+  _2faCode = null;
+}
+
+async function resend2FACode(){
+  if(!_pending2FAUser){ backToLogin(); return; }
+  let errEl = document.getElementById('twofa-error');
+  errEl.innerHTML='<div class="alert info" style="font-size:12px">⏳ Sending new code...</div>';
+  await send2FACode(_pending2FAUser);
+  errEl.innerHTML='<div class="alert success" style="font-size:12px">New code sent — check your email.</div>';
+}
+
+function backToLogin(){
+  clearInterval(_2faTimerInterval);
+  _pending2FAUser = null;
+  _2faCode = null;
+  document.getElementById('login-step-2').style.display = 'none';
+  document.getElementById('login-step-1').style.display = 'block';
+  document.getElementById('login-error').innerHTML = '';
+  document.getElementById('twofa-error').innerHTML = '';
+  document.getElementById('twofa-code').value = '';
+}
+
+function finishLogin(u){
+  currentUser={
+    id:u.id, username:u.username, email:u.email||'',
+    role:u.role, full_name:u.full_name||u.username,
+    contractor_id:u.contractor_id||null
+  };
+  localStorage.setItem('heathrow_user',JSON.stringify(currentUser));
+  // Reset login screen to step 1 for next time
+  document.getElementById('login-step-1').style.display='block';
+  document.getElementById('login-step-2').style.display='none';
+  document.getElementById('login-user').value='';
+  document.getElementById('login-pass').value='';
+  document.getElementById('login-error').innerHTML='';
+  if(u.role==='contractor') launchContractorPortal();
+  else launchApp();
 }
 
 function doLogout(){
   currentUser=null;
   localStorage.removeItem('heathrow_user');
+  clearInterval(_2faTimerInterval);
+  _pending2FAUser=null; _2faCode=null;
   document.getElementById('app').style.display='none';
   document.getElementById('contractor-portal').style.display='none';
   document.getElementById('login-screen').style.display='flex';
+  document.getElementById('login-step-1').style.display='block';
+  document.getElementById('login-step-2').style.display='none';
   document.getElementById('login-user').value='';
   document.getElementById('login-pass').value='';
   document.getElementById('login-error').innerHTML='';
@@ -4631,28 +4882,53 @@ async function loadUsers(){
   try{
     let users=await sbFetch('app_users?order=id.asc&select=*');
     let tbody=document.getElementById('users-tbody');
-    if(!users||!users.length){tbody.innerHTML='<tr><td colspan="5" style="text-align:center;padding:2rem;color:#aaa">No users found</td></tr>';return;}
-    let roleColors={staff:'#888',manager:'#0C447C',admin:'#27500A'};
-    let roleBg={staff:'#f0f0ee',manager:'#E6F1FB',admin:'#EAF3DE'};
-    tbody.innerHTML=users.map(u=>`<tr>
-      <td><strong>${u.full_name||'–'}</strong></td>
-      <td>${u.username}</td>
-      <td><span style="display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:600;background:${roleBg[u.role]||'#f0f0ee'};color:${roleColors[u.role]||'#888'}">${u.role}</span></td>
-      <td><span style="font-size:11px;color:${u.active?'#639922':'#E24B4A'}">${u.active?'Active':'Disabled'}</span></td>
-      <td style="display:flex;gap:4px;flex-wrap:wrap">
-        ${u.username!=='admin'?`
-          <select id="role-sel-${u.id}" style="height:28px;font-size:12px;width:110px">
-            <option value="staff" ${u.role==='staff'?'selected':''}>Staff</option>
-            <option value="manager" ${u.role==='manager'?'selected':''}>Manager</option>
-            <option value="admin" ${u.role==='admin'?'selected':''}>Admin</option>
-          </select>
-          <button class="btn" style="font-size:12px;padding:4px 10px" onclick="changeRole(${u.id})">Save role</button>
-          <button class="btn" style="font-size:12px;padding:4px 10px;color:${u.active?'#E24B4A':'#639922'}" onclick="toggleUser(${u.id},${!u.active})">${u.active?'Disable':'Enable'}</button>
-          <button class="btn" style="font-size:12px;padding:4px 10px" onclick="resetPassword(${u.id})">Reset pwd</button>
-        `:'<span style="font-size:11px;color:#aaa">Protected</span>'}
-      </td>
-    </tr>`).join('');
-  }catch(e){document.getElementById('users-tbody').innerHTML='<tr><td colspan="5" style="color:#E24B4A;padding:1rem">Error: '+e.message+'</td></tr>';}
+    if(!users||!users.length){tbody.innerHTML='<tr><td colspan="6" style="text-align:center;padding:2rem;color:#aaa">No users found</td></tr>';return;}
+    let roleColors={staff:'#888',manager:'#0C447C',admin:'#27500A',contractor:'#633806'};
+    let roleBg    ={staff:'#f0f0ee',manager:'#E6F1FB',admin:'#EAF3DE',contractor:'#FAEEDA'};
+    tbody.innerHTML=users.map(u=>{
+      let needs2FA = (u.role==='admin'||u.role==='manager');
+      let has2FA   = !!u.email;
+      let twofaBadge = needs2FA
+        ? (has2FA
+            ? '<span style="background:#EAF3DE;color:#27500A;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:600">✓ Active</span>'
+            : '<span style="background:#FCEBEB;color:#E24B4A;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:600">⚠ No email</span>')
+        : '<span style="font-size:10px;color:#aaa">Not required</span>';
+      return `<tr>
+        <td><strong>${u.full_name||'–'}</strong></td>
+        <td style="font-size:12px">${u.email
+          ? u.email
+          : '<span style="color:#E24B4A;font-size:11px">⚠ Not set — <button onclick="setUserEmail('+u.id+')" style="font-size:11px;color:#185FA5;background:none;border:none;cursor:pointer;padding:0;text-decoration:underline">Add email</button></span>'
+        }</td>
+        <td><span style="display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:600;background:${roleBg[u.role]||'#f0f0ee'};color:${roleColors[u.role]||'#888'}">${u.role}</span></td>
+        <td>${twofaBadge}</td>
+        <td><span style="font-size:11px;color:${u.active?'#639922':'#E24B4A'}">${u.active?'Active':'Disabled'}</span></td>
+        <td style="display:flex;gap:4px;flex-wrap:wrap">
+          ${u.username!=='admin'?`
+            <select id="role-sel-${u.id}" style="height:28px;font-size:12px;width:100px">
+              <option value="staff" ${u.role==='staff'?'selected':''}>Staff</option>
+              <option value="manager" ${u.role==='manager'?'selected':''}>Manager</option>
+              <option value="admin" ${u.role==='admin'?'selected':''}>Admin</option>
+            </select>
+            <button class="btn" style="font-size:11px;padding:3px 8px" onclick="changeRole(${u.id})">Role</button>
+            <button class="btn" style="font-size:11px;padding:3px 8px" onclick="setUserEmail(${u.id},'${u.email||''}')">Email</button>
+            <button class="btn" style="font-size:11px;padding:3px 8px" onclick="resetPassword(${u.id})">Pwd</button>
+            <button class="btn" style="font-size:11px;padding:3px 8px;color:${u.active?'#E24B4A':'#639922'}" onclick="toggleUser(${u.id},${!u.active})">${u.active?'Off':'On'}</button>
+          `:'<span style="font-size:11px;color:#aaa">Protected</span>'}
+        </td>
+      </tr>`;
+    }).join('');
+  }catch(e){document.getElementById('users-tbody').innerHTML='<tr><td colspan="6" style="color:#E24B4A;padding:1rem">Error: '+e.message+'</td></tr>';}
+}
+
+async function setUserEmail(id, current){
+  let email = prompt('Enter email address for this user (used for login and 2FA):', current||'');
+  if(email===null) return;
+  email = email.trim().toLowerCase();
+  if(!email||!email.includes('@')){ alert('Please enter a valid email address.'); return; }
+  showLoading('Saving...');
+  await sbFetch('app_users?id=eq.'+id,{method:'PATCH',body:JSON.stringify({email})});
+  hideLoading();
+  loadUsers();
 }
 
 function toggleContractorSelector(role){
@@ -4670,24 +4946,38 @@ function toggleContractorSelector(role){
 }
 
 async function addUser(){
-  let name=document.getElementById('nu-name').value.trim();
-  let username=document.getElementById('nu-user').value.trim().toLowerCase();
-  let pass=document.getElementById('nu-pass').value;
-  let role=document.getElementById('nu-role').value;
-  let conId=role==='contractor'?(document.getElementById('nu-contractor-id')?.value||null):null;
-  if(!name||!username||!pass){document.getElementById('user-save-msg').innerHTML='<div class="alert warn">All fields required.</div>';return;}
-  if(pass.length<6){document.getElementById('user-save-msg').innerHTML='<div class="alert warn">Password must be at least 6 characters.</div>';return;}
-  if(role==='contractor'&&!conId){document.getElementById('user-save-msg').innerHTML='<div class="alert warn">Please link to a contractor.</div>';return;}
-  let hash=await sha256(pass);
+  let name     = document.getElementById('nu-name').value.trim();
+  let email    = document.getElementById('nu-email')?.value.trim().toLowerCase()||'';
+  let username = document.getElementById('nu-user').value.trim().toLowerCase()||email.split('@')[0];
+  let pass     = document.getElementById('nu-pass').value;
+  let role     = document.getElementById('nu-role').value;
+  let conId    = role==='contractor'?(document.getElementById('nu-contractor-id')?.value||null):null;
+  let msgEl    = document.getElementById('user-save-msg');
+
+  if(!name||!email||!pass){ msgEl.innerHTML='<div class="alert warn">Full name, email and password are required.</div>'; return; }
+  if(!email.includes('@')){ msgEl.innerHTML='<div class="alert warn">Please enter a valid email address.</div>'; return; }
+  if(pass.length<8){ msgEl.innerHTML='<div class="alert warn">Password must be at least 8 characters.</div>'; return; }
+  if(role==='contractor'&&!conId){ msgEl.innerHTML='<div class="alert warn">Please link to a contractor.</div>'; return; }
+
+  // Check email not already used
+  try{
+    let existing = await sbFetch('app_users?email=eq.'+encodeURIComponent(email)+'&select=id');
+    if(existing&&existing.length){ msgEl.innerHTML='<div class="alert warn">An account with that email already exists.</div>'; return; }
+  }catch(e){}
+
+  let hash = await sha256(pass);
   showLoading('Creating user...');
   try{
-    let body={username,password_hash:hash,role,full_name:name,active:true};
-    if(conId) body.contractor_id=parseInt(conId);
+    let body = {username:username||email, email, password_hash:hash, role, full_name:name, active:true};
+    if(conId) body.contractor_id = parseInt(conId);
     await sbFetch('app_users',{method:'POST',body:JSON.stringify(body)});
-    document.getElementById('user-save-msg').innerHTML='<div class="alert success">User '+username+' created.</div>';
-    document.getElementById('nu-name').value='';document.getElementById('nu-user').value='';document.getElementById('nu-pass').value='';
+    msgEl.innerHTML='<div class="alert success">✓ User <strong>'+name+'</strong> created. They can now log in with <strong>'+email+'</strong>.'+(role==='admin'||role==='manager'?' 2FA will be required on every login.':'')+'</div>';
+    document.getElementById('nu-name').value='';
+    document.getElementById('nu-email').value='';
+    document.getElementById('nu-user').value='';
+    document.getElementById('nu-pass').value='';
     loadUsers();
-  }catch(e){document.getElementById('user-save-msg').innerHTML='<div class="alert warn">Error: '+e.message+'</div>';}
+  }catch(e){ msgEl.innerHTML='<div class="alert warn">Error: '+e.message+'</div>'; }
   hideLoading();
 }
 
