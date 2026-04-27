@@ -408,31 +408,39 @@ async function sendGuestEmail({ref,reg,name,phone,room,ci,ret,email}){
     <hr style="border:none;border-top:1px solid #eee;margin:16px 0">
     <p style="font-size:11px;color:#aaa">${hotel} &nbsp;·&nbsp; Bath Road, Hayes, Middlesex, UB3 5AJ</p>
   </div></body></html>`;
-  // Send via Resend
-  let r=await fetch('https://api.resend.com/emails',{
-    method:'POST',
-    headers:{'Authorization':'Bearer '+cfg.apiKey,'Content-Type':'application/json'},
-    body:JSON.stringify({
-      from:hotel+' <'+cfg.fromEmail+'>',
-      reply_to:cfg.replyEmail||cfg.fromEmail,
-      to:[email],subject:hotel+' — Parking request received (Ref: '+ref+')',html
-    })
-  });
-  // Log to email_queue for audit trail
-  let resendId='';
-  if(r.ok) try{let j=await r.json();resendId=j.id||'';}catch(e){}
-  fetch(SB_URL+'/rest/v1/email_queue',{
-    method:'POST',
-    headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,
-      'Content-Type':'application/json','Prefer':'return=minimal'},
-    body:JSON.stringify({
-      to_email:email, subject:hotel+' — Parking request received (Ref: '+ref+')',
-      email_type:'pending', related_reg:reg,
-      status:r.ok?'sent':'failed',
-      sent_at:r.ok?new Date().toISOString():null,
-      resend_id:resendId||null
-    })
-  }).catch(()=>{});
+  // Queue email via Supabase — Edge Function sends it (no CORS issues)
+  // Direct Resend calls from browser are blocked by CORS
+  try{
+    let qResp = await fetch(SB_URL+'/rest/v1/email_queue',{
+      method:'POST',
+      headers:{
+        'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,
+        'Content-Type':'application/json','Prefer':'return=representation'
+      },
+      body:JSON.stringify({
+        to_email:    email,
+        subject:     hotel+' — Parking request received (Ref: '+ref+')',
+        html_body:   html,
+        email_type:  'pending',
+        related_reg: reg,
+        status:      'pending'
+      })
+    });
+    if(qResp.ok){
+      console.log('Self check-in email queued for', email);
+      // Trigger Edge Function to send immediately
+      fetch(SB_URL+'/functions/v1/send-emails',{
+        method:'POST',
+        headers:{'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json'},
+        body:JSON.stringify({trigger:'immediate'})
+      }).catch(()=>{});
+    } else {
+      let t = await qResp.text();
+      console.warn('Email queue failed:', qResp.status, t.slice(0,200));
+    }
+  }catch(e){
+    console.warn('sendGuestEmail error:', e.message);
+  }
 }
 </script>
 
