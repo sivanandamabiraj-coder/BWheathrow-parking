@@ -112,7 +112,7 @@
   nav button:hover:not(.active){color:rgba(255,255,255,.9);background:rgba(255,255,255,.06)}
 
   /* ── Main content ── */
-  main{padding:1rem 1.1rem 1.5rem;max-width:1400px}
+  main{padding:1rem 1.1rem 1.5rem}
   .section{display:none;animation:fadeUp .2s ease}
   .section.active{display:block}
   @keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
@@ -136,10 +136,8 @@
   }
   .card h3{
     font-size:13px;font-weight:700;margin-bottom:.8rem;color:var(--navy);
-    display:flex;align-items:center;gap:7px;
-    padding-bottom:.6rem;border-bottom:1px solid var(--surface-2)
+    display:flex;align-items:center;gap:7px
   }
-  .card h3::before{content:'';display:inline-block;width:3px;height:14px;background:var(--gold);border-radius:2px;flex-shrink:0}
 
   /* ── Form layout ── */
   .form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
@@ -147,7 +145,6 @@
 
   /* ── Tables ── */
   table{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed}
-  thead{position:sticky;top:86px;z-index:2}
   th{
     text-align:left;padding:9px 10px;font-size:10.5px;font-weight:600;color:var(--text-2);
     border-bottom:2px solid var(--border);background:var(--surface);
@@ -157,6 +154,13 @@
   tr:last-child td{border-bottom:none}
   tbody tr{transition:background .1s}
   tbody tr:hover td{background:var(--blue-pale)}
+
+  /* ── Card table header (used in Active, History, Audit, etc) ── */
+  .card-header{
+    padding:12px 16px;border-bottom:1px solid var(--border);
+    display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--white);
+  }
+  .card-header-title{font-size:14px;font-weight:700;color:var(--navy);white-space:nowrap}
 
   /* ── Badges ── */
   .badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:10.5px;font-weight:600;letter-spacing:.02em}
@@ -636,7 +640,7 @@ on conflict (key) do nothing;</textarea>
       <!-- Pending review queue -->
       <div class="card" style="padding:0;overflow:hidden">
         <div style="padding:12px 16px;border-bottom:1px solid #eee;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          <span style="font-size:14px;font-weight:600">Guest submissions — pending review</span>
+          <span class="card-header-title">Guest submissions — pending review</span>
           <span style="font-size:12px;color:#888" id="pending-count-lbl"></span>
           <button class="btn" style="margin-left:auto;font-size:12px;padding:5px 10px" onclick="loadPending()">↻ Refresh</button>
         </div>
@@ -756,8 +760,8 @@ on conflict (key) do nothing;</textarea>
       </div>
 
       <div class="card" style="padding:0;overflow:hidden">
-        <div style="padding:12px 16px;border-bottom:1px solid #eee;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <span style="font-size:14px;font-weight:600">Active vehicles</span>
+        <div class="card-header">
+          <span class="card-header-title">Active vehicles</span>
           <input type="text" id="search-active" placeholder="Reg or name..." style="width:140px;height:30px" oninput="renderActive()">
           <select id="filter-location" style="width:120px;height:30px;font-size:12px" onchange="renderActive()">
             <option value="">All locations</option>
@@ -809,8 +813,8 @@ on conflict (key) do nothing;</textarea>
 
     <div id="tab-history" class="section">
       <div class="card" style="padding:0;overflow:hidden">
-        <div style="padding:12px 16px;border-bottom:1px solid #eee;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <span style="font-size:14px;font-weight:600">Completed bookings</span>
+        <div class="card-header">
+          <span class="card-header-title">Completed bookings</span>
           <input type="text" id="hist-search-reg" placeholder="Search reg..." style="width:120px;height:30px;font-size:12px" oninput="renderHistory()">
           <input type="date" id="hist-filter-from" style="width:130px;height:30px;font-size:12px" oninput="renderHistory()" title="Check-in from">
           <input type="date" id="hist-filter-to" style="width:130px;height:30px;font-size:12px" oninput="renderHistory()" title="Check-in to">
@@ -880,8 +884,8 @@ on conflict (key) do nothing;</textarea>
 
     <div id="tab-audit" class="section">
       <div class="card" style="padding:0;overflow:hidden">
-        <div style="padding:12px 16px;border-bottom:1px solid #eee;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <span style="font-size:14px;font-weight:600">Audit log</span>
+        <div class="card-header">
+          <span class="card-header-title">Audit log</span>
           <input type="text" id="audit-search" placeholder="Search reg..." style="width:130px;height:30px;font-size:12px" oninput="renderAudit()">
           <select id="audit-filter-action" style="width:140px;height:30px;font-size:12px" onchange="renderAudit()">
             <option value="">All actions</option>
@@ -913,7 +917,7 @@ on conflict (key) do nothing;</textarea>
     <div id="tab-settings" class="section">
 
       <!-- Tabs within settings -->
-      <div style="display:flex;gap:6px;margin-bottom:0.6rem;flex-wrap:wrap">
+      <div style="display:flex;gap:6px;margin-bottom:0.8rem;flex-wrap:wrap;padding:10px 12px;background:var(--white);border-radius:var(--radius);border:1px solid var(--border);box-shadow:var(--shadow-sm)">
         <button class="btn active" id="stab-pricing-btn" onclick="switchSettingsTab('pricing',this)" style="font-size:12px;padding:6px 14px">Space allocation</button>
         <button class="btn" id="stab-contractors-btn" onclick="switchSettingsTab('contractors',this)" style="font-size:12px;padding:6px 14px">Contractors</button>
         <button class="btn" id="stab-users-btn" onclick="switchSettingsTab('users',this)" style="font-size:12px;padding:6px 14px">Users &amp; roles</button>
@@ -1002,8 +1006,8 @@ on conflict (key) do nothing;</textarea>
           <button class="btn primary" onclick="addUser()">Add user</button>
         </div>
         <div class="card" style="padding:0;overflow:hidden">
-          <div style="padding:12px 16px;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between">
-            <span style="font-size:14px;font-weight:600">All users</span>
+          <div class="card-header" style="justify-content:space-between">
+            <span class="card-header-title">All users</span>
             <button class="btn" style="font-size:12px;padding:5px 10px" onclick="loadUsers()">↻ Refresh</button>
           </div>
           <div style="overflow-x:auto">
@@ -1058,8 +1062,8 @@ on conflict (key) do nothing;</textarea>
         </div>
 
         <div class="card" style="padding:0;overflow:hidden">
-          <div style="padding:12px 16px;border-bottom:1px solid #eee;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            <span style="font-size:14px;font-weight:600">ANPR Event Log</span>
+          <div class="card-header">
+            <span class="card-header-title">ANPR Event Log</span>
             <span style="font-size:12px;color:#888" id="anpr-log-count"></span>
             <input type="text" id="anpr-log-search" placeholder="Search plate..." style="width:130px;height:30px;font-size:12px" oninput="renderAnprLog()">
             <select id="anpr-log-filter" style="width:140px;height:30px;font-size:12px" onchange="renderAnprLog()">
