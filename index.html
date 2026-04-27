@@ -2700,74 +2700,225 @@ async function openPhotos(reg){
   _allPhotos = [];
   _activePhotoCat = '';
 
-  let titleEl = document.getElementById('photo-modal-title');
-  let countEl = document.getElementById('photo-modal-count');
-  let gridEl  = document.getElementById('photo-grid');
-  let filtersEl = document.getElementById('photo-cat-filters');
+  let titleEl  = document.getElementById('photo-modal-title');
+  let countEl  = document.getElementById('photo-modal-count');
+  let gridEl   = document.getElementById('photo-grid');
+  let filtersEl= document.getElementById('photo-cat-filters');
 
   titleEl.textContent = reg + ' — Vehicle photos';
-  countEl.textContent = '';
+  countEl.textContent = 'Loading...';
   gridEl.innerHTML = '<div style="text-align:center;padding:2rem;color:#aaa;font-size:13px">Loading photos...</div>';
   filtersEl.innerHTML = '';
 
-  // Set QR code for photo upload
-  let qrSrc = 'https://api.qrserver.com/v1/create-qr-code/?size=70x70&data='+encodeURIComponent(PHOTO_FORM_URL);
-  document.getElementById('photo-qr-img').src = qrSrc;
-
+  document.getElementById('photo-qr-img').src =
+    'https://api.qrserver.com/v1/create-qr-code/?size=70x70&data='+encodeURIComponent(PHOTO_FORM_URL);
   document.getElementById('photo-modal').style.display = 'flex';
 
   try{
-    let photos = await sbFetch('vehicle_photos?reg=eq.'+encodeURIComponent(reg)+'&order=uploaded_at.asc&select=*');
-    _allPhotos = photos||[];
-    countEl.textContent = _allPhotos.length + ' photo' + (_allPhotos.length!==1?'s':'');
+    // ── 1. Load from vehicle_photos table (guest uploads) ──
+    let tablePhotos = [];
+    try{
+      let rows = await sbFetch('vehicle_photos?reg=eq.'+encodeURIComponent(reg)+'&order=uploaded_at.asc&select=*');
+      tablePhotos = (rows||[]).map(p=>({
+        source:    'guest',
+        category:  p.category,
+        dataUrl:   null,
+        public_url:p.public_url,
+        uploaded_at:p.uploaded_at,
+        uploaded_by:p.uploaded_by||'Guest',
+        move_date: null
+      }));
+    }catch(e){ console.warn('vehicle_photos load failed:',e.message); }
+
+    // ── 2. Load contractor photos from move_log entries + move_photos column ──
+    let contractorPhotos = [];
+    try{
+      let vRows = await sbFetch('vehicles?reg=eq.'+encodeURIComponent(reg)+'&select=move_log,move_photos');
+      if(vRows&&vRows[0]){
+        let v = vRows[0];
+
+        // Parse move_log to get per-move photo data and dates
+        let moveLog = [];
+        try{ moveLog = JSON.parse(v.move_log||'[]'); }catch(e){}
+
+        // move_photos is the LATEST set of contractor photos (base64)
+        let latestPhotos = {};
+        try{ latestPhotos = JSON.parse(v.move_photos||'{}'); }catch(e){}
+
+        // Find the latest move_log entry that has photo_categories
+        let photoMoves = moveLog.filter(m=>m.photo_categories&&m.photo_categories.length>0);
+
+        if(photoMoves.length > 0){
+          // Load photos from each move_log entry (stored per-move since latest update)
+          // Reverse so most recent first
+          [...photoMoves].reverse().forEach((move, moveIdx)=>{
+            let isLatest = moveIdx === 0;
+            let movePhotos = {};
+
+            // Prefer per-move photos stored in log entry
+            if(move.photos && typeof move.photos === 'object'){
+              movePhotos = move.photos;
+            } else if(isLatest){
+              // Fallback: use move_photos column for most recent move
+              movePhotos = latestPhotos;
+            }
+
+            Object.entries(movePhotos).forEach(([cat, dataUrl])=>{
+              if(dataUrl && dataUrl.startsWith('data:')){
+                contractorPhotos.push({
+                  source:      isLatest ? 'contractor' : 'contractor-history',
+                  category:    cat,
+                  dataUrl:     dataUrl,
+                  public_url:  null,
+                  uploaded_at: move.date||null,
+                  uploaded_by: move.contractor_name||'Contractor',
+                  move_date:   move.date||null,
+                  move_note:   move.note||''
+                });
+              }
+            });
+
+            // For older moves with only category list (before photo-in-log update)
+            if(!move.photos && !isLatest){
+              (move.photo_categories||[]).forEach(cat=>{
+                contractorPhotos.push({
+                  source:      'contractor-archived',
+                  category:    cat,
+                  dataUrl:     null,
+                  public_url:  null,
+                  uploaded_at: move.date||null,
+                  uploaded_by: move.contractor_name||'Contractor',
+                  move_date:   move.date||null,
+                  move_note:   move.note||'(image not retained — older move)'
+                });
+              });
+            }
+          });
+        }
+      }
+    }catch(e){ console.warn('move_photos load failed:',e.message); }
+
+    // ── 3. Merge all photos ──
+    _allPhotos = [...contractorPhotos, ...tablePhotos];
+    let total = _allPhotos.filter(p=>p.dataUrl||p.public_url).length;
+    let archived = _allPhotos.filter(p=>p.source==='contractor-archived').length;
+    countEl.textContent = total + ' photo' + (total!==1?'s':'') +
+      (archived>0?' (+'+archived+' from earlier moves, images not retained)':'');
+
     renderPhotoGrid('');
     renderCatFilters();
+
   }catch(e){
-    gridEl.innerHTML = '<div style="text-align:center;padding:2rem;color:#E24B4A;font-size:13px">Error loading photos: '+e.message+'</div>';
+    gridEl.innerHTML = '<div style="text-align:center;padding:2rem;color:#E24B4A;font-size:13px">Error: '+e.message+'</div>';
   }
 }
 
 function renderCatFilters(){
-  let cats=[...new Set(_allPhotos.map(p=>p.category))];
   let filtersEl=document.getElementById('photo-cat-filters');
-  if(!cats.length){filtersEl.innerHTML='';return;}
-  let allActive=''===_activePhotoCat;
-  let html=`<button style="padding:4px 12px;border-radius:20px;border:1px solid ${allActive?'#378ADD':'#ddd'};background:${allActive?'#E6F1FB':'#fff'};font-size:12px;cursor:pointer;color:${allActive?'#185FA5':'#555'}" onclick="renderPhotoGrid('')">All (${_allPhotos.length})</button>`;
-  cats.forEach(c=>{
-    let label=PHOTO_CATEGORIES[c]||c;
-    let count=_allPhotos.filter(p=>p.category===c).length;
-    let active=c===_activePhotoCat;
-    html+=`<button style="padding:4px 12px;border-radius:20px;border:1px solid ${active?'#378ADD':'#ddd'};background:${active?'#E6F1FB':'#fff'};font-size:12px;cursor:pointer;color:${active?'#185FA5':'#555'}" onclick="renderPhotoGrid('${c}')">${label} (${count})</button>`;
-  });
-  filtersEl.innerHTML=html;
+  if(!_allPhotos.length){filtersEl.innerHTML='';return;}
+
+  // Source tabs
+  let hasContractor = _allPhotos.some(p=>p.source==='contractor'||p.source==='contractor-history'||p.source==='contractor-archived');
+  let hasGuest      = _allPhotos.some(p=>p.source==='guest');
+  let total         = _allPhotos.length;
+  let contractorCount = _allPhotos.filter(p=>p.source&&p.source.startsWith('contractor')).length;
+  let guestCount      = _allPhotos.filter(p=>p.source==='guest').length;
+
+  let allActive = ''===_activePhotoCat;
+  let html = '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">';
+
+  // All button
+  html += `<button onclick="renderPhotoGrid('')" style="padding:4px 12px;border-radius:20px;border:1px solid ${allActive?'var(--navy-mid)':'var(--border)'};background:${allActive?'var(--navy-mid)':'#fff'};font-size:12px;cursor:pointer;color:${allActive?'#fff':'var(--text-2)'};font-weight:${allActive?'600':'400'}">All (${total})</button>`;
+
+  // Contractor photos button
+  if(hasContractor){
+    let a=_activePhotoCat==='__contractor';
+    html+=`<button onclick="renderPhotoGrid('__contractor')" style="padding:4px 12px;border-radius:20px;border:1px solid ${a?'#92400E':'var(--border)'};background:${a?'#FEF3C7':'#fff'};font-size:12px;cursor:pointer;color:${a?'#92400E':'var(--text-2)'}">🚗 Contractor (${contractorCount})</button>`;
+  }
+
+  // Guest photos button
+  if(hasGuest){
+    let a=_activePhotoCat==='__guest';
+    html+=`<button onclick="renderPhotoGrid('__guest')" style="padding:4px 12px;border-radius:20px;border:1px solid ${a?'#1E40AF':'var(--border)'};background:${a?'#EFF6FF':'#fff'};font-size:12px;cursor:pointer;color:${a?'#1E40AF':'var(--text-2)'}">📱 Guest (${guestCount})</button>`;
+  }
+
+  // Category filters
+  let cats=[...new Set(_allPhotos.map(p=>p.category))].filter(Boolean);
+  if(cats.length > 1){
+    html += '<span style="font-size:11px;color:var(--text-3);align-self:center;margin-left:4px">|</span>';
+    cats.forEach(c=>{
+      let label=PHOTO_CATEGORIES[c]||c;
+      let count=_allPhotos.filter(p=>p.category===c).length;
+      let active=c===_activePhotoCat;
+      html+=`<button onclick="renderPhotoGrid('${c}')" style="padding:4px 12px;border-radius:20px;border:1px solid ${active?'var(--navy-mid)':'var(--border)'};background:${active?'var(--blue-pale)':'#fff'};font-size:12px;cursor:pointer;color:${active?'var(--navy-mid)':'var(--text-2)'}">${label} (${count})</button>`;
+    });
+  }
+
+  html += '</div>';
+  filtersEl.innerHTML = html;
 }
 
 function renderPhotoGrid(catFilter){
   _activePhotoCat = catFilter;
   renderCatFilters();
-  let filtered = catFilter ? _allPhotos.filter(p=>p.category===catFilter) : _allPhotos;
+  let filtered = !catFilter
+    ? _allPhotos
+    : catFilter==='__contractor'
+    ? _allPhotos.filter(p=>p.source&&p.source.startsWith('contractor'))
+    : catFilter==='__guest'
+    ? _allPhotos.filter(p=>p.source==='guest')
+    : _allPhotos.filter(p=>p.category===catFilter);
   let gridEl = document.getElementById('photo-grid');
 
   if(!filtered.length){
     gridEl.innerHTML = '<div style="text-align:center;padding:2rem;color:#aaa;font-size:13px;grid-column:1/-1">'+(
       _allPhotos.length===0
-        ? 'No photos uploaded yet for this vehicle.<br><span style="font-size:11px">Ask the guest to scan the QR code above to upload photos.</span>'
+        ? '<div style="font-size:32px;margin-bottom:8px">📷</div>No photos for this vehicle yet.<br><span style="font-size:11px">Contractor photos appear here after they confirm a move.</span>'
         : 'No photos in this category.'
     )+'</div>';
     return;
   }
 
   gridEl.innerHTML = filtered.map((p,i)=>{
-    let catLabel = PHOTO_CATEGORIES[p.category]||p.category||'Photo';
-    let uploadedAt = p.uploaded_at ? new Date(p.uploaded_at).toLocaleString('en-GB',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}) : '–';
-    return `<div style="border-radius:8px;overflow:hidden;border:1px solid #eee;cursor:pointer" onclick="openLightbox('${p.public_url}','${catLabel} — ${uploadedAt}')">
-      <img src="${p.public_url}" alt="${catLabel}" style="width:100%;aspect-ratio:1;object-fit:cover;display:block" onerror="this.src='';this.style.background='#f0f0ee';this.style.height='160px'">
-      <div style="padding:6px 8px;background:#fafaf8">
-        <div style="font-size:12px;font-weight:600;color:#1a1a1a">${catLabel}</div>
-        <div style="font-size:10px;color:#aaa">${uploadedAt}</div>
-        ${p.uploaded_by?'<div style="font-size:10px;color:#888">by '+p.uploaded_by+'</div>':''}
-      </div>
-    </div>`;
+    let catLabel  = PHOTO_CATEGORIES[p.category]||p.category||'Photo';
+    let imgSrc    = p.dataUrl || p.public_url || '';
+    let uploadedAt= p.uploaded_at
+      ? new Date(p.uploaded_at).toLocaleString('en-GB',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'})
+      : '–';
+    let sourceBadge = p.source==='contractor'
+      ? '<span style="background:#FAEEDA;color:#92400E;font-size:9px;padding:1px 6px;border-radius:10px;font-weight:600">Contractor</span>'
+      : p.source==='contractor-archived'
+      ? '<span style="background:#f0f0ee;color:#888;font-size:9px;padding:1px 6px;border-radius:10px;font-weight:600">Archived</span>'
+      : '<span style="background:#EFF6FF;color:#1E40AF;font-size:9px;padding:1px 6px;border-radius:10px;font-weight:600">Guest</span>';
+
+    // Archived photo (no image data retained)
+    if(p.source==='contractor-archived'){
+      return '<div style="border-radius:10px;overflow:hidden;border:1px solid #e8e8e8;background:#fafaf8">'
+        +'<div style="aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#f5f5f5;color:#bbb">'
+        +'<div style="font-size:24px">📷</div>'
+        +'<div style="font-size:10px;margin-top:4px;text-align:center;padding:0 8px">Image not retained<br>(older move)</div>'
+        +'</div>'
+        +'<div style="padding:7px 8px">'
+        +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px">'+sourceBadge+'<span style="font-size:10px;color:#aaa">'+uploadedAt+'</span></div>'
+        +'<div style="font-size:12px;font-weight:600;color:#1a1a1a">'+catLabel+'</div>'
+        +'<div style="font-size:10px;color:#bbb;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(p.move_note||'')+'</div>'
+        +'</div></div>';
+    }
+
+    // Real photo (base64 dataUrl or public_url)
+    let clickHandler = imgSrc
+      ? 'openLightboxData('+JSON.stringify(imgSrc)+','+JSON.stringify(catLabel+' — '+uploadedAt+(p.uploaded_by?' by '+p.uploaded_by:''))+')'
+      : '';
+    return '<div style="border-radius:10px;overflow:hidden;border:1px solid #e8e8e8;cursor:'+(imgSrc?'pointer':'default')+'" '+(imgSrc?'onclick="'+clickHandler+'"':'')+'>'
+      +(imgSrc
+        ? '<img src="'+imgSrc+'" alt="'+catLabel+'" style="width:100%;aspect-ratio:1;object-fit:cover;display:block" >'
+        +'<div class="photo-err" style="display:none;aspect-ratio:1;align-items:center;justify-content:center;background:#f5f5f5;color:#bbb;font-size:11px">Cannot load image</div>'
+        : '<div style="aspect-ratio:1;display:flex;align-items:center;justify-content:center;background:#f5f5f5;color:#bbb;font-size:24px">📷</div>')
+      +'<div style="padding:7px 8px;background:#fafaf8">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px">'+sourceBadge+'<span style="font-size:10px;color:#aaa">'+uploadedAt+'</span></div>'
+      +'<div style="font-size:12px;font-weight:600;color:#1a1a1a">'+catLabel+'</div>'
+      +(p.uploaded_by?'<div style="font-size:10px;color:#888;margin-top:1px">by '+p.uploaded_by+'</div>':'')
+      +'</div></div>';
   }).join('');
 }
 
@@ -2776,8 +2927,33 @@ function openLightbox(url, caption){
   document.getElementById('lightbox-caption').textContent = caption;
   document.getElementById('lightbox').style.display = 'flex';
 }
+
+// Handle both public URLs and base64 dataUrls
+function openLightboxData(src, caption){
+  document.getElementById('lightbox-img').src = src;
+  document.getElementById('lightbox-caption').textContent = caption;
+  document.getElementById('lightbox').style.display = 'flex';
+}
+
 function closeLightbox(){
   document.getElementById('lightbox').style.display = 'none';
+
+function downloadLightboxPhoto(){
+  let img = document.getElementById('lightbox-img');
+  let caption = document.getElementById('lightbox-caption').textContent||'photo';
+  let src = img.src;
+  if(!src) return;
+  let a = document.createElement('a');
+  // For base64 dataUrl - download directly
+  if(src.startsWith('data:')){
+    a.href = src;
+    a.download = (_photoReg||'vehicle')+'-'+caption.split('—')[0].trim().toLowerCase().replace(/\s+/g,'-')+'.jpg';
+    a.click();
+  } else {
+    // For public URL - open in new tab (can't force download cross-origin)
+    window.open(src,'_blank');
+  }
+}
 }
 
 function closePhotoModal(){
@@ -5913,7 +6089,8 @@ async function cpConfirmMove(){
     contractor_id:toLocation==='contractor'?v.contractor_id:null,
     contractor_name:toLocation==='contractor'?v.contractor_name:null,
     rate:toLocation==='contractor'?v.contractor_rate:null,
-    photo_categories:photoCats
+    photo_categories:photoCats,
+    photos:photoData
   });
 
   let patch={
@@ -6062,9 +6239,13 @@ window.addEventListener('DOMContentLoaded',()=>{
   </div>
 
 <!-- Lightbox -->
-  <div id="lightbox" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.95);z-index:500;align-items:center;justify-content:center;flex-direction:column" onclick="closeLightbox()">
-  <img id="lightbox-img" src="" alt="" style="max-width:95vw;max-height:85vh;border-radius:8px;object-fit:contain">
-  <div style="color:#fff;font-size:13px;margin-top:10px" id="lightbox-caption"></div>
+  <div id="lightbox" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:500;align-items:center;justify-content:center;flex-direction:column;backdrop-filter:blur(4px)">
+  <div style="position:absolute;top:16px;right:16px;display:flex;gap:8px">
+    <button onclick="downloadLightboxPhoto()" style="padding:8px 14px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);border-radius:8px;color:#fff;cursor:pointer;font-size:12px;font-family:inherit">⬇ Download</button>
+    <button onclick="closeLightbox()" style="padding:8px 14px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);border-radius:8px;color:#fff;cursor:pointer;font-size:12px;font-family:inherit">✕ Close</button>
+  </div>
+  <img id="lightbox-img" src="" alt="" style="max-width:92vw;max-height:82vh;border-radius:10px;object-fit:contain;box-shadow:0 8px 40px rgba(0,0,0,.5)" onclick="event.stopPropagation()">
+  <div style="color:rgba(255,255,255,.8);font-size:13px;margin-top:12px;text-align:center;padding:0 1rem" id="lightbox-caption"></div>
 </div>
 
 
