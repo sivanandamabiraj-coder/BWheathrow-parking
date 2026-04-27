@@ -1530,6 +1530,19 @@ function nightsApart(a,b){
 }
 function daysApart(a,b){return nightsApart(a,b);}
 function fmtD(d){if(!d)return'–';let x=new Date(d);if(isNaN(x))return d;return x.toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit',year:'2-digit'});}
+// Strip timezone from ISO datetime string for datetime-local inputs
+// "2026-04-27T14:06:00+00:00" → "2026-04-27T14:06"
+function toLocalDT(d){
+  if(!d) return '';
+  // Already in correct format
+  if(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(d)) return d;
+  // Has timezone suffix — strip it and seconds
+  let s = d.replace(/[+-]\d{2}:\d{2}$/, '').replace('Z','');
+  // Remove seconds if present "2026-04-27T14:06:00" → "2026-04-27T14:06"
+  s = s.replace(/:\d{2}(\.\d+)?$/, '');
+  return s;
+}
+
 function fmtDT(d){if(!d)return'–';let x=new Date(d);if(isNaN(x))return d;return x.toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit',year:'2-digit'})+' '+x.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});}
 function showLoading(m){document.getElementById('loading').classList.add('show');document.getElementById('loading-msg').textContent=m||'Loading...';}
 function hideLoading(){document.getElementById('loading').classList.remove('show');}
@@ -2156,11 +2169,11 @@ function showDetail(reg){
         </div>
         <div>
           <label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Drop-off date &amp; time</label>
-          <input type="datetime-local" id="ed-checkin-${reg}" value="${v.check_in_date||''}" style="width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+          <input type="datetime-local" id="ed-checkin-${reg}" value="${toLocalDT(v.check_in_date)}" style="width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
         </div>
         <div>
           <label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Expected return</label>
-          <input type="datetime-local" id="ed-return-${reg}" value="${v.return_date||''}" style="width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+          <input type="datetime-local" id="ed-return-${reg}" value="${toLocalDT(v.return_date)}" style="width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
         </div>
       </div>
       <div style="margin-bottom:8px">
@@ -4495,8 +4508,8 @@ function renderPending(){
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
           <div><label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Registration</label><input type="text" id="ep-reg-${p.id}" value="${p.reg}" style="width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;text-transform:uppercase"></div>
           <div><label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Name</label><input type="text" id="ep-name-${p.id}" value="${p.name||''}" style="width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px"></div>
-          <div><label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Drop-off date &amp; time</label><input type="datetime-local" id="ep-checkin-${p.id}" value="${p.check_in_date||''}" style="width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px"></div>
-          <div><label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Collection date &amp; time</label><input type="datetime-local" id="ep-return-${p.id}" value="${p.return_date||''}" style="width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px"></div>
+          <div><label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Drop-off date &amp; time</label><input type="datetime-local" id="ep-checkin-${p.id}" value="${toLocalDT(p.check_in_date)}" style="width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px"></div>
+          <div><label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Collection date &amp; time</label><input type="datetime-local" id="ep-return-${p.id}" value="${toLocalDT(p.return_date)}" style="width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px"></div>
           <div><label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Parking type</label>
             <select id="ep-type-${p.id}" style="width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
               <option value="long" ${p.type==='long'?'selected':''}>Long-stay</option>
