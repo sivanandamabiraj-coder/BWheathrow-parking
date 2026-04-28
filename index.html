@@ -3201,13 +3201,17 @@ function updateEmailStatus(){
 }
 
 async function saveEmailSettings(){
-  // Ensure fields are populated before reading
-  populateSecurityFields();
+  // Read form fields FIRST — NEVER call populateSecurityFields() before reading
+  // as that would overwrite what the user typed with old cached values
   let g=id=>document.getElementById(id);
-  emailCFG.apiKey      = g('s-resend-key')?.value.trim()||emailCFG.apiKey||'';
-  emailCFG.fromEmail   = g('s-from-email')?.value.trim()||emailCFG.fromEmail||'';
-  emailCFG.hotelName   = g('s-hotel-name')?.value.trim()||'Best Western Ariel Hotel';
-  emailCFG.replyEmail  = g('s-reply-email')?.value.trim()||'';
+  let typedKey   = g('s-resend-key')?.value.trim()||'';
+  let typedFrom  = g('s-from-email')?.value.trim()||'';
+  let typedHotel = g('s-hotel-name')?.value.trim()||'';
+  let typedReply = g('s-reply-email')?.value.trim()||'';
+  emailCFG.apiKey      = typedKey   || emailCFG.apiKey   || '';
+  emailCFG.fromEmail   = typedFrom  || emailCFG.fromEmail || '';
+  emailCFG.hotelName   = typedHotel || emailCFG.hotelName || 'Best Western Ariel Hotel';
+  emailCFG.replyEmail  = typedReply || emailCFG.replyEmail || '';
   emailCFG.onCheckin   = g('email-on-checkin')?.checked!==false;
   emailCFG.onCheckout  = g('email-on-checkout')?.checked!==false;
   emailCFG.onPending   = g('email-on-pending')?.checked!==false;
