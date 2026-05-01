@@ -2347,6 +2347,7 @@ function renderActive(){
       <td style="display:flex;gap:4px;flex-wrap:wrap">
         <button class="btn" style="font-size:11px;padding:4px 10px;color:#1E407C;border-color:#1E407C;font-weight:600" onclick="showDetail('${v.reg}')">✏ Edit</button>
         <button class="btn" style="font-size:11px;padding:4px 8px" onclick="printReceipt('${v.reg}','active')">Print</button>
+        <button class="btn" style="font-size:11px;padding:4px 8px;color:#27500A;border-color:#C0DD97" onclick="printKeyTagFromActive('${v.reg}')" title="Print 2 key tags">🏷 Key tag</button>
         <button class="btn" style="font-size:11px;padding:4px 8px;color:#185FA5;border-color:#B5D4F4" onclick="openPhotos('${v.reg}')">Photos</button>
         ${can('manager')?'<button class="btn" style="font-size:11px;padding:4px 8px;color:#E24B4A;border-color:#F7C1C1" onclick="openDeleteModal(\''+v.reg+'\')">Delete</button>':''}
         ${isOverdue&&can('staff')?'<button class="btn" style="font-size:11px;padding:4px 8px;background:#C0392B;color:#fff;border-color:#C0392B" onclick="sendOverstayEmail(\''+v.reg+'\')" title="Send overstay notice">⚠ Overstay</button>':''}
@@ -4626,6 +4627,22 @@ async function rejectPending(id, reg){
     await loadPending();
     hideLoading();
   }catch(e){hideLoading();alert('Error: '+e.message);}
+}
+
+function printKeyTagFromActive(reg){
+  // Find vehicle in loaded data
+  let v = vehicles.find(x=>x.reg===reg);
+  if(!v){ alert('Vehicle not found. Please refresh and try again.'); return; }
+  // Convert to same format as pending and call the same print function
+  printKeyTagFromPending({
+    reg:           v.reg,
+    name:          v.name,
+    phone:         v.phone||'',
+    room_number:   v.room_number||'',
+    check_in_date: v.check_in_date,
+    return_date:   v.return_date,
+    ref_code:      v.ref_code||''
+  });
 }
 
 function printKeyTagFromPending(p){
