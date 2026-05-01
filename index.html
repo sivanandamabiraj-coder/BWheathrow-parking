@@ -656,11 +656,11 @@ on conflict (key) do nothing;</textarea>
         <div class="card">
           <h3>Hotel spaces (100 total)</h3>
           <div style="margin-bottom:6px">
-            <div style="display:flex;justify-content:space-between;font-size:12px;color:#888"><span>Daily (40 slots)</span><span id="d-daily-lbl">0 / 40</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:12px;color:#888"><span>Daily (40 slots — ANPR pending)</span><span id="d-daily-lbl">0 / 40</span></div>
             <div class="bar-wrap"><div class="bar hotel" id="bar-daily" style="width:0%"></div></div>
           </div>
           <div>
-            <div style="display:flex;justify-content:space-between;font-size:12px;color:#888"><span>Long-stay (60 slots)</span><span id="d-long-lbl">0 / 60</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:12px;color:#888"><span>Long-stay (60 slots — all current vehicles)</span><span id="d-long-lbl">0 / 60</span></div>
             <div class="bar-wrap"><div class="bar hotel" id="bar-long" style="width:0%"></div></div>
           </div>
         </div>
@@ -952,29 +952,70 @@ on conflict (key) do nothing;</textarea>
       <div id="stab-pricing">
         <div id="settings-save-msg" style="margin-bottom:6px"></div>
 
-        <!-- SPACE ALLOCATION -->
+        <!-- SPACE ALLOCATION — Daily management tool -->
         <div class="card">
-          <h3>Space allocation</h3>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:1rem">
-            <div>
-              <label for="s-total-spaces" style="font-size:12px;color:#555;display:block;margin-bottom:4px">Total hotel spaces</label>
-              <input type="number" id="s-total-spaces" step="1" min="1">
+          <h3>Daily space allocation</h3>
+          <div style="background:var(--blue-pale);border:1px solid #BFDBFE;border-radius:8px;padding:10px 14px;font-size:12px;color:#1E3A8A;margin-bottom:1rem">
+            <strong>Manager sets this every morning.</strong> Decide how many of your hotel spaces to reserve for daily parking vs long-stay today. Total must equal your total hotel spaces.
+          </div>
+
+          <!-- Visual space bar -->
+          <div style="margin-bottom:1rem">
+            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-3);margin-bottom:4px">
+              <span>Space utilisation</span>
+              <span id="alloc-total-label">0 / 0 spaces allocated</span>
             </div>
-            <div>
-              <label for="s-daily-cap" style="font-size:12px;color:#555;display:block;margin-bottom:4px">Daily parking slots</label>
-              <input type="number" id="s-daily-cap" step="1" min="0">
+            <div style="background:var(--surface-2);border-radius:99px;height:20px;overflow:hidden;display:flex">
+              <div id="alloc-bar-daily" style="background:#2563EB;height:100%;transition:width .3s;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;font-weight:600;overflow:hidden;white-space:nowrap"></div>
+              <div id="alloc-bar-long"  style="background:#1D9E75;height:100%;transition:width .3s;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;font-weight:600;overflow:hidden;white-space:nowrap"></div>
+              <div id="alloc-bar-free"  style="background:var(--surface-2);height:100%;flex:1;display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--text-3);overflow:hidden;white-space:nowrap"></div>
             </div>
-            <div>
-              <label for="s-long-cap" style="font-size:12px;color:#555;display:block;margin-bottom:4px">Long-stay parking slots</label>
-              <input type="number" id="s-long-cap" step="1" min="0">
+            <div style="display:flex;gap:12px;margin-top:5px;font-size:11px">
+              <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#2563EB;display:inline-block"></span>Daily</span>
+              <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#1D9E75;display:inline-block"></span>Long-stay</span>
+              <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:var(--surface-2);border:1px solid var(--border);display:inline-block"></span>Free</span>
             </div>
           </div>
-          <div style="background:#FAEEDA;border:1px solid #FAC775;border-radius:7px;padding:8px 12px;font-size:12px;color:#633806;margin-bottom:1rem">
-            Daily + Long-stay slots must equal Total hotel spaces.
+
+          <!-- Inputs -->
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:12px">
+            <div>
+              <label for="s-total-spaces">Total hotel spaces</label>
+              <input type="number" id="s-total-spaces" step="1" min="1" oninput="updateAllocBar()">
+              <div style="font-size:11px;color:var(--text-3);margin-top:3px">Fixed — your car park capacity</div>
+            </div>
+            <div>
+              <label for="s-daily-cap">Daily parking slots <span style="font-size:10px;color:var(--text-3)">(today)</span></label>
+              <input type="number" id="s-daily-cap" step="1" min="0" oninput="updateAllocBar()">
+              <div style="font-size:11px;color:var(--text-3);margin-top:3px">Reserved for same-day / short stays</div>
+            </div>
+            <div>
+              <label for="s-long-cap">Long-stay slots <span style="font-size:10px;color:var(--text-3)">(today)</span></label>
+              <input type="number" id="s-long-cap" step="1" min="0" oninput="updateAllocBar()">
+              <div style="font-size:11px;color:var(--text-3);margin-top:3px">Airport parking guests (multi-day)</div>
+            </div>
           </div>
+
+          <!-- Validation message -->
+          <div id="alloc-validation" style="font-size:12px;margin-bottom:12px"></div>
+
+          <!-- Quick presets -->
+          <div style="margin-bottom:1rem">
+            <div style="font-size:11px;font-weight:600;color:var(--text-2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Quick presets</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <button class="btn" style="font-size:12px;padding:5px 12px" onclick="setAllocPreset(0,75)">All long-stay (0/75)</button>
+              <button class="btn" style="font-size:12px;padding:5px 12px" onclick="setAllocPreset(10,65)">10 daily / 65 long</button>
+              <button class="btn" style="font-size:12px;padding:5px 12px" onclick="setAllocPreset(20,55)">20 daily / 55 long</button>
+              <button class="btn" style="font-size:12px;padding:5px 12px" onclick="setAllocPreset(30,45)">30 daily / 45 long</button>
+              <button class="btn" style="font-size:12px;padding:5px 12px" onclick="setAllocPreset(40,35)">40 daily / 35 long</button>
+            </div>
+          </div>
+
+          <!-- Last changed info -->
+          <div id="alloc-last-changed" style="font-size:11px;color:var(--text-3)"></div>
         </div>
 
-        <button class="btn primary" onclick="saveSettings()">Save settings</button>
+        <button class="btn primary" onclick="saveSettings()">💾 Save today's allocation</button>
         <button class="btn" style="margin-left:8px" onclick="loadSettings()">Reset to saved</button>
       </div>
 
@@ -1645,17 +1686,20 @@ async function saveSetup(){
 }
 
 function hotelCounts(){
+  // All hotel vehicles are long-stay until ANPR is integrated
+  // Daily slots reserved for future ANPR-based detection
   let hotelVehicles = vehicles.filter(v=>v.location==='hotel');
-  let td = today();
-  // Daily = parked 1 night or less; Long-stay = 2+ nights
-  let daily = hotelVehicles.filter(v=>nightsApart(v.check_in_date||td, td) <= 1).length;
-  let long  = hotelVehicles.filter(v=>nightsApart(v.check_in_date||td, td) >  1).length;
+  let long       = hotelVehicles.length;
+  let daily      = 0;
   let contractor = vehicles.filter(v=>v.location==='contractor').length;
   return{daily, long, contractor};
 }
 function allocateSpace(){
+  // All vehicles are long-stay — use long-stay slots first
+  // Once long-stay is full, overflow to contractor
   let{long}=hotelCounts();
-  if(long<LONG_CAP())return'hotel';
+  let totalHotel = DAILY_CAP()+LONG_CAP(); // total hotel capacity
+  if(long<totalHotel) return'hotel';
   return'contractor';
 }
 
@@ -1663,9 +1707,8 @@ function updateDash(){
   let{daily,long,contractor}=hotelCounts();
   let total=daily+long;
   let totalCap   = DAILY_CAP()+LONG_CAP();
-  let dailyCap   = DAILY_CAP();
   let longCap    = LONG_CAP();
-  let totalHotel = daily+long;
+  let totalHotel = long; // all hotel vehicles are long-stay
   let contCost   = vehicles.filter(v=>v.location==='contractor').reduce((s,v)=>s+estimateCost(v).contCost,0);
   document.getElementById('dash-metrics').innerHTML=`
     <div class="metric"><div class="lbl">Hotel occupied</div><div class="val">${totalHotel}/${totalCap}</div><div class="sub">${totalCap-totalHotel} free</div></div>
@@ -1677,8 +1720,9 @@ function updateDash(){
   let barDaily = document.getElementById('bar-daily');
   let barLong  = document.getElementById('bar-long');
   let barCont  = document.getElementById('bar-cont');
-  if(barDaily) barDaily.style.width = Math.min(100, Math.round(daily/dailyCap*100))+'%';
-  if(barLong)  barLong.style.width  = Math.min(100, Math.round(long/longCap*100))+'%';
+  // Daily bar always 0 until ANPR integrated
+  if(barDaily) barDaily.style.width = '0%';
+  if(barLong)  barLong.style.width  = Math.min(100, Math.round(long/totalCap*100))+'%';
   if(barCont)  barCont.style.width  = Math.min(100, Math.round(contractor/Math.max(contractor,50)*100))+'%';
 
   // ── Update space count labels ──
@@ -1692,7 +1736,7 @@ function updateDash(){
   let dDailyLbl = document.getElementById('d-daily-lbl');
   let dLongLbl  = document.getElementById('d-long-lbl');
   let dContLbl  = document.getElementById('d-cont-lbl');
-  if(dDailyLbl) dDailyLbl.textContent = daily+' / '+dailyCap;
+  if(dDailyLbl) dDailyLbl.textContent = '0 / '+DAILY_CAP()+' (ANPR pending)';
   if(dLongLbl)  dLongLbl.textContent  = long+' / '+longCap;
   if(dContLbl)  dContLbl.textContent  = contractor;
 
@@ -4258,6 +4302,70 @@ function loadIcoNumber(){
   }).catch(()=>{});
 }
 
+// ── Space allocation daily management ──
+function updateAllocBar(){
+  let total = parseInt(document.getElementById('s-total-spaces')?.value)||0;
+  let daily = parseInt(document.getElementById('s-daily-cap')?.value)||0;
+  let long  = parseInt(document.getElementById('s-long-cap')?.value)||0;
+  let free  = Math.max(0, total - daily - long);
+  let sum   = daily + long;
+
+  // Update visual bar
+  let barDaily = document.getElementById('alloc-bar-daily');
+  let barLong  = document.getElementById('alloc-bar-long');
+  let barFree  = document.getElementById('alloc-bar-free');
+  let lblTotal = document.getElementById('alloc-total-label');
+  let valMsg   = document.getElementById('alloc-validation');
+
+  if(total > 0){
+    let pDaily = Math.round(daily/total*100);
+    let pLong  = Math.round(long/total*100);
+    if(barDaily) barDaily.style.width = pDaily+'%';
+    if(barLong)  barLong.style.width  = pLong+'%';
+    if(barDaily) barDaily.textContent = daily > 3 ? daily+' daily' : '';
+    if(barLong)  barLong.textContent  = long  > 3 ? long+' long-stay' : '';
+    if(barFree)  barFree.textContent  = free  > 3 ? free+' free' : '';
+  }
+
+  if(lblTotal) lblTotal.textContent = sum+' / '+total+' spaces allocated';
+
+  // Validation
+  if(!valMsg) return;
+  if(sum === total){
+    valMsg.innerHTML = '<div style="color:var(--green);font-weight:600">✓ Allocation is correct ('+daily+' daily + '+long+' long-stay = '+total+' total)</div>';
+  } else if(sum > total){
+    valMsg.innerHTML = '<div style="color:var(--red)">⚠ Over-allocated by '+(sum-total)+' spaces. Reduce daily or long-stay slots.</div>';
+  } else {
+    valMsg.innerHTML = '<div style="color:var(--amber)">'+(total-sum)+' spaces unallocated. Allocate all spaces for accurate tracking.</div>';
+  }
+}
+
+function setAllocPreset(daily, long){
+  let totalEl = document.getElementById('s-total-spaces');
+  let dailyEl = document.getElementById('s-daily-cap');
+  let longEl  = document.getElementById('s-long-cap');
+  let total   = parseInt(totalEl?.value)||75;
+  if(daily + long !== total){
+    // Adjust long to fill remaining
+    long = total - daily;
+  }
+  if(dailyEl) dailyEl.value = daily;
+  if(longEl)  longEl.value  = long;
+  updateAllocBar();
+}
+
+function updateAllocLastChanged(){
+  let el = document.getElementById('alloc-last-changed');
+  if(el){
+    let now = new Date().toLocaleString('en-GB',{
+      day:'2-digit',month:'2-digit',year:'2-digit',
+      hour:'2-digit',minute:'2-digit'
+    });
+    let user = currentUser?.full_name||currentUser?.username||'Manager';
+    el.textContent = 'Last updated: '+now+' by '+user;
+  }
+}
+
 // ── Session timeout ──
 function resetSessionTimer(){
   if(sessionTimer) clearTimeout(sessionTimer);
@@ -5492,9 +5600,10 @@ async function loadSettings(){
       });
     }
     let s=id=>document.getElementById(id);
-    if(s('s-total-spaces'))s('s-total-spaces').value=CFG.TOTAL_SPACES||100;
-    if(s('s-daily-cap'))s('s-daily-cap').value=CFG.DAILY_CAP||40;
-    if(s('s-long-cap'))s('s-long-cap').value=CFG.LONG_CAP||60;
+    if(s('s-total-spaces'))s('s-total-spaces').value=CFG.TOTAL_SPACES||75;
+    if(s('s-daily-cap'))s('s-daily-cap').value=CFG.DAILY_CAP||0;
+    if(s('s-long-cap'))s('s-long-cap').value=CFG.LONG_CAP||75;
+    updateAllocBar();
   }catch(e){console.warn('Settings load failed:',e);}
 }
 
@@ -5517,7 +5626,7 @@ async function saveSettings(){
       await sbFetch('app_settings?key=eq.'+u.key,{method:'PATCH',body:JSON.stringify({value:u.value})});
     }
     await loadSettings();
-    document.getElementById('settings-save-msg').innerHTML='<div class="alert success">Settings saved.</div>';
+    document.getElementById('settings-save-msg').innerHTML='<div class="alert success">✓ Today\'s space allocation saved.</div>'; updateAllocLastChanged();
     setTimeout(()=>document.getElementById('settings-save-msg').innerHTML='',3000);
   }catch(e){
     document.getElementById('settings-save-msg').innerHTML='<div class="alert warn">Error saving: '+e.message+'</div>';
