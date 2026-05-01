@@ -1743,44 +1743,119 @@ function updateDash(){
   // ── Overdue alerts ──
   let td=today();
   let in2days=addDays(td,2);
-  let overdue=vehicles.filter(v=>v.location==='contractor'&&v.return_date<td);
+  let overdue=vehicles.filter(v=>v.location==='contractor'&&v.return_date&&v.return_date<td);
   let alertHtml='';
-  if(overdue.length) alertHtml+=`<div class="alert warn" style="margin-bottom:8px"><strong>${overdue.length} vehicle(s) overdue</strong> — should have returned: ${overdue.map(v=>'<strong>'+v.reg+'</strong> (was '+fmtDT(v.return_date)+')'+' <button onclick="sendOverstayEmail(\''+v.reg+'\')" style="font-size:11px;padding:2px 8px;border:1px solid #C0392B;border-radius:4px;background:#fff;color:#C0392B;cursor:pointer;margin-left:4px">Send notice</button>').join(', ')}</div>`;
+  if(overdue.length){
+    let overdueRows='';
+    overdue.forEach(function(v){
+      let daysOver=nightsApart(v.return_date,td);
+      let cost=((v.contractor_rate||3.5)*daysOver).toFixed(2);
+      let bringIn='<button onclick="openMoveModal(\'' +v.reg+ '\',\'hotel\')" style="background:#DC2626;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit">\u{1F4E5} Bring in</button>';
+      let notify='<button onclick="sendOverstayEmail(\'' +v.reg+ '\')" style="background:#fff;color:#DC2626;border:1px solid #FECACA;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit">\u2709 Notify</button>';
+      overdueRows+='<div style="background:#fff;border-radius:8px;padding:10px 12px;margin-bottom:6px;border:1px solid #FECACA;display:flex;align-items:center;gap:10px;flex-wrap:wrap">'
+        +'<div style="background:#DC2626;color:#fff;border-radius:5px;padding:2px 8px;font-size:11px;font-weight:700">'+daysOver+' DAY'+(daysOver>1?'S':'')+' OVERDUE</div>'
+        +'<div style="flex:1"><span style="font-size:15px;font-weight:800;letter-spacing:.05em;color:#0F2A4A">'+v.reg+'</span>'
+        +'<span style="font-size:12px;color:#555;margin-left:8px">'+v.name+'</span></div>'
+        +'<div style="font-size:12px;color:#DC2626;font-weight:600">+\u00A3'+cost+'</div>'
+        +bringIn+notify+'</div>';
+    });
+    alertHtml='<div style="background:#FEF2F2;border:2px solid #EF4444;border-radius:12px;padding:14px 16px;margin-bottom:14px">'
+      +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">'
+      +'<div style="font-size:28px">\u{1F6A8}</div>'
+      +'<div><div style="font-size:14px;font-weight:700;color:#DC2626">'+overdue.length+' vehicle'+(overdue.length>1?'s are':' is')+' OVERDUE</div>'
+      +'<div style="font-size:12px;color:#991B1B">Contact these guests immediately</div></div></div>'
+      +overdueRows+'</div>';
+  }
   document.getElementById('dash-alerts').innerHTML=alertHtml;
   // Auto email scheduler runs on its own interval — no need to call from here
 
-  // ── Due back in next 2 days ──
+  // ── Due back in next 2 days — redesigned for hotel staff ──
   let dueSoon=vehicles.filter(v=>v.return_date>=td&&v.return_date<=in2days).sort((a,b)=>a.return_date>b.return_date?1:-1);
   let dueSoonFromContractor=dueSoon.filter(v=>v.location==='contractor');
   let dueSoonFromHotel=dueSoon.filter(v=>v.location==='hotel');
   let dueSoonHtml='';
+
   if(!dueSoon.length){
-    dueSoonHtml='<p style="font-size:12px;color:#aaa;text-align:center;padding:0.5rem 0">No vehicles due back in the next 2 days</p>';
+    dueSoonHtml=`
+      <div style="text-align:center;padding:2rem 1rem">
+        <div style="font-size:40px;margin-bottom:8px">✅</div>
+        <div style="font-size:14px;font-weight:600;color:var(--text-2)">Nothing to action today</div>
+        <div style="font-size:12px;color:var(--text-3);margin-top:4px">No vehicles due back in the next 2 days</div>
+      </div>`;
   } else {
+
+    // ── SECTION 1: Vehicles at contractor that need collecting ──
     if(dueSoonFromContractor.length){
-      dueSoonHtml+=`<div style="font-size:11px;font-weight:600;color:#633806;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">At contractor — needs transfer to hotel</div>`;
-      dueSoonHtml+=dueSoonFromContractor.map(v=>{
+      dueSoonHtml+=`
+        <div style="background:#FEF3C7;border:2px solid #F59E0B;border-radius:12px;padding:14px 16px;margin-bottom:14px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+            <div style="background:#F59E0B;color:#fff;border-radius:8px;padding:6px 10px;font-size:13px;font-weight:700">🚗 ${dueSoonFromContractor.length} vehicle${dueSoonFromContractor.length>1?'s':''} to collect from Siyaram</div>
+            <div style="font-size:12px;color:#92400E">Call contractor to arrange transfer</div>
+          </div>`;
+
+      dueSoonFromContractor.forEach(v=>{
         let n=nightsApart(td,v.return_date);
-        let urg=n===0?'#E24B4A':n===1?'#EF9F27':'#378ADD';
-        let lbl=n===0?'Today':n===1?'Tomorrow':'In 2 days';
-        return`<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:#FAEEDA;border-radius:7px;margin-bottom:6px;border-left:3px solid ${urg}">
-          <div><strong style="font-size:13px">${v.reg}</strong><span style="font-size:12px;color:#633806;margin-left:8px">${v.name}</span></div>
-          <div style="display:flex;align-items:center;gap:8px"><span style="font-size:11px;font-weight:600;color:${urg}">${lbl}</span>
-          <button onclick="openMoveModal('${v.reg}','hotel')" style="font-size:11px;padding:3px 10px;background:#EF9F27;color:#fff;border:none;border-radius:5px;cursor:pointer">Move to hotel</button></div>
-        </div>`;
-      }).join('');
+        let isToday=n===0, isTomorrow=n===1;
+        let urgBg    = isToday?'#FEE2E2':isTomorrow?'#FFFBEB':'#EFF6FF';
+        let urgBorder= isToday?'#EF4444':isTomorrow?'#F59E0B':'#3B82F6';
+        let urgText  = isToday?'#DC2626':isTomorrow?'#D97706':'#2563EB';
+        let urgLabel = isToday?'⚡ TODAY':isTomorrow?'⏰ TOMORROW':'📅 IN 2 DAYS';
+        let returnTime = v.return_date ? new Date(v.return_date).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '–';
+        dueSoonHtml+=`
+          <div style="background:#fff;border-radius:10px;padding:12px 14px;margin-bottom:8px;border:1px solid ${urgBorder};display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <div style="background:${urgBg};border:1px solid ${urgBorder};border-radius:6px;padding:3px 8px;font-size:11px;font-weight:700;color:${urgText};white-space:nowrap">${urgLabel}</div>
+            <div style="flex:1;min-width:120px">
+              <div style="font-size:16px;font-weight:800;letter-spacing:.05em;color:var(--navy)">${v.reg}</div>
+              <div style="font-size:12px;color:var(--text-2);margin-top:1px">${v.name}${v.room_number?' · Room '+v.room_number:''}</div>
+            </div>
+            <div style="text-align:right;min-width:80px">
+              <div style="font-size:11px;color:var(--text-3)">Return by</div>
+              <div style="font-size:12px;font-weight:600;color:${urgText}">${returnTime}</div>
+            </div>
+            <button onclick="openMoveModal('${v.reg}','hotel')"
+              style="background:var(--navy-mid);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;font-family:inherit">
+              📥 Bring to hotel
+            </button>
+          </div>`;
+      });
+      dueSoonHtml+=`</div>`;
     }
+
+    // ── SECTION 2: Vehicles at hotel ready for guest collection ──
     if(dueSoonFromHotel.length){
-      dueSoonHtml+=`<div style="font-size:11px;font-weight:600;color:#085041;margin-bottom:6px;margin-top:${dueSoonFromContractor.length?'10px':'0'};text-transform:uppercase;letter-spacing:.04em">At hotel — ready for collection</div>`;
-      dueSoonHtml+=dueSoonFromHotel.map(v=>{
+      dueSoonHtml+=`
+        <div style="background:#ECFDF5;border:2px solid #10B981;border-radius:12px;padding:14px 16px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+            <div style="background:#10B981;color:#fff;border-radius:8px;padding:6px 10px;font-size:13px;font-weight:700">🏨 ${dueSoonFromHotel.length} vehicle${dueSoonFromHotel.length>1?'s':''} ready for guest collection</div>
+            <div style="font-size:12px;color:#065F46">Keys at reception — guests arriving soon</div>
+          </div>`;
+
+      dueSoonFromHotel.forEach(v=>{
         let n=nightsApart(td,v.return_date);
-        let urg=n===0?'#E24B4A':n===1?'#EF9F27':'#378ADD';
-        let lbl=n===0?'Today':n===1?'Tomorrow':'In 2 days';
-        return`<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:#E1F5EE;border-radius:7px;margin-bottom:6px;border-left:3px solid ${urg}">
-          <div><strong style="font-size:13px">${v.reg}</strong><span style="font-size:12px;color:#085041;margin-left:8px">${v.name}</span></div>
-          <div style="display:flex;align-items:center;gap:8px"><span style="font-size:11px;font-weight:600;color:${urg}">${lbl}</span><span style="font-size:11px;color:#085041">Prepare checkout</span></div>
-        </div>`;
-      }).join('');
+        let isToday=n===0, isTomorrow=n===1;
+        let urgBg    = isToday?'#FEE2E2':isTomorrow?'#FFFBEB':'#EFF6FF';
+        let urgBorder= isToday?'#EF4444':isTomorrow?'#F59E0B':'#3B82F6';
+        let urgText  = isToday?'#DC2626':isTomorrow?'#D97706':'#2563EB';
+        let urgLabel = isToday?'⚡ TODAY':isTomorrow?'⏰ TOMORROW':'📅 IN 2 DAYS';
+        let returnTime = v.return_date ? new Date(v.return_date).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '–';
+        dueSoonHtml+=`
+          <div style="background:#fff;border-radius:10px;padding:12px 14px;margin-bottom:8px;border:1px solid ${urgBorder};display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <div style="background:${urgBg};border:1px solid ${urgBorder};border-radius:6px;padding:3px 8px;font-size:11px;font-weight:700;color:${urgText};white-space:nowrap">${urgLabel}</div>
+            <div style="flex:1;min-width:120px">
+              <div style="font-size:16px;font-weight:800;letter-spacing:.05em;color:var(--navy)">${v.reg}</div>
+              <div style="font-size:12px;color:var(--text-2);margin-top:1px">${v.name}${v.room_number?' · Room '+v.room_number:''}</div>
+            </div>
+            <div style="text-align:right;min-width:80px">
+              <div style="font-size:11px;color:var(--text-3)">Collection by</div>
+              <div style="font-size:12px;font-weight:600;color:${urgText}">${returnTime}</div>
+            </div>
+            <button onclick="showDetail('${v.reg}')"
+              style="background:#10B981;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;font-family:inherit">
+              ✓ Check out
+            </button>
+          </div>`;
+      });
+      dueSoonHtml+=`</div>`;
     }
   }
   document.getElementById('dash-due-soon').innerHTML=dueSoonHtml;
