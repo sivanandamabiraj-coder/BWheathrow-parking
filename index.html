@@ -3338,7 +3338,7 @@ async function saveEmailCFGToSupabase(cfg){
   let pairs=[
     {key:'email_api_key',      value:cfg.apiKey||''},
     {key:'email_from',         value:cfg.fromEmail||''},
-    {key:'email_hotel_name',   value:cfg.hotelName||'Best Western Ariel Hotel'},
+    {key:'email_hotel_name',   value:cfg.hotelName||'Ariel Hotel'},
     {key:'email_reply_to',     value:cfg.replyEmail||''},
     {key:'email_on_checkin',   value:String(cfg.onCheckin!==false)},
     {key:'email_on_checkout',  value:String(cfg.onCheckout!==false)},
@@ -3419,7 +3419,7 @@ async function saveEmailSettings(){
   let typedReply = g('s-reply-email')?.value.trim()||'';
   emailCFG.apiKey      = typedKey   || emailCFG.apiKey   || '';
   emailCFG.fromEmail   = typedFrom  || emailCFG.fromEmail || '';
-  emailCFG.hotelName   = typedHotel || emailCFG.hotelName || 'Best Western Ariel Hotel';
+  emailCFG.hotelName   = typedHotel || emailCFG.hotelName || 'Ariel Hotel';
   emailCFG.replyEmail  = typedReply || emailCFG.replyEmail || '';
   emailCFG.onCheckin   = g('email-on-checkin')?.checked!==false;
   emailCFG.onCheckout  = g('email-on-checkout')?.checked!==false;
@@ -3429,19 +3429,15 @@ async function saveEmailSettings(){
   emailCFG.overstayDays= parseInt(g('s-overstay-days')?.value)||1;
   emailCFG.overstayRate= parseFloat(g('s-overstay-rate')?.value)||10;
 
-  if(!emailCFG.apiKey){
-    let m=document.getElementById('email-save-msg');
-    m.innerHTML='<div class="alert warn">Please enter your Resend API key before saving.</div>';
-    return;
-  }
-  if(!emailCFG.fromEmail){
-    let m=document.getElementById('email-save-msg');
-    m.innerHTML='<div class="alert warn">Please enter a From email address before saving.</div>';
-    return;
-  }
-
+  // Warn about missing API key but don't block the save
+  // User might just be updating overstay rate or other settings
   let m=document.getElementById('email-save-msg');
-  m.innerHTML='<div class="alert info">Saving to database...</div>';
+  if(!emailCFG.apiKey){
+    m.innerHTML='<div class="alert warn">⚠ No API key set — emails won\'t send until you add a Resend key. Other settings will still save.</div>';
+    setTimeout(()=>m.innerHTML='',5000);
+  } else {
+    m.innerHTML='<div class="alert info">Saving to database...</div>';
+  }
   showLoading('Saving email settings...');
   try{
     await saveEmailCFGToSupabase(emailCFG);
@@ -3456,7 +3452,7 @@ async function saveEmailSettings(){
 }
 
 function saveSecuritySettings(){
-  let timeout = parseInt(document.getElementById('s-session-timeout').value)||60;
+  let timeout = parseInt(document.getElementById('s-session-timeout').value)||15;
   let maxAttempts = parseInt(document.getElementById('s-max-attempts').value)||5;
   localStorage.setItem('heathrow_sec_cfg',JSON.stringify({sessionTimeout:timeout,maxAttempts}));
   SESSION_TIMEOUT_MS = timeout>0 ? timeout*60*1000 : 0;
@@ -3499,7 +3495,7 @@ async function doSendTestEmail(){
   if(!sbUrl||!sbKey){ show('❌ Not connected. Please log out and log in again.','#E24B4A'); return; }
 
   // Fetch email config from Supabase
-  let apiKey='', fromEmail='', hotelName='Best Western Ariel Hotel';
+  let apiKey='', fromEmail='', hotelName='Ariel Hotel';
   try{
     show('⏳ Fetching API key from database...','#378ADD');
     let resp = await fetch(sbUrl+'/rest/v1/app_settings?select=key,value&key=in.(email_api_key,email_from,email_hotel_name)',{
@@ -5687,8 +5683,10 @@ async function saveSettings(){
   let get=id=>parseFloat(document.getElementById(id).value)||0;
   let daily=get('s-daily-cap'), lng=get('s-long-cap'), total=get('s-total-spaces');
   if(daily+lng!==total){
-    document.getElementById('settings-save-msg').innerHTML='<div class="alert warn">Daily slots ('+daily+') + Long-stay slots ('+lng+') must equal Total spaces ('+total+').</div>';
-    return;
+    // Warn but don't block — manager may still be adjusting numbers
+    document.getElementById('settings-save-msg').innerHTML='<div class="alert warn">⚠ Daily ('+daily+') + Long-stay ('+lng+') = '+(daily+lng)+' which doesn\'t match total ('+total+'). Check your numbers.</div>';
+    setTimeout(()=>document.getElementById('settings-save-msg').innerHTML='',5000);
+    // Continue saving anyway
   }
   let updates=[
     {key:'daily_cap',value:''+daily},
