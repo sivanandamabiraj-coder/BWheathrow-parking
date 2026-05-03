@@ -760,17 +760,31 @@ on conflict (key) do nothing;</textarea>
       </div>
 
       <div class="card" style="padding:0;overflow:hidden">
-        <div class="card-header">
-          <span class="card-header-title">Active vehicles</span>
-          <input type="text" id="search-active" placeholder="Reg or name..." style="width:140px;height:30px" oninput="renderActive()">
-          <select id="filter-location" style="width:120px;height:30px;font-size:12px" onchange="renderActive()">
-            <option value="">All locations</option>
-            <option value="hotel">Hotel only</option>
-            <option value="contractor">Contractor only</option>
-          </select>
-          <input type="date" id="filter-active-from" style="width:130px;height:30px;font-size:12px" oninput="renderActive()" title="Check-in from">
-          <input type="date" id="filter-active-to" style="width:130px;height:30px;font-size:12px" oninput="renderActive()" title="Check-in to">
-          <button class="btn" style="font-size:12px;padding:5px 10px" onclick="clearActiveFilters()">Clear</button>
+        <div class="card-header" style="flex-wrap:wrap;gap:6px;padding:10px 14px">
+          <!-- Quick split tabs -->
+          <div style="display:flex;gap:3px;border:1px solid var(--border);border-radius:8px;padding:3px;background:var(--surface);flex-shrink:0">
+            <button id="split-all"        onclick="setActiveSplit('')"          style="font-size:11px;padding:5px 12px;border:none;border-radius:6px;cursor:pointer;font-weight:600;background:var(--navy-mid);color:#fff;font-family:inherit;white-space:nowrap">All</button>
+            <button id="split-hotel"      onclick="setActiveSplit('hotel')"     style="font-size:11px;padding:5px 12px;border:none;border-radius:6px;cursor:pointer;background:transparent;color:var(--text-2);font-family:inherit;white-space:nowrap">🏨 Hotel</button>
+            <button id="split-contractor" onclick="setActiveSplit('contractor')" style="font-size:11px;padding:5px 12px;border:none;border-radius:6px;cursor:pointer;background:transparent;color:var(--text-2);font-family:inherit;white-space:nowrap">🚗 Contractor</button>
+            <button id="split-returning"  onclick="setActiveSplit('returning')"  style="font-size:11px;padding:5px 12px;border:none;border-radius:6px;cursor:pointer;background:transparent;color:var(--text-2);font-family:inherit;white-space:nowrap">↩ To Return</button>
+          </div>
+          <!-- Search -->
+          <input type="text" id="search-active" placeholder="🔍 Reg or name..." style="width:150px;height:32px" oninput="renderActive()">
+          <!-- Check-in date range -->
+          <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+            <span style="font-size:11px;color:var(--text-3);white-space:nowrap">Check-in:</span>
+            <input type="date" id="filter-active-from" style="width:130px;height:32px;font-size:12px" oninput="renderActive()" title="Check-in from">
+            <span style="font-size:11px;color:var(--text-3)">–</span>
+            <input type="date" id="filter-active-to"   style="width:130px;height:32px;font-size:12px" oninput="renderActive()" title="Check-in to">
+          </div>
+          <!-- Return date range -->
+          <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+            <span style="font-size:11px;color:var(--text-3);white-space:nowrap">Return:</span>
+            <input type="date" id="filter-return-from" style="width:130px;height:32px;font-size:12px" oninput="renderActive()" title="Return date from">
+            <span style="font-size:11px;color:var(--text-3)">–</span>
+            <input type="date" id="filter-return-to"   style="width:130px;height:32px;font-size:12px" oninput="renderActive()" title="Return date to">
+          </div>
+          <button class="btn" style="font-size:12px;padding:5px 10px" onclick="clearActiveFilters()">✕ Clear</button>
           <button class="btn" style="margin-left:auto;font-size:12px" onclick="loadData(true)">↻ Refresh</button>
         </div>
         <!-- Batch move toolbar — shown when vehicles selected -->
@@ -1849,7 +1863,7 @@ function updateDash(){
               <div style="font-size:11px;color:var(--text-3)">Collection by</div>
               <div style="font-size:12px;font-weight:600;color:${urgText}">${returnTime}</div>
             </div>
-            <button onclick="showDetail('${v.reg}')"
+            <button onclick="showTab('active',document.querySelector('[onclick*=tab-active]')||document.querySelector('nav button'));setTimeout(()=>showDetail('${v.reg}'),200);"
               style="background:#10B981;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;font-family:inherit">
               ✓ Check out
             </button>
@@ -2475,24 +2489,44 @@ async function saveBookingEdit(reg){
 
 function clearActiveFilters(){
   document.getElementById('search-active').value='';
-  document.getElementById('filter-location').value='';
-  document.getElementById('filter-active-from').value='';
-  document.getElementById('filter-active-to').value='';
+  let fields=['filter-active-from','filter-active-to','filter-return-from','filter-return-to'];
+  fields.forEach(id=>{ let el=document.getElementById(id); if(el) el.value=''; });
+  setActiveSplit(''); // reset to All
+}
+
+let _activeSplit='';
+function setActiveSplit(split){
+  _activeSplit=split;
+  ['all','hotel','contractor','returning'].forEach(s=>{
+    let btn=document.getElementById('split-'+s);
+    if(!btn)return;
+    let active=(s===split)||(s==='all'&&!split);
+    btn.style.background=active?'var(--navy-mid)':'transparent';
+    btn.style.color=active?'#fff':'var(--text-2)';
+    btn.style.fontWeight=active?'600':'400';
+  });
   renderActive();
 }
 
 function renderActive(){
-  let q=(document.getElementById('search-active').value||'').toLowerCase();
-  let locFilter=(document.getElementById('filter-location')||{}).value||'';
-  let fromF=(document.getElementById('filter-active-from')||{}).value||'';
-  let toF=(document.getElementById('filter-active-to')||{}).value||'';
+  let q       =(document.getElementById('search-active')?.value||'').toLowerCase();
+  let fromF   = document.getElementById('filter-active-from')?.value||'';
+  let toF     = document.getElementById('filter-active-to')?.value||'';
+  let retFrom = document.getElementById('filter-return-from')?.value||'';
+  let retTo   = document.getElementById('filter-return-to')?.value||'';
   let td=today();
-  let list=vehicles.filter(v=>
-    (!q||v.reg.toLowerCase().includes(q)||v.name.toLowerCase().includes(q))&&
-    (!locFilter||v.location===locFilter)&&
-    (!fromF||v.check_in_date>=fromF)&&
-    (!toF||v.check_in_date<=toF)
-  );
+  let in2=addDays(td,2);
+  let list=vehicles.filter(v=>{
+    if(q&&!v.reg.toLowerCase().includes(q)&&!v.name.toLowerCase().includes(q))return false;
+    if(fromF&&v.check_in_date<fromF)return false;
+    if(toF&&v.check_in_date>toF+'T23:59')return false;
+    if(retFrom&&(v.return_date||'')< retFrom)return false;
+    if(retTo&&(v.return_date||'')>retTo+'T23:59')return false;
+    if(_activeSplit==='hotel')      return v.location==='hotel';
+    if(_activeSplit==='contractor') return v.location==='contractor';
+    if(_activeSplit==='returning')  return v.location==='contractor'&&v.return_date&&v.return_date<=in2+'T23:59';
+    return true;
+  });
   let tbody=document.getElementById('active-tbody');
   let ret=vehicles.filter(v=>v.location==='contractor'&&v.return_date<=td);
   document.getElementById('active-alerts').innerHTML=ret.length?`<div class="alert warn">${ret.length} vehicle(s) due back today — move from contractor to hotel: ${ret.map(v=>'<strong>'+v.reg+'</strong>').join(', ')}</div>`:'';
