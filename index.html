@@ -2363,6 +2363,39 @@ function showDetail(reg){
       ${costRowsHTML}
     </div>
 
+    <!-- ✅ CHECKOUT SECTION -->
+    <div style="background:#E8F5EE;border:2px solid #1D9E75;border-radius:12px;padding:14px 16px;margin-bottom:1rem">
+      <div style="font-size:14px;font-weight:700;color:#0D5C39;margin-bottom:10px">✅ Check out vehicle</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px">
+        <div style="background:#fff;border-radius:8px;padding:9px 12px;text-align:center">
+          <div style="font-size:10px;color:#888;margin-bottom:3px">Hotel nights</div>
+          <div style="font-size:20px;font-weight:700;color:#0F2A4A">${hd}</div>
+        </div>
+        <div style="background:#fff;border-radius:8px;padding:9px 12px;text-align:center">
+          <div style="font-size:10px;color:#888;margin-bottom:3px">Off-site nights</div>
+          <div style="font-size:20px;font-weight:700;color:#633806">${cd}</div>
+        </div>
+        <div style="background:#FAEEDA;border-radius:8px;padding:9px 12px;text-align:center">
+          <div style="font-size:10px;color:#633806;margin-bottom:3px">Contractor cost</div>
+          <div style="font-size:20px;font-weight:700;color:#633806">£${contCost.toFixed(2)}</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
+        <div>
+          <label style="font-size:11px;color:#555;display:block;margin-bottom:3px">Checkout date &amp; time</label>
+          <input type="datetime-local" id="co-date-detail-${reg}" value="${nowLocal()}"
+            style="padding:7px 10px;border:1px solid #ccc;border-radius:7px;font-size:13px;min-width:210px">
+        </div>
+        <button style="background:#1D9E75;border:2px solid #1D9E75;color:#fff;padding:9px 20px;font-size:13px;font-weight:700;border-radius:8px;cursor:pointer;font-family:inherit;white-space:nowrap"
+          onclick="(function(){var coDate=document.getElementById('co-date-detail-${reg}').value||nowLocal();if(!confirm('Check out ${v.reg} — ${v.name}?'))return;document.getElementById('detail-panel').style.display='none';confirmCheckout('${reg}',${hd},${cd},${contCost},coDate);})()">
+          ✅ Confirm checkout
+        </button>
+      </div>
+      <div style="font-size:11px;color:#555;margin-top:10px">
+        ${v.email?'📧 Receipt will be emailed to <strong>'+v.email+'</strong>':'⚠ No email address on file — add below to send receipt'}
+      </div>
+    </div>
+
     <!-- Edit form -->
     <div style="background:#f9f9f7;border:1px solid #e5e5e3;border-radius:10px;padding:12px 14px;margin-bottom:1rem">
       <div style="font-size:13px;font-weight:600;color:#1E407C;margin-bottom:10px">✏ Edit booking details</div>
