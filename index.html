@@ -769,7 +769,7 @@ on conflict (key) do nothing;</textarea>
             <button id="split-returning"  onclick="setActiveSplit('returning')"  style="font-size:11px;padding:5px 12px;border:none;border-radius:6px;cursor:pointer;background:transparent;color:var(--text-2);font-family:inherit;white-space:nowrap">↩ To Return</button>
           </div>
           <!-- Search -->
-          <input type="text" id="search-active" placeholder="🔍 Reg or name..." style="width:150px;height:32px" oninput="renderActive()">
+          <input type="text" id="search-active" placeholder="🔍 Reg, name or ref..." style="width:170px;height:32px" oninput="renderActive()">
           <!-- Check-in date range -->
           <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
             <span style="font-size:11px;color:var(--text-3);white-space:nowrap">Check-in:</span>
@@ -2550,7 +2550,7 @@ function renderActive(){
   let td=today();
   let in2=addDays(td,2);
   let list=vehicles.filter(v=>{
-    if(q&&!v.reg.toLowerCase().includes(q)&&!v.name.toLowerCase().includes(q))return false;
+    if(q&&!v.reg.toLowerCase().includes(q)&&!v.name.toLowerCase().includes(q)&&!(v.ref_code||'').toLowerCase().includes(q)&&!(v.room_number||'').toLowerCase().includes(q))return false;
     if(fromF&&v.check_in_date<fromF)return false;
     if(toF&&v.check_in_date>toF+'T23:59')return false;
     if(retFrom&&(v.return_date||'')< retFrom)return false;
