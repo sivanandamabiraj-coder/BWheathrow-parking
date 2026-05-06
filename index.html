@@ -5866,7 +5866,12 @@ function toggleContractorSelector(role){
 async function addUser(){
   let name     = document.getElementById('nu-name').value.trim();
   let email    = document.getElementById('nu-email')?.value.trim().toLowerCase()||'';
-  let username = document.getElementById('nu-user').value.trim().toLowerCase()||email.split('@')[0];
+  let _uInput = document.getElementById('nu-user').value.trim().toLowerCase();
+  let _emailLocal = email.split('@')[0];
+  let _emailDomain = (email.split('@')[1]||'').split('.')[0]; // e.g. "siyaramparking"
+  let username = _uInput || (_emailLocal==='admin'||_emailLocal==='info'||_emailLocal==='parking'||_emailLocal==='reception'
+    ? _emailLocal+'.'+_emailDomain   // e.g. admin.siyaramparking
+    : _emailLocal);                  // e.g. jane.smith
   let pass     = document.getElementById('nu-pass').value;
   let role     = document.getElementById('nu-role').value;
   let conId    = role==='contractor'?(document.getElementById('nu-contractor-id')?.value||null):null;
@@ -5895,7 +5900,14 @@ async function addUser(){
     document.getElementById('nu-user').value='';
     document.getElementById('nu-pass').value='';
     loadUsers();
-  }catch(e){ msgEl.innerHTML='<div class="alert warn">Error: '+e.message+'</div>'; }
+  }catch(e){
+    let msg=e.message||'';
+    if(msg.includes('409')||msg.includes('conflict')||msg.includes('duplicate')||msg.includes('unique')){
+      msgEl.innerHTML='<div class="alert warn">⚠ Username <strong>'+username+'</strong> is already taken. Please type a unique username in the Username field and try again.</div>';
+    } else {
+      msgEl.innerHTML='<div class="alert warn">Error: '+msg+'</div>';
+    }
+  }
   hideLoading();
 }
 
