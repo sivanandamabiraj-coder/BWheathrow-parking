@@ -505,7 +505,7 @@ insert into app_settings (key, value) values
   ('email_api_key',''),('email_from',''),
   ('email_hotel_name','Best Western Ariel Hotel'),
   ('email_reply_to',''),
-  ('email_on_checkin','true'),('email_on_checkout','true'),
+  ('email_on_checkin','true'),('email_on_checkout','false'),
   ('email_on_pending','true'),('email_on_approved','true'),
   ('email_on_reminder','true'),
   ('email_overstay_days','1'),('email_overstay_rate','10')
@@ -1221,7 +1221,7 @@ on conflict (key) do nothing;</textarea>
                 <div><div style="font-weight:600">Check-in confirmation</div><div style="font-size:11px;color:#888">Sent immediately when vehicle checked in</div></div>
               </label>
               <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px 10px;background:#fff;border-radius:6px;border:1px solid #eee">
-                <input type="checkbox" id="email-on-checkout" checked>
+                <input type="checkbox" id="email-on-checkout">
                 <div><div style="font-weight:600">Checkout receipt</div><div style="font-size:11px;color:#888">Sent immediately on vehicle checkout</div></div>
               </label>
               <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px 10px;background:#fff;border-radius:6px;border:1px solid #eee">
@@ -3362,7 +3362,7 @@ function showPhotoQRPanel(){
 //              email_overstay_rate
 let emailCFG = {
   apiKey:'', fromEmail:'', hotelName:'Best Western Ariel Hotel',
-  replyEmail:'', onCheckin:true, onCheckout:true, onPending:true,
+  replyEmail:'', onCheckin:true, onCheckout:false, onPending:true,
   onApproved:true, onReminder:true,
   overstayDays:1,    // send overstay notice after this many days overdue
   overstayRate:10    // default daily rate to quote in overstay email (£)
@@ -3945,6 +3945,7 @@ function emailCheckinHTML(v,loc){
 
 function emailCheckoutHTML(v,hd,cd,contCost){
   let hotel=emailCFG.hotelName||'Best Western Ariel Hotel';
+  let totalNights=(hd||0)+(cd||0);
   return `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:20px;color:#1a1a1a">
   <div style="background:#1E407C;padding:16px 20px;border-radius:8px 8px 0 0;border-bottom:3px solid #C9A84C">
     <h1 style="color:#fff;margin:0;font-size:18px">${hotel}</h1>
@@ -3952,20 +3953,18 @@ function emailCheckoutHTML(v,hd,cd,contCost){
   </div>
   <div style="background:#f9f9f7;padding:20px;border-radius:0 0 8px 8px;border:1px solid #eee;border-top:none">
     <p>Dear ${v.name||'Guest'},</p>
-    <p>Thank you for parking with ${hotel}.</p>
+    <p>Thank you for parking with ${hotel}. Your vehicle has been successfully checked out.</p>
     <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:13px">
       <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#888">Registration</td><td style="padding:8px;border-bottom:1px solid #eee;font-weight:700">${v.reg}</td></tr>
       <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#888">Check-in</td><td style="padding:8px;border-bottom:1px solid #eee">${fmtDT(v.check_in_date)}</td></tr>
       <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#888">Check-out</td><td style="padding:8px;border-bottom:1px solid #eee">${fmtDT(v.check_out_date)}</td></tr>
-      <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#888">Hotel nights</td><td style="padding:8px;border-bottom:1px solid #eee">${hd}</td></tr>
-      <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#888">Off-site nights</td><td style="padding:8px;border-bottom:1px solid #eee">${cd}</td></tr>
-      ${cd>0?`<tr style="background:#FAEEDA"><td style="padding:10px 8px;font-weight:700;color:#633806">Off-site contractor cost</td><td style="padding:10px 8px;font-weight:700;font-size:16px;color:#633806">£${parseFloat(contCost).toFixed(2)}</td></tr>`:''}
+      <tr><td style="padding:8px;color:#888">Total nights</td><td style="padding:8px;font-weight:700">${totalNights}</td></tr>
     </table>
+    <p style="font-size:13px;color:#555">We hope you had a pleasant stay. If you have any questions please contact reception: <strong>0371 942 9040</strong></p>
     <hr style="border:none;border-top:1px solid #eee;margin:16px 0">
-    <p style="font-size:11px;color:#aaa">${hotel} &nbsp;·&nbsp; Airport Parking</p>
+    <p style="font-size:11px;color:#aaa">${hotel} · Airport Parking</p>
   </div></body></html>`;
 }
-
 function emailPendingHTML(p){
   let hotel=emailCFG.hotelName||'Best Western Ariel Hotel';
   return `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:20px;color:#1a1a1a">
