@@ -2134,15 +2134,16 @@ async function checkIn(){
     // Send check-in confirmation email
     let email = document.getElementById('ci-email')?.value.trim()||null;
     if(email){
-      // Load config fresh then send regardless of onCheckin flag
       if(!_emailCFGLoaded) await loadEmailCFG();
-      sendEmail({
-        to:      email,
-        subject: (emailCFG.hotelName||'Best Western Ariel Hotel')+' — Parking Confirmed ('+reg+')',
-        html:    emailCheckinHTML({reg, name, check_in_date:checkinDate, return_date:ret, room_number:room, email, loyalty_visits:loyaltyCount}, loc),
-        type:    'checkin',
-        reg:     reg
-      }).catch(e=>console.warn('Check-in email:',e));
+      if(emailCFG.onCheckin){
+        sendEmail({
+          to:      email,
+          subject: (emailCFG.hotelName||'Best Western Ariel Hotel')+' — Parking Confirmed ('+reg+')',
+          html:    emailCheckinHTML({reg, name, check_in_date:checkinDate, return_date:ret, room_number:room, email, loyalty_visits:loyaltyCount}, loc),
+          type:    'checkin',
+          reg:     reg
+        }).catch(e=>console.warn('Check-in email:',e));
+      }
     }
     ['ci-reg','ci-name','ci-phone','ci-checkin','ci-room','ci-return','ci-email'].forEach(id=>{
       let el=document.getElementById(id); if(el) el.value='';
@@ -2685,13 +2686,15 @@ async function confirmCheckout(reg,hd,cd,contCost,coDate){
   document.getElementById('co-result').innerHTML=`<div class="alert success">Vehicle <strong>${reg}</strong> checked out ${fmtDT(checkoutDate)} — ${cd>0?'Contractor cost: £'+contCost.toFixed(2):'No off-site cost'}</div>`;
   if(v && v.email){
     if(!_emailCFGLoaded) await loadEmailCFG();
-    sendEmail({
-      to:      v.email,
-      subject: (emailCFG.hotelName||'Best Western Ariel Hotel')+' — Parking Checkout Receipt ('+reg+')',
-      html:    emailCheckoutHTML({...v,check_out_date:checkoutDate},hd,cd,contCost),
-      type:    'checkout',
-      reg:     reg
-    }).catch(e=>console.warn('Checkout email:',e));
+    if(emailCFG.onCheckout){
+      sendEmail({
+        to:      v.email,
+        subject: (emailCFG.hotelName||'Best Western Ariel Hotel')+' — Parking Checkout Receipt ('+reg+')',
+        html:    emailCheckoutHTML({...v,check_out_date:checkoutDate},hd,cd,contCost),
+        type:    'checkout',
+        reg:     reg
+      }).catch(e=>console.warn('Checkout email:',e));
+    }
   }
 }
 
@@ -4909,13 +4912,15 @@ async function approvePending(id, reg){
       let loyaltyCount = await getLoyaltyVisits(p.reg);
       // loc may not be set at this point — default to hotel
       let emailLoc = loc||'hotel';
-      sendEmail({
-        to:      p.email,
-        subject: (emailCFG.hotelName||'Best Western Ariel Hotel')+' — Parking Confirmed ('+p.reg+')',
-        html:    emailCheckinHTML({...p, check_in_date:p.check_in_date, loyalty_visits:loyaltyCount}, emailLoc),
-        type:    'approved',
-        reg:     p.reg
-      }).catch(e=>console.warn('Approval email:',e));
+      if(emailCFG.onApproved){
+        sendEmail({
+          to:      p.email,
+          subject: (emailCFG.hotelName||'Best Western Ariel Hotel')+' — Parking Confirmed ('+p.reg+')',
+          html:    emailCheckinHTML({...p, check_in_date:p.check_in_date, loyalty_visits:loyaltyCount}, emailLoc),
+          type:    'approved',
+          reg:     p.reg
+        }).catch(e=>console.warn('Approval email:',e));
+      }
     }
   }catch(e){hideLoading();alert('Error: '+e.message);}
 }

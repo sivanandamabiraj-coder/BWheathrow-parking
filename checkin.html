@@ -384,12 +384,14 @@ async function sendGuestEmail({ref,reg,name,phone,room,ci,ret,email}){
         let m={};rows.forEach(x=>{m[x.key]=x.value;});
         cfg={apiKey:m.email_api_key||'',fromEmail:m.email_from||'',
           hotelName:m.email_hotel_name||'Best Western Ariel Hotel',
-          replyEmail:m.email_reply_to||''};
+          replyEmail:m.email_reply_to||'',
+          onPending:m.email_on_pending!=='false'};
         localStorage.setItem('heathrow_email_cfg',JSON.stringify(cfg));
       }
     }catch(e){}
   }
   if(!cfg||!cfg.apiKey||!cfg.fromEmail) return;
+  if(cfg.onPending===false) return;
   let hotel=cfg.hotelName||'Best Western Ariel Hotel';
   let html=`<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:20px;color:#1a1a1a">
   <div style="background:#1E407C;padding:16px 20px;border-radius:8px 8px 0 0;border-bottom:3px solid #C9A84C">
