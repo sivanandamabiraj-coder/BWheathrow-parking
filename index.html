@@ -505,7 +505,7 @@ insert into app_settings (key, value) values
   ('email_api_key',''),('email_from',''),
   ('email_hotel_name','Best Western Ariel Hotel'),
   ('email_reply_to',''),
-  ('email_on_checkin','true'),('email_on_checkout','false'),
+  ('email_on_checkin','true'),('email_on_checkout','true'),
   ('email_on_pending','true'),('email_on_approved','true'),
   ('email_on_reminder','true'),
   ('email_overstay_days','1'),('email_overstay_rate','10')
@@ -1221,7 +1221,7 @@ on conflict (key) do nothing;</textarea>
                 <div><div style="font-weight:600">Check-in confirmation</div><div style="font-size:11px;color:#888">Sent immediately when vehicle checked in</div></div>
               </label>
               <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px 10px;background:#fff;border-radius:6px;border:1px solid #eee">
-                <input type="checkbox" id="email-on-checkout">
+                <input type="checkbox" id="email-on-checkout" checked>
                 <div><div style="font-weight:600">Checkout receipt</div><div style="font-size:11px;color:#888">Sent immediately on vehicle checkout</div></div>
               </label>
               <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px 10px;background:#fff;border-radius:6px;border:1px solid #eee">
@@ -1578,11 +1578,42 @@ function nowLocal(){let d=new Date();d.setSeconds(0,0);return d.toISOString().sl
 function addDays(d,n){let x=new Date(d);x.setDate(x.getDate()+n);return x.toISOString().split('T')[0];}
 function nightsApart(a,b){
   if(!a||!b) return 0;
-  const da=new Date(a), db=new Date(b);
+  // Strip time component — cost is per calendar night, not per hour
+  const da=new Date((a+'').slice(0,10)), db=new Date((b+'').slice(0,10));
   if(isNaN(da)||isNaN(db)) return 0;
-  return Math.max(0, Math.floor((db-da)/86400000));
+  return Math.max(0, Math.round((db-da)/86400000));
 }
 function daysApart(a,b){return nightsApart(a,b);}
+
+// Extract key dates from move_log for reporting
+function getMoveLogDates(v){
+  let log=[]; try{log=JSON.parse(v.move_log||'[]');}catch(e){}
+  let sentToContractor=[], returnedFromContractor=[];
+  log.forEach((entry,i)=>{
+    if(entry.loc==='contractor') sentToContractor.push(entry.date);
+    if(entry.loc==='hotel' && i>0) returnedFromContractor.push(entry.date);
+  });
+  return {
+    firstSentToContractor: sentToContractor[0]||null,
+    lastReturnedFromContractor: returnedFromContractor[returnedFromContractor.length-1]||null,
+    allSentDates: sentToContractor,
+    allReturnDates: returnedFromContractor
+  };
+}
+
+// Clip a contractor segment to a date range window and return prorated nights & cost
+function clipSegmentToRange(seg, fromF, toF){
+  let segFrom = (seg.from||'').slice(0,10);
+  let segTo   = (seg.to  ||'').slice(0,10);
+  let winFrom = fromF ? fromF.slice(0,10) : segFrom;
+  let winTo   = toF   ? toF.slice(0,10)   : segTo;
+  let clippedFrom = segFrom > winFrom ? segFrom : winFrom;
+  let clippedTo   = segTo   < winTo   ? segTo   : winTo;
+  if(clippedFrom >= clippedTo) return null;
+  let nights = nightsApart(clippedFrom, clippedTo);
+  if(nights <= 0) return null;
+  return { nights, from: clippedFrom, to: clippedTo };
+}
 function fmtD(d){if(!d)return'–';let x=new Date(d);if(isNaN(x))return d;return x.toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit',year:'2-digit'});}
 // Strip timezone from ISO datetime string for datetime-local inputs
 // "2026-04-27T14:06:00+00:00" → "2026-04-27T14:06"
@@ -2134,16 +2165,15 @@ async function checkIn(){
     // Send check-in confirmation email
     let email = document.getElementById('ci-email')?.value.trim()||null;
     if(email){
+      // Load config fresh then send regardless of onCheckin flag
       if(!_emailCFGLoaded) await loadEmailCFG();
-      if(emailCFG.onCheckin){
-        sendEmail({
-          to:      email,
-          subject: (emailCFG.hotelName||'Best Western Ariel Hotel')+' — Parking Confirmed ('+reg+')',
-          html:    emailCheckinHTML({reg, name, check_in_date:checkinDate, return_date:ret, room_number:room, email, loyalty_visits:loyaltyCount}, loc),
-          type:    'checkin',
-          reg:     reg
-        }).catch(e=>console.warn('Check-in email:',e));
-      }
+      sendEmail({
+        to:      email,
+        subject: (emailCFG.hotelName||'Best Western Ariel Hotel')+' — Parking Confirmed ('+reg+')',
+        html:    emailCheckinHTML({reg, name, check_in_date:checkinDate, return_date:ret, room_number:room, email, loyalty_visits:loyaltyCount}, loc),
+        type:    'checkin',
+        reg:     reg
+      }).catch(e=>console.warn('Check-in email:',e));
     }
     ['ci-reg','ci-name','ci-phone','ci-checkin','ci-room','ci-return','ci-email'].forEach(id=>{
       let el=document.getElementById(id); if(el) el.value='';
@@ -2686,15 +2716,13 @@ async function confirmCheckout(reg,hd,cd,contCost,coDate){
   document.getElementById('co-result').innerHTML=`<div class="alert success">Vehicle <strong>${reg}</strong> checked out ${fmtDT(checkoutDate)} — ${cd>0?'Contractor cost: £'+contCost.toFixed(2):'No off-site cost'}</div>`;
   if(v && v.email){
     if(!_emailCFGLoaded) await loadEmailCFG();
-    if(emailCFG.onCheckout){
-      sendEmail({
-        to:      v.email,
-        subject: (emailCFG.hotelName||'Best Western Ariel Hotel')+' — Parking Checkout Receipt ('+reg+')',
-        html:    emailCheckoutHTML({...v,check_out_date:checkoutDate},hd,cd,contCost),
-        type:    'checkout',
-        reg:     reg
-      }).catch(e=>console.warn('Checkout email:',e));
-    }
+    sendEmail({
+      to:      v.email,
+      subject: (emailCFG.hotelName||'Best Western Ariel Hotel')+' — Parking Checkout Receipt ('+reg+')',
+      html:    emailCheckoutHTML({...v,check_out_date:checkoutDate},hd,cd,contCost),
+      type:    'checkout',
+      reg:     reg
+    }).catch(e=>console.warn('Checkout email:',e));
   }
 }
 
@@ -2776,10 +2804,16 @@ function getReportData(){
       let e=estimateCost(v,td);
       let conNames=e.contSegments.map(s=>s.name).join(', ')||'–';
       let conDetail=e.contSegments.map(s=>s.name+': '+s.nights+'n @ £'+s.rate.toFixed(2)+' = £'+s.cost.toFixed(2)).join(' | ')||'–';
+      let dates=getMoveLogDates(v);
       rows.push({reg:v.reg,name:v.name,phone:v.phone||'',room:v.room_number||'',
         status:'Active',location:v.location==='hotel'?'Hotel':'Off-site',
         contractor:conNames,contDetail,
-        checkIn:v.check_in_date,returnDate:v.return_date,refCode:v.ref_code||'',
+        checkIn:v.check_in_date,
+        sentToContractor:dates.firstSentToContractor,
+        returnedFromContractor:dates.lastReturnedFromContractor,
+        returnDate:v.return_date,
+        checkOut:null, actualCheckOut:null,
+        refCode:v.ref_code||'',
         hotelNights:e.hd,contNights:e.cd,contCost:e.contCost});
     });
   }
@@ -2789,10 +2823,17 @@ function getReportData(){
       let e=estimateCost(v,v.check_out_date||td);
       let conNames=e.contSegments.map(s=>s.name).join(', ')||'–';
       let conDetail=e.contSegments.map(s=>s.name+': '+s.nights+'n @ £'+s.rate.toFixed(2)+' = £'+s.cost.toFixed(2)).join(' | ')||'–';
+      let dates=getMoveLogDates(v);
       rows.push({reg:v.reg,name:v.name,phone:v.phone||'',room:v.room_number||'',
         status:'Completed',location:e.cd>0?'Off-site':'Hotel',
         contractor:conNames,contDetail,
-        checkIn:v.check_in_date,checkOut:v.check_out_date,refCode:v.ref_code||'',
+        checkIn:v.check_in_date,
+        sentToContractor:dates.firstSentToContractor,
+        returnedFromContractor:dates.lastReturnedFromContractor,
+        returnDate:v.return_date,
+        checkOut:v.return_date,
+        actualCheckOut:v.check_out_date,
+        refCode:v.ref_code||'',
         hotelNights:e.hd,contNights:e.cd,contCost:e.contCost});
     });
   }
@@ -2802,24 +2843,33 @@ function getReportData(){
       if(regF&&!v.reg.includes(regF)) return;
       let endDate=v.check_out_date||td;
       let log=[]; try{log=JSON.parse(v.move_log||'[]');}catch(e){}
+      let dates=getMoveLogDates(v);
       let segs=log.length?log.map((entry,i)=>({
         loc:entry.loc,from:entry.date,
         to:(i+1<log.length?log[i+1].date:endDate),
         contractor_name:entry.contractor_name||null,
         rate:entry.rate!=null?+entry.rate:null
-      })).filter(s=>s.loc==='contractor'&&s.from<endDate)
+      })).filter(s=>s.loc==='contractor'&&(s.from||'')<endDate)
       :[{loc:v.location,from:v.check_in_date,to:endDate,contractor_name:v.contractor_name||null,rate:v.contractor_rate!=null?+v.contractor_rate:null}]
         .filter(s=>s.loc==='contractor');
       segs.forEach(seg=>{
-        if(fromF&&(seg.to||'')<=fromF) return;
-        if(toF&&(seg.from||'')>toF) return;
-        let nights=nightsApart(seg.from,seg.to);
+        // Clip segment to the selected date range window
+        let clipped=clipSegmentToRange(seg, fromF, toF);
+        if(!clipped) return;
+        let nights=clipped.nights;
         if(nights<=0) return;
         let rate=seg.rate;
         if(rate==null){let con=getContractorById(v.contractor_id)||(Array.isArray(contractorsList)?contractorsList.find(c=>c.active):null);rate=con?calcContractorRate(con):0;}
         rows.push({reg:v.reg,name:v.name,contractor:seg.contractor_name||'Off-site',
           rate:'£'+rate.toFixed(2)+'/night',status:v.status==='active'?'Active':'Completed',
-          checkIn:v.check_in_date,segFrom:seg.from,segTo:seg.to,contNights:nights,contCost:+(nights*rate).toFixed(2)});
+          checkIn:v.check_in_date,
+          sentToContractor:dates.firstSentToContractor,
+          returnedFromContractor:dates.lastReturnedFromContractor,
+          returnDate:v.return_date,
+          actualCheckOut:v.check_out_date,
+          segFrom:clipped.from, segTo:clipped.to,
+          fullSegFrom:seg.from, fullSegTo:seg.to,
+          contNights:nights,contCost:+(nights*rate).toFixed(2)});
       });
     });
   }
@@ -2872,18 +2922,45 @@ function getReportData(){
 function getReportHeaders(type){
   if(type==='tc') return ['Ref','Reg','Name','Phone','Email','T&C accepted at','Check-in','Status'];
   if(type==='monthly') return ['Month','Vehicles','Hotel nights','Cont. nights','Cont. cost','Contractors'];
-  if(type==='contractor') return ['Reg','Customer','Contractor','Rate/night','Status','Check-in','Seg. from','Seg. to','Nights','Cost'];
-  if(type==='active') return ['Ref','Reg','Customer','Phone','Room','Status','Location','Contractor','Check-in','Return','Hotel nights','Cont. nights','Cont. cost','Detail'];
-  return ['Ref','Reg','Customer','Phone','Room','Status','Location','Contractor','Check-in','Check-out','Hotel nights','Cont. nights','Cont. cost','Detail'];
+  if(type==='contractor') return ['Reg','Customer','Contractor','Rate/night','Status','Check-in','Sent to Contractor','Returned from Contractor','Seg. from (clipped)','Seg. to (clipped)','Nights (in period)','Cost (in period)','Checkout date','Actual check-out'];
+  if(type==='active') return ['Ref','Reg','Customer','Phone','Room','Status','Location','Contractor','Check-in','Sent to Contractor','Returned from Contractor','Expected Return','Hotel nights','Cont. nights','Cont. cost','Detail'];
+  return ['Ref','Reg','Customer','Phone','Room','Status','Location','Contractor','Check-in','Sent to Contractor','Returned from Contractor','Expected Return','Checkout date','Actual check-out','Hotel nights','Cont. nights','Cont. cost','Detail'];
 }
 
 function rowToArray(row,type){
   let fmt=v=>v!=null?'£'+(+v).toFixed(2):'£0.00';
+  let fd=v=>v?fmtD(v):'–';
   if(type==='tc') return [row.ref,row.reg,row.name,row.phone,row.email,row.accepted_at,row.check_in,row.status];
   if(type==='monthly') return [row.month,row.vehicles,row.hotelNights,row.contNights,fmt(row.contCost),row.contractors];
-  if(type==='contractor') return [row.reg,row.name,row.contractor,row.rate,row.status,fmtDT(row.checkIn),fmtDT(row.segFrom),fmtDT(row.segTo),row.contNights,fmt(row.contCost)];
-  if(type==='active') return [row.refCode,row.reg,row.name,row.phone,row.room,row.status,row.location,row.contractor,fmtDT(row.checkIn),fmtDT(row.returnDate),row.hotelNights,row.contNights,fmt(row.contCost),row.contDetail];
-  return [row.refCode,row.reg,row.name,row.phone,row.room,row.status,row.location,row.contractor,fmtDT(row.checkIn),fmtDT(row.checkOut),row.hotelNights,row.contNights,fmt(row.contCost),row.contDetail];
+  if(type==='contractor') return [
+    row.reg, row.name, row.contractor, row.rate, row.status,
+    fd(row.checkIn),
+    fd(row.sentToContractor),
+    fd(row.returnedFromContractor),
+    fd(row.segFrom), fd(row.segTo),
+    row.contNights, fmt(row.contCost),
+    fd(row.returnDate),
+    fd(row.actualCheckOut)
+  ];
+  if(type==='active') return [
+    row.refCode, row.reg, row.name, row.phone, row.room, row.status, row.location, row.contractor,
+    fd(row.checkIn),
+    fd(row.sentToContractor),
+    fd(row.returnedFromContractor),
+    fd(row.returnDate),
+    row.hotelNights, row.contNights, fmt(row.contCost), row.contDetail
+  ];
+  // history/complete
+  return [
+    row.refCode, row.reg, row.name, row.phone, row.room, row.status, row.location, row.contractor,
+    fd(row.checkIn),
+    fd(row.sentToContractor),
+    fd(row.returnedFromContractor),
+    fd(row.returnDate),
+    fd(row.checkOut),
+    fd(row.actualCheckOut),
+    row.hotelNights, row.contNights, fmt(row.contCost), row.contDetail
+  ];
 }
 
 function previewReport(){
@@ -3365,7 +3442,7 @@ function showPhotoQRPanel(){
 //              email_overstay_rate
 let emailCFG = {
   apiKey:'', fromEmail:'', hotelName:'Best Western Ariel Hotel',
-  replyEmail:'', onCheckin:true, onCheckout:false, onPending:true,
+  replyEmail:'', onCheckin:true, onCheckout:true, onPending:true,
   onApproved:true, onReminder:true,
   overstayDays:1,    // send overstay notice after this many days overdue
   overstayRate:10    // default daily rate to quote in overstay email (£)
@@ -3948,7 +4025,6 @@ function emailCheckinHTML(v,loc){
 
 function emailCheckoutHTML(v,hd,cd,contCost){
   let hotel=emailCFG.hotelName||'Best Western Ariel Hotel';
-  let totalNights=(hd||0)+(cd||0);
   return `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:20px;color:#1a1a1a">
   <div style="background:#1E407C;padding:16px 20px;border-radius:8px 8px 0 0;border-bottom:3px solid #C9A84C">
     <h1 style="color:#fff;margin:0;font-size:18px">${hotel}</h1>
@@ -3956,18 +4032,20 @@ function emailCheckoutHTML(v,hd,cd,contCost){
   </div>
   <div style="background:#f9f9f7;padding:20px;border-radius:0 0 8px 8px;border:1px solid #eee;border-top:none">
     <p>Dear ${v.name||'Guest'},</p>
-    <p>Thank you for parking with ${hotel}. Your vehicle has been successfully checked out.</p>
+    <p>Thank you for parking with ${hotel}.</p>
     <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:13px">
       <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#888">Registration</td><td style="padding:8px;border-bottom:1px solid #eee;font-weight:700">${v.reg}</td></tr>
       <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#888">Check-in</td><td style="padding:8px;border-bottom:1px solid #eee">${fmtDT(v.check_in_date)}</td></tr>
       <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#888">Check-out</td><td style="padding:8px;border-bottom:1px solid #eee">${fmtDT(v.check_out_date)}</td></tr>
-      <tr><td style="padding:8px;color:#888">Total nights</td><td style="padding:8px;font-weight:700">${totalNights}</td></tr>
+      <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#888">Hotel nights</td><td style="padding:8px;border-bottom:1px solid #eee">${hd}</td></tr>
+      <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#888">Off-site nights</td><td style="padding:8px;border-bottom:1px solid #eee">${cd}</td></tr>
+      ${cd>0?`<tr style="background:#FAEEDA"><td style="padding:10px 8px;font-weight:700;color:#633806">Off-site contractor cost</td><td style="padding:10px 8px;font-weight:700;font-size:16px;color:#633806">£${parseFloat(contCost).toFixed(2)}</td></tr>`:''}
     </table>
-    <p style="font-size:13px;color:#555">We hope you had a pleasant stay. If you have any questions please contact reception: <strong>0371 942 9040</strong></p>
     <hr style="border:none;border-top:1px solid #eee;margin:16px 0">
-    <p style="font-size:11px;color:#aaa">${hotel} · Airport Parking</p>
+    <p style="font-size:11px;color:#aaa">${hotel} &nbsp;·&nbsp; Airport Parking</p>
   </div></body></html>`;
 }
+
 function emailPendingHTML(p){
   let hotel=emailCFG.hotelName||'Best Western Ariel Hotel';
   return `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:20px;color:#1a1a1a">
@@ -4912,15 +4990,13 @@ async function approvePending(id, reg){
       let loyaltyCount = await getLoyaltyVisits(p.reg);
       // loc may not be set at this point — default to hotel
       let emailLoc = loc||'hotel';
-      if(emailCFG.onApproved){
-        sendEmail({
-          to:      p.email,
-          subject: (emailCFG.hotelName||'Best Western Ariel Hotel')+' — Parking Confirmed ('+p.reg+')',
-          html:    emailCheckinHTML({...p, check_in_date:p.check_in_date, loyalty_visits:loyaltyCount}, emailLoc),
-          type:    'approved',
-          reg:     p.reg
-        }).catch(e=>console.warn('Approval email:',e));
-      }
+      sendEmail({
+        to:      p.email,
+        subject: (emailCFG.hotelName||'Best Western Ariel Hotel')+' — Parking Confirmed ('+p.reg+')',
+        html:    emailCheckinHTML({...p, check_in_date:p.check_in_date, loyalty_visits:loyaltyCount}, emailLoc),
+        type:    'approved',
+        reg:     p.reg
+      }).catch(e=>console.warn('Approval email:',e));
     }
   }catch(e){hideLoading();alert('Error: '+e.message);}
 }
@@ -5870,12 +5946,7 @@ function toggleContractorSelector(role){
 async function addUser(){
   let name     = document.getElementById('nu-name').value.trim();
   let email    = document.getElementById('nu-email')?.value.trim().toLowerCase()||'';
-  let _uInput = document.getElementById('nu-user').value.trim().toLowerCase();
-  let _emailLocal = email.split('@')[0];
-  let _emailDomain = (email.split('@')[1]||'').split('.')[0]; // e.g. "siyaramparking"
-  let username = _uInput || (_emailLocal==='admin'||_emailLocal==='info'||_emailLocal==='parking'||_emailLocal==='reception'
-    ? _emailLocal+'.'+_emailDomain   // e.g. admin.siyaramparking
-    : _emailLocal);                  // e.g. jane.smith
+  let username = document.getElementById('nu-user').value.trim().toLowerCase()||email.split('@')[0];
   let pass     = document.getElementById('nu-pass').value;
   let role     = document.getElementById('nu-role').value;
   let conId    = role==='contractor'?(document.getElementById('nu-contractor-id')?.value||null):null;
@@ -5904,14 +5975,7 @@ async function addUser(){
     document.getElementById('nu-user').value='';
     document.getElementById('nu-pass').value='';
     loadUsers();
-  }catch(e){
-    let msg=e.message||'';
-    if(msg.includes('409')||msg.includes('conflict')||msg.includes('duplicate')||msg.includes('unique')){
-      msgEl.innerHTML='<div class="alert warn">⚠ Username <strong>'+username+'</strong> is already taken. Please type a unique username in the Username field and try again.</div>';
-    } else {
-      msgEl.innerHTML='<div class="alert warn">Error: '+msg+'</div>';
-    }
-  }
+  }catch(e){ msgEl.innerHTML='<div class="alert warn">Error: '+e.message+'</div>'; }
   hideLoading();
 }
 
@@ -6233,8 +6297,12 @@ const CP_LABELS = {
   damage:   {label:'Damage',     hint:'Any scratches/dents, or clear bodywork'},
 };
 
-let _cpPhotos = {};        // {category: {dataUrl, validated, validating, error}}
+let _cpPhotos = {};        // required cats: {dataUrl, validated, validating, error}
+                           // optional multi cats: Array of {dataUrl, validated, validating, error}
+const CP_MULTI = ['interior','damage']; // categories that allow multiple photos
+const CP_MULTI_MAX = 5;                 // max photos per multi-category
 let _cpActiveCat = null;
+let _cpActiveMultiIdx = null;           // which index within a multi-cat we're capturing
 let _cpCurrentReg = null;
 let _cpCurrentAction = null;
 
@@ -6362,13 +6430,12 @@ function openCPConfirmModal(reg, action){
 function renderCPCatGrid(){
   let grid = document.getElementById('cp-cat-grid');
   if(!grid) return;
-  let all = [...CP_REQUIRED, ...CP_OPTIONAL];
-  grid.innerHTML = all.map(cat=>{
+
+  // Required single-photo tiles
+  let reqHtml = CP_REQUIRED.map(cat=>{
     let info = CP_LABELS[cat];
     let state = _cpPhotos[cat];
-    let isRequired = CP_REQUIRED.includes(cat);
     let bg='#fff', border='#ddd', statusBar='', imgHtml='';
-
     if(state){
       if(state.validating){
         bg='#FFF9EC'; border='#EF9F27';
@@ -6378,35 +6445,69 @@ function renderCPCatGrid(){
         imgHtml='<img src="'+state.dataUrl+'" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:4px;margin-top:6px;opacity:0.6">';
       } else if(state.validated){
         bg='#EAF3DE'; border='#1D9E75';
-        statusBar='<div style="font-size:10px;color:#27500A;margin-top:4px;font-weight:600">Verified</div>';
+        statusBar='<div style="font-size:10px;color:#27500A;margin-top:4px;font-weight:600">\u2713 Verified</div>';
         imgHtml='<img src="'+state.dataUrl+'" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:4px;margin-top:6px;border:2px solid #1D9E75">';
       } else if(state.error){
         bg='#FCEBEB'; border='#E24B4A';
         statusBar='<div style="font-size:10px;color:#791F1F;margin-top:4px">'+state.error+'</div>'
-          +'<div style="font-size:10px;color:#1E407C;text-decoration:underline;cursor:pointer;margin-top:3px" onclick="cpOpenCamera(\''+cat+'\')">Retake photo</div>';
+          +'<div style="font-size:10px;color:#1E407C;text-decoration:underline;cursor:pointer;margin-top:3px" onclick="cpOpenCamera(\''+cat+'\')" style="cursor:pointer">Retake</div>';
         imgHtml=state.dataUrl?'<img src="'+state.dataUrl+'" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:4px;margin-top:6px;opacity:0.4">':'';
       }
     }
-
-    let badge=isRequired
-      ?'<span style="font-size:9px;background:#E24B4A;color:#fff;padding:1px 5px;border-radius:10px;margin-left:4px">Required</span>'
-      :'<span style="font-size:9px;background:#888;color:#fff;padding:1px 5px;border-radius:10px;margin-left:4px">Optional</span>';
+    let badge='<span style="font-size:9px;background:#E24B4A;color:#fff;padding:1px 5px;border-radius:10px;margin-left:4px">Required</span>';
     let clickable=!(state&&state.validating);
-    let verifiedMark = (state&&state.validated) ? '<span style="color:#1D9E75;font-size:16px;margin-left:auto">&#10003;</span>' : '';
-
+    let verifiedMark=(state&&state.validated)?'<span style="color:#1D9E75;font-size:16px;margin-left:auto">&#10003;</span>':'';
     return '<div onclick="'+(clickable?'cpOpenCamera(\''+cat+'\')':'')+'"'
       +' style="border:2px solid '+border+';border-radius:10px;padding:10px;background:'+bg
       +';cursor:'+(clickable?'pointer':'default')+';transition:all .15s;user-select:none">'
-      +'<div style="display:flex;align-items:flex-start;gap:6px">'
-      +'<div style="flex:1">'
+      +'<div style="display:flex;align-items:flex-start;gap:6px"><div style="flex:1">'
       +'<div style="font-size:12px;font-weight:700">'+info.label+badge+'</div>'
       +'<div style="font-size:10px;color:#888;margin-top:1px">'+info.hint+'</div>'
-      +'</div>'
-      +verifiedMark
-      +'</div>'
-      +imgHtml+statusBar
-      +'</div>';
+      +'</div>'+verifiedMark+'</div>'+imgHtml+statusBar+'</div>';
   }).join('');
+
+  // Optional multi-photo tiles (interior, damage) — span full width
+  let multiHtml = CP_MULTI.map(cat=>{
+    let info = CP_LABELS[cat];
+    let arr = Array.isArray(_cpPhotos[cat]) ? _cpPhotos[cat] : [];
+    let validCount = arr.filter(s=>s.validated).length;
+    let canAdd = arr.length < CP_MULTI_MAX && !arr.some(s=>s.validating);
+    let badge='<span style="font-size:9px;background:#888;color:#fff;padding:1px 5px;border-radius:10px;margin-left:4px">Optional</span>';
+    let countBadge = arr.length>0
+      ? '<span style="font-size:9px;background:#1E407C;color:#fff;padding:1px 6px;border-radius:10px;margin-left:4px">'+validCount+'/'+arr.length+' verified</span>'
+      : '';
+    let thumbs = arr.map((s,i)=>{
+      let bdr='#ddd', overlay='';
+      if(s.validating){
+        bdr='#EF9F27';
+        overlay='<div style="position:absolute;inset:0;background:rgba(255,249,236,0.7);display:flex;align-items:center;justify-content:center">'
+          +'<span style="display:inline-block;width:14px;height:14px;border:2px solid #EF9F27;border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite"></span></div>';
+      } else if(s.validated){
+        bdr='#1D9E75';
+        overlay='<div style="position:absolute;top:2px;right:2px;background:#1D9E75;color:#fff;border-radius:50%;width:16px;height:16px;font-size:10px;display:flex;align-items:center;justify-content:center;font-weight:700">\u2713</div>';
+      } else if(s.error){
+        bdr='#E24B4A';
+        overlay='<div style="position:absolute;inset:0;background:rgba(252,235,235,0.6);display:flex;align-items:flex-end;padding:2px">'
+          +'<span style="font-size:9px;color:#791F1F;line-height:1.1">'+s.error+'</span></div>';
+      }
+      return '<div style="position:relative;display:inline-block;width:64px;height:48px;border:2px solid '+bdr
+        +';border-radius:6px;overflow:hidden;cursor:pointer;flex-shrink:0" onclick="cpOpenCameraMulti(\''+cat+'\','+i+')">'
+        +'<img src="'+s.dataUrl+'" style="width:100%;height:100%;object-fit:cover">'+overlay+'</div>';
+    }).join('');
+    let addBtn = canAdd
+      ? '<div onclick="cpOpenCameraMulti(\''+cat+'\','+arr.length+')" style="display:inline-flex;align-items:center;justify-content:center;width:64px;height:48px;border:2px dashed #1E407C;border-radius:6px;cursor:pointer;color:#1E407C;font-size:22px;font-weight:300;flex-shrink:0" title="Add photo">+</div>'
+      : (arr.length>=CP_MULTI_MAX?'<div style="font-size:10px;color:#888;align-self:center">Max '+CP_MULTI_MAX+'</div>':'');
+    let emptyHint = arr.length===0 ? '<div style="font-size:11px;color:#aaa;margin-top:6px">Tap + to add photos</div>' : '';
+    return '<div style="border:2px solid #ddd;border-radius:10px;padding:10px;background:#fff;grid-column:1/-1">'
+      +'<div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:8px"><div style="flex:1">'
+      +'<div style="font-size:12px;font-weight:700">'+info.label+badge+countBadge+'</div>'
+      +'<div style="font-size:10px;color:#888;margin-top:1px">'+info.hint+' \u2014 up to '+CP_MULTI_MAX+' photos</div>'
+      +'</div></div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">'+thumbs+addBtn+'</div>'
+      +emptyHint+'</div>';
+  }).join('');
+
+  grid.innerHTML = reqHtml + multiHtml;
 }
 
 // ── Camera system using getUserMedia (no file picker, no gallery) ──
@@ -6416,8 +6517,27 @@ let _camFacing = 'environment'; // rear camera by default
 function cpOpenCamera(cat){
   if(_cpPhotos[cat] && _cpPhotos[cat].validating) return;
   _cpActiveCat = cat;
+  _cpActiveMultiIdx = null;
   let info = CP_LABELS[cat] || {label:cat, hint:''};
   document.getElementById('cam-cat-label').textContent = info.label;
+  document.getElementById('cam-cat-hint').textContent = info.hint;
+  document.getElementById('cp-camera-overlay').style.display = 'flex';
+  document.getElementById('cp-camera-overlay').style.flexDirection = 'column';
+  cpStartCamera();
+}
+
+function cpOpenCameraMulti(cat, idx){
+  if(!Array.isArray(_cpPhotos[cat])) _cpPhotos[cat]=[];
+  let arr = _cpPhotos[cat];
+  // Prevent opening if an existing slot is validating
+  if(arr[idx] && arr[idx].validating) return;
+  // Extend array to this index if adding new
+  if(idx >= arr.length) arr.push({dataUrl:null, validating:false, validated:false, error:null});
+  _cpActiveCat = cat;
+  _cpActiveMultiIdx = idx;
+  let info = CP_LABELS[cat] || {label:cat, hint:''};
+  let photoNum = idx+1;
+  document.getElementById('cam-cat-label').textContent = info.label + ' #' + photoNum;
   document.getElementById('cam-cat-hint').textContent = info.hint;
   document.getElementById('cp-camera-overlay').style.display = 'flex';
   document.getElementById('cp-camera-overlay').style.flexDirection = 'column';
@@ -6481,7 +6601,17 @@ async function cpProcessFile(file){
 }
 
 async function cpProcessDataUrl(dataUrl, cat){
-  _cpPhotos[cat] = {dataUrl, validating:true, validated:false, error:null};
+  let isMulti = CP_MULTI.includes(cat);
+  let idx = _cpActiveMultiIdx;
+
+  if(isMulti){
+    if(!Array.isArray(_cpPhotos[cat])) _cpPhotos[cat]=[];
+    if(idx===null||idx===undefined) idx=_cpPhotos[cat].length;
+    if(idx>=_cpPhotos[cat].length) _cpPhotos[cat].push({});
+    _cpPhotos[cat][idx] = {dataUrl, validating:true, validated:false, error:null};
+  } else {
+    _cpPhotos[cat] = {dataUrl, validating:true, validated:false, error:null};
+  }
   renderCPCatGrid();
 
   let aiEl = document.getElementById('cp-ai-status');
@@ -6495,19 +6625,25 @@ async function cpProcessDataUrl(dataUrl, cat){
   try{
     let result = await cpValidatePhotoWithAI(dataUrl, cat);
     if(result.valid){
-      _cpPhotos[cat] = {dataUrl, validating:false, validated:true, error:null};
+      let s={dataUrl, validating:false, validated:true, error:null};
+      if(isMulti){ _cpPhotos[cat][idx]=s; }
+      else { _cpPhotos[cat]=s; }
       if(aiEl){
         aiEl.innerHTML='<div style="color:#27500A;background:#EAF3DE;padding:8px 10px;border-radius:6px;font-weight:600">Photo verified - '+CP_LABELS[cat].label+' accepted</div>';
         setTimeout(()=>{ aiEl.style.display='none'; }, 2500);
       }
     } else {
-      _cpPhotos[cat] = {dataUrl, validating:false, validated:false, error: result.reason||'Photo not recognised. Please retake.'};
+      let s={dataUrl, validating:false, validated:false, error: result.reason||'Photo not recognised. Please retake.'};
+      if(isMulti){ _cpPhotos[cat][idx]=s; }
+      else { _cpPhotos[cat]=s; }
       if(aiEl){
         aiEl.innerHTML='<div style="color:#791F1F;background:#FCEBEB;padding:8px 10px;border-radius:6px;font-weight:600">'+result.reason+'</div>';
       }
     }
   }catch(e){
-    _cpPhotos[cat] = {dataUrl, validating:false, validated:true, error:null};
+    let s={dataUrl, validating:false, validated:true, error:null};
+    if(isMulti){ _cpPhotos[cat][idx]=s; }
+    else { _cpPhotos[cat]=s; }
     if(aiEl){
       aiEl.innerHTML='<div style="color:#555;font-size:11px;padding:6px 10px">AI check unavailable - photo accepted.</div>';
       setTimeout(()=>{ aiEl.style.display='none'; }, 2500);
@@ -6586,7 +6722,15 @@ async function cpConfirmMove(){
   let newCd=(v.contractor_days||0)+(v.location==='contractor'?nightsHere:0);
 
   let photoData={};
-  Object.entries(_cpPhotos).forEach(([cat,s])=>{ if(s.validated) photoData[cat]=s.dataUrl; });
+  Object.entries(_cpPhotos).forEach(([cat,s])=>{
+    if(CP_MULTI.includes(cat)){
+      // Multi-photo: store as interior_1, interior_2 etc.
+      let arr=Array.isArray(s)?s:[];
+      arr.forEach((item,i)=>{ if(item&&item.validated) photoData[cat+'_'+(i+1)]=item.dataUrl; });
+    } else {
+      if(s&&s.validated) photoData[cat]=s.dataUrl;
+    }
+  });
   let photoCats=Object.keys(photoData);
 
   log.push({
