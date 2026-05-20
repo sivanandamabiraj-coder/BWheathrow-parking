@@ -2039,22 +2039,25 @@ function estimateCost(v, asOfDate){
       rate: v.contractor_rate!=null ? +v.contractor_rate : null
     });
   } else {
-    // Build the segment BEFORE the first log entry (check-in → first move)
+    // The move_log records each location AFTER a move.
+    // log[0] = where the vehicle went first. Before that it was at check-in location.
+    // We infer the initial location as opposite of log[0].loc only if check_in_date < log[0].date.
+    // More reliably: if log[0].loc === 'contractor', vehicle started at hotel (check-in is always hotel).
+    // If log[0].loc === 'hotel', vehicle started at contractor (unusual but possible).
     let firstLog = log[0];
-    let firstLoc = firstLog.loc === 'contractor' ? 'hotel' : 'contractor'; // before first move, was at opposite
-    // Use check_in_date as start; the vehicle was at the initial location until first move
-    if(v.check_in_date && firstLog.date > v.check_in_date){
+    let initLoc = firstLog.loc === 'contractor' ? 'hotel' : 'contractor';
+    if(v.check_in_date && firstLog.date && (v.check_in_date+'').slice(0,10) < (firstLog.date+'').slice(0,10)){
       segments.push({
-        loc: firstLoc, from: v.check_in_date, to: firstLog.date,
-        contractor_name: firstLoc==='contractor' ? (v.contractor_name||null) : null,
-        rate: firstLoc==='contractor' ? (v.contractor_rate!=null ? +v.contractor_rate : null) : null
+        loc: initLoc, from: v.check_in_date, to: firstLog.date,
+        contractor_name: initLoc==='contractor' ? (v.contractor_name||null) : null,
+        rate: initLoc==='contractor' ? (v.contractor_rate!=null ? +v.contractor_rate : null) : null
       });
     }
-    // Build segments from log entries
+    // Build segments from each log entry
     for(let i=0; i<log.length; i++){
       let segStart = log[i].date;
-      if(segStart >= td) break;
-      let segEnd = (i+1 < log.length && log[i+1].date < td) ? log[i+1].date : td;
+      if(!segStart || segStart >= td) break;
+      let segEnd = (i+1 < log.length && log[i+1].date && log[i+1].date < td) ? log[i+1].date : td;
       segments.push({
         loc: log[i].loc, from: segStart, to: segEnd,
         contractor_name: log[i].contractor_name||null,
@@ -2819,7 +2822,7 @@ function getReportData(){
     vehicles.filter(matchFilters).forEach(v=>{
       let e=estimateCost(v,td);
       let conNames=e.contSegments.map(s=>s.name).join(', ')||'–';
-      let conDetail=e.contSegments.map(s=>s.name+': '+s.nights+'n @ £'+s.rate.toFixed(2)+' = £'+s.cost.toFixed(2)).join(' | ')||'–';
+      let conDetail=e.contSegments.map(s=>s.name+': '+s.nights+'n @ £'+(s.rate!=null?(+s.rate).toFixed(2):'?')+' = £'+(+s.cost).toFixed(2)).join(' | ')||'–';
       let dates=getMoveLogDates(v);
       rows.push({reg:v.reg,name:v.name,phone:v.phone||'',room:v.room_number||'',
         status:'Active',location:v.location==='hotel'?'Hotel':'Off-site',
@@ -2838,7 +2841,7 @@ function getReportData(){
     historyData.filter(matchFilters).forEach(v=>{
       let e=estimateCost(v,v.check_out_date||td);
       let conNames=e.contSegments.map(s=>s.name).join(', ')||'–';
-      let conDetail=e.contSegments.map(s=>s.name+': '+s.nights+'n @ £'+s.rate.toFixed(2)+' = £'+s.cost.toFixed(2)).join(' | ')||'–';
+      let conDetail=e.contSegments.map(s=>s.name+': '+s.nights+'n @ £'+(s.rate!=null?(+s.rate).toFixed(2):'?')+' = £'+(+s.cost).toFixed(2)).join(' | ')||'–';
       let dates=getMoveLogDates(v);
       rows.push({reg:v.reg,name:v.name,phone:v.phone||'',room:v.room_number||'',
         status:'Completed',location:e.cd>0?'Off-site':'Hotel',
@@ -2846,9 +2849,9 @@ function getReportData(){
         checkIn:v.check_in_date,
         sentToContractor:dates.firstSentToContractor,
         returnedFromContractor:dates.lastReturnedFromContractor,
-        returnDate:v.return_date,
-        checkOut:v.return_date,
-        actualCheckOut:v.check_out_date,
+        returnDate:v.return_date,       // planned return date
+        checkOut:v.return_date,         // planned checkout (same as return date)
+        actualCheckOut:v.check_out_date, // actual checkout recorded at checkout
         refCode:v.ref_code||'',
         hotelNights:e.hd,contNights:e.cd,contCost:e.contCost});
     });
@@ -2981,9 +2984,9 @@ function rowToArray(row,type){
 }
 
 function previewReport(){
-  let typeEl=document.getElementById('rpt-type');
-  let type=typeEl?typeEl.value:'active';
-  // Show location filter only for contractor report; reset and hide for others
+  let type=document.getElementById('rpt-type')?.value||'active';
+
+  // Show/hide location filter — only relevant for contractor report
   let locGroup=document.getElementById('rpt-loc-group');
   let locSel=document.getElementById('rpt-loc');
   if(locGroup){
@@ -2991,33 +2994,59 @@ function previewReport(){
       locGroup.style.display='';
     } else {
       locGroup.style.display='none';
-      if(locSel) locSel.value=''; // reset so it doesn't filter
+      if(locSel) locSel.value='';
     }
   }
-  let{type:rType,rows}=getReportData();
-  let headers=getReportHeaders(rType);
-  document.getElementById('rpt-thead').innerHTML=headers.map(h=>'<th style="padding:8px 10px;font-size:11px;font-weight:600;color:#666;border-bottom:1px solid #eee;background:#fafaf8;white-space:nowrap">'+h+'</th>').join('');
-  document.getElementById('rpt-tbody').innerHTML=rows.map(r=>'<tr>'+rowToArray(r,type).map(c=>'<td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:12px;white-space:nowrap">'+(c||'–')+'</td>').join('')+'</tr>').join('');
-  document.getElementById('rpt-count').textContent=rows.length+' row(s)';
-  let totalCont=rows.reduce((s,r)=>s+(r.contCost||0),0);
-  let totalContN=rows.reduce((s,r)=>s+(r.contNights||0),0);
-  let strip=`<div class="metric"><div class="lbl">Records</div><div class="val">${rows.length}</div></div>`+
-    (totalContN?`<div class="metric"><div class="lbl">Off-site nights</div><div class="val">${totalContN}</div></div>`:'');
+
+  let{rows}=getReportData();
+  let headers=getReportHeaders(type);
+
+  // Show empty state if no data
+  let tbody=document.getElementById('rpt-tbody');
+  let thead=document.getElementById('rpt-thead');
+  let tfoot=document.getElementById('rpt-tfoot');
+  let countEl=document.getElementById('rpt-count');
+
+  thead.innerHTML=headers.map(h=>'<th style="padding:8px 10px;font-size:11px;font-weight:600;color:#666;border-bottom:1px solid #eee;background:#fafaf8;white-space:nowrap">'+h+'</th>').join('');
+
+  if(!rows.length){
+    let src=type==='active'?'vehicles':type==='history'?'historyData':'data';
+    let srcLen=type==='active'?vehicles.length:type==='history'?historyData.length:0;
+    tbody.innerHTML='<tr><td colspan="'+headers.length+'" style="text-align:center;padding:2rem;color:#aaa;font-size:13px">No records found'+(srcLen>0?' — check date filters':' — no data loaded yet')+'</td></tr>';
+    if(countEl) countEl.textContent='0 row(s)';
+    document.getElementById('rpt-summary-strip').innerHTML='';
+    if(tfoot) tfoot.innerHTML='';
+    return;
+  }
+
+  tbody.innerHTML=rows.map(r=>'<tr>'+rowToArray(r,type).map(c=>'<td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:12px;white-space:nowrap">'+(c!==null&&c!==undefined?c:'–')+'</td>').join('')+'</tr>').join('');
+  if(countEl) countEl.textContent=rows.length+' row(s)';
+
+  let totalCont=rows.reduce((s,r)=>s+(+r.contCost||0),0);
+  let totalContN=rows.reduce((s,r)=>s+(+r.contNights||0),0);
+  let totalHN=rows.reduce((s,r)=>s+(+r.hotelNights||0),0);
+  let strip=`<div class="metric"><div class="lbl">Records</div><div class="val">${rows.length}</div></div>`;
+  if(totalHN>0) strip+=`<div class="metric"><div class="lbl">Hotel nights</div><div class="val">${totalHN}</div></div>`;
+  if(totalContN>0) strip+=`<div class="metric"><div class="lbl">Off-site nights</div><div class="val">${totalContN}</div></div>`;
   if(totalCont>0) strip+=`<div class="metric"><div class="lbl">Contractor cost</div><div class="val" style="color:#633806">£${totalCont.toFixed(2)}</div></div>`;
   document.getElementById('rpt-summary-strip').innerHTML=strip;
-  // Totals footer for monthly
-  let tfoot=document.getElementById('rpt-tfoot');
-  if(rows.length>0&&type==='monthly'){
-    let tot={month:'TOTAL',vehicles:'',hotelNights:rows.reduce((s,r)=>s+r.hotelNights,0),contNights:rows.reduce((s,r)=>s+r.contNights,0),contCost:rows.reduce((s,r)=>s+r.contCost,0),contractors:''};
-    tfoot.innerHTML='<tr style="font-weight:700;background:#f5f5f3">'+rowToArray(tot,type).map(c=>'<td style="padding:8px 10px;font-size:12px;border-top:2px solid #ddd">'+c+'</td>').join('')+'</tr>';
-  } else if(rows.length>0&&type==='contractor'){
-    let tot={reg:'TOTAL',name:'',contractor:'',rate:'',status:'',checkIn:'',
-      sentToContractor:'',returnedFromContractor:'',segFrom:'',segTo:'',
-      contNights:rows.reduce((s,r)=>s+(r.contNights||0),0),
-      contCost:rows.reduce((s,r)=>s+(r.contCost||0),0),
-      returnDate:'',actualCheckOut:''};
-    tfoot.innerHTML='<tr style="font-weight:700;background:#f5f5f3">'+rowToArray(tot,type).map(c=>'<td style="padding:8px 10px;font-size:12px;border-top:2px solid #ddd">'+(c||'')+'</td>').join('')+'</tr>';
-  } else tfoot.innerHTML='';
+
+  // Totals footer
+  // tfoot id is on the <tr> element — set innerHTML as <td> cells directly
+  let tfootStyle='padding:8px 10px;font-size:12px;border-top:2px solid #ddd;font-weight:700;background:#f5f5f3';
+  let tfootCells=c=>'<td style="'+tfootStyle+'">'+(c!==null&&c!==undefined?c:'')+'</td>';
+  if(type==='monthly'){
+    let tot={month:'TOTAL',vehicles:'',hotelNights:rows.reduce((s,r)=>s+(+r.hotelNights||0),0),contNights:rows.reduce((s,r)=>s+(+r.contNights||0),0),contCost:rows.reduce((s,r)=>s+(+r.contCost||0),0),contractors:''};
+    tfoot.innerHTML=rowToArray(tot,type).map(tfootCells).join('');
+  } else if(type==='contractor'){
+    let tot={reg:'TOTAL',name:'',contractor:'',rate:'',status:'',checkIn:'',sentToContractor:'',returnedFromContractor:'',segFrom:'',segTo:'',contNights:rows.reduce((s,r)=>s+(+r.contNights||0),0),contCost:rows.reduce((s,r)=>s+(+r.contCost||0),0),returnDate:'',actualCheckOut:''};
+    tfoot.innerHTML=rowToArray(tot,type).map(tfootCells).join('');
+  } else if(type==='active'||type==='history'){
+    let tot={refCode:'TOTAL',reg:'',name:'',phone:'',room:'',status:'',location:'',contractor:'',checkIn:'',sentToContractor:'',returnedFromContractor:'',returnDate:'',checkOut:'',actualCheckOut:'',hotelNights:totalHN,contNights:totalContN,contCost:totalCont,contDetail:''};
+    tfoot.innerHTML=rowToArray(tot,type).map(tfootCells).join('');
+  } else {
+    tfoot.innerHTML='';
+  }
 }
 
 function exportExcel(){
