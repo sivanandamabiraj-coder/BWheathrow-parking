@@ -866,7 +866,7 @@ on conflict (key) do nothing;</textarea>
           <div class="form-group"><label for="rpt-from">Date from</label><input type="date" id="rpt-from" oninput="previewReport()"></div>
           <div class="form-group"><label for="rpt-to">Date to</label><input type="date" id="rpt-to" oninput="previewReport()"></div>
           <div class="form-group"><label for="rpt-reg">Registration (optional)</label><input type="text" id="rpt-reg" placeholder="All if blank" oninput="previewReport()" style="text-transform:uppercase"></div>
-          <div class="form-group"><label for="rpt-loc">Location filter</label>
+          <div class="form-group" id="rpt-loc-group"><label for="rpt-loc">Location filter</label>
             <select id="rpt-loc" onchange="previewReport()">
               <option value="">All</option>
               <option value="hotel">Hotel only</option>
@@ -2032,16 +2032,29 @@ function estimateCost(v, asOfDate){
 
   let segments = [];
   if(!log.length){
+    // No move history — vehicle has been at its current location since check-in
     segments.push({
       loc: v.location, from: v.check_in_date, to: td,
       contractor_name: v.contractor_name||null,
       rate: v.contractor_rate!=null ? +v.contractor_rate : null
     });
   } else {
+    // Build the segment BEFORE the first log entry (check-in → first move)
+    let firstLog = log[0];
+    let firstLoc = firstLog.loc === 'contractor' ? 'hotel' : 'contractor'; // before first move, was at opposite
+    // Use check_in_date as start; the vehicle was at the initial location until first move
+    if(v.check_in_date && firstLog.date > v.check_in_date){
+      segments.push({
+        loc: firstLoc, from: v.check_in_date, to: firstLog.date,
+        contractor_name: firstLoc==='contractor' ? (v.contractor_name||null) : null,
+        rate: firstLoc==='contractor' ? (v.contractor_rate!=null ? +v.contractor_rate : null) : null
+      });
+    }
+    // Build segments from log entries
     for(let i=0; i<log.length; i++){
       let segStart = log[i].date;
       if(segStart >= td) break;
-      let segEnd = (i+1 < log.length && log[i+1].date <= td) ? log[i+1].date : td;
+      let segEnd = (i+1 < log.length && log[i+1].date < td) ? log[i+1].date : td;
       segments.push({
         loc: log[i].loc, from: segStart, to: segEnd,
         contractor_name: log[i].contractor_name||null,
@@ -2792,8 +2805,8 @@ function getReportData(){
 
   function matchFilters(v){
     let ciDate=(v.check_in_date||'').slice(0,10); // strip time for date comparison
-    // Location filter only applies to contractor report; active/history show all locations
-    let locMatch = (type==='contractor'||type==='active') ? true : (!locF||v.location===locF);
+    // Location filter only applies to contractor usage report
+    let locMatch = (type==='contractor') ? (!locF||v.location===locF) : true;
     return (!regF||v.reg.includes(regF))&&
            locMatch&&
            (!fromF||ciDate>=fromF)&&
@@ -2968,8 +2981,21 @@ function rowToArray(row,type){
 }
 
 function previewReport(){
-  let{type,rows}=getReportData();
-  let headers=getReportHeaders(type);
+  let typeEl=document.getElementById('rpt-type');
+  let type=typeEl?typeEl.value:'active';
+  // Show location filter only for contractor report; reset and hide for others
+  let locGroup=document.getElementById('rpt-loc-group');
+  let locSel=document.getElementById('rpt-loc');
+  if(locGroup){
+    if(type==='contractor'){
+      locGroup.style.display='';
+    } else {
+      locGroup.style.display='none';
+      if(locSel) locSel.value=''; // reset so it doesn't filter
+    }
+  }
+  let{type:rType,rows}=getReportData();
+  let headers=getReportHeaders(rType);
   document.getElementById('rpt-thead').innerHTML=headers.map(h=>'<th style="padding:8px 10px;font-size:11px;font-weight:600;color:#666;border-bottom:1px solid #eee;background:#fafaf8;white-space:nowrap">'+h+'</th>').join('');
   document.getElementById('rpt-tbody').innerHTML=rows.map(r=>'<tr>'+rowToArray(r,type).map(c=>'<td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:12px;white-space:nowrap">'+(c||'–')+'</td>').join('')+'</tr>').join('');
   document.getElementById('rpt-count').textContent=rows.length+' row(s)';
@@ -5487,7 +5513,14 @@ function showTab(t,el){
     let co=document.getElementById('co-date');
     if(co&&!co.value) co.value=nowLocal();
   }
-  if(t==='reports')previewReport();
+  if(t==='reports'){
+    // Ensure data is loaded before previewing
+    if(!vehicles||!vehicles.length){
+      loadData(true).then(()=>previewReport());
+    } else {
+      previewReport();
+    }
+  }
   if(t==='audit')loadAudit();
   if(t==='pending'){initQR();loadPending();}
 }
