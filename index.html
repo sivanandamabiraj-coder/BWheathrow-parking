@@ -2792,8 +2792,10 @@ function getReportData(){
 
   function matchFilters(v){
     let ciDate=(v.check_in_date||'').slice(0,10); // strip time for date comparison
+    // Location filter only applies to contractor report; active/history show all locations
+    let locMatch = (type==='contractor'||type==='active') ? true : (!locF||v.location===locF);
     return (!regF||v.reg.includes(regF))&&
-           (!locF||v.location===locF)&&
+           locMatch&&
            (!fromF||ciDate>=fromF)&&
            (!toF||ciDate<=toF);
   }
@@ -6242,14 +6244,9 @@ async function confirmBatchMove(){
 async function staffConfirmArrival(reg){
   let v = vehicles.find(x=>x.reg===reg);
   if(!v) return;
-  let dest = v.move_pending_to==='hotel' ? 'hotel' : 'contractor';
-  // Ask staff for the actual arrival time, not the current time
-  let enteredDT = prompt('Enter the actual date & time the vehicle arrived at '+dest+' (leave as-is if just now):', nowLocal());
-  if(enteredDT===null) return; // cancelled
-  let parsedDT = enteredDT && !isNaN(new Date(enteredDT)) ? new Date(enteredDT).toISOString() : new Date().toISOString();
-
+  if(!confirm('Confirm '+reg+' has arrived at '+(v.move_pending_to==='hotel'?'hotel':'contractor')+'?')) return;
   let toLocation = v.move_pending_to;
-  let moveDate = parsedDT;
+  let moveDate = new Date().toISOString(); // system time of confirmation
   let log=[]; try{log=JSON.parse(v.move_log||'[]');}catch(e){}
   let nightsHere = nightsApart(v.current_location_start, moveDate);
   let newHd = (v.hotel_days||0) + (v.location==='hotel' ? nightsHere : 0);
@@ -6426,9 +6423,6 @@ function openCPConfirmModal(reg, action){
       : 'You are confirming this vehicle has been returned to the hotel. Take each view live.';
 
   document.getElementById('cp-modal-error').innerHTML = '';
-  // Pre-fill move datetime with current time — contractor should adjust if vehicle moved earlier
-  let moveDTEl = document.getElementById('cp-move-datetime');
-  if(moveDTEl) moveDTEl.value = nowLocal();
   let aiEl=document.getElementById('cp-ai-status');
   if(aiEl){aiEl.style.display='none'; aiEl.innerHTML='';}
   let btn=document.getElementById('cp-confirm-btn');
@@ -6727,10 +6721,8 @@ async function cpConfirmMove(){
   if(!v){alert('Vehicle not found.');return;}
 
   let toLocation=action==='deliver'?'contractor':'hotel';
-  // Use the actual move datetime entered by contractor, fallback to now
-  let moveDTEl=document.getElementById('cp-move-datetime');
-  let moveDTVal=moveDTEl&&moveDTEl.value?moveDTEl.value:'';
-  let moveDate=moveDTVal?new Date(moveDTVal).toISOString():new Date().toISOString();
+  // Record the exact time contractor submitted confirmation — automatic, not editable
+  let moveDate=new Date().toISOString();
   let log=[]; try{log=JSON.parse(v.move_log||'[]');}catch(e){}
   let nightsHere=nightsApart(v.current_location_start,moveDate);
   let newHd=(v.hotel_days||0)+(v.location==='hotel'?nightsHere:0);
@@ -6944,12 +6936,6 @@ window.addEventListener('DOMContentLoaded',()=>{
         <div style="height:6px;background:#eee;border-radius:3px;overflow:hidden">
           <div id="cp-progress-fill" style="height:100%;background:#1D9E75;border-radius:3px;transition:width .3s;width:0%"></div>
         </div>
-      </div>
-      <div style="margin-bottom:12px;background:#f9f9f7;border:1px solid #eee;border-radius:8px;padding:10px">
-        <label style="font-size:11px;font-weight:600;color:#555;display:block;margin-bottom:4px">📅 Actual date &amp; time of move</label>
-        <input type="datetime-local" id="cp-move-datetime"
-          style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box">
-        <div style="font-size:10px;color:#888;margin-top:3px">Enter when the vehicle was actually moved, not the current time</div>
       </div>
       <div id="cp-modal-error" style="margin-bottom:8px"></div>
       <button id="cp-confirm-btn" disabled
