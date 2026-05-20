@@ -2791,10 +2791,11 @@ function getReportData(){
   let td=today();
 
   function matchFilters(v){
+    let ciDate=(v.check_in_date||'').slice(0,10); // strip time for date comparison
     return (!regF||v.reg.includes(regF))&&
            (!locF||v.location===locF)&&
-           (!fromF||(v.check_in_date||'')>=fromF)&&
-           (!toF||(v.check_in_date||'')<=toF);
+           (!fromF||ciDate>=fromF)&&
+           (!toF||ciDate<=toF);
   }
 
   let rows=[];
@@ -2935,12 +2936,13 @@ function rowToArray(row,type){
   if(type==='contractor') return [
     row.reg, row.name, row.contractor, row.rate, row.status,
     fd(row.checkIn),
-    fd(row.sentToContractor),
-    fd(row.returnedFromContractor),
-    fd(row.segFrom), fd(row.segTo),
-    row.contNights, fmt(row.contCost),
-    fd(row.returnDate),
-    fd(row.actualCheckOut)
+    row.sentToContractor ? fmtDT(row.sentToContractor) : '–',
+    row.returnedFromContractor ? fmtDT(row.returnedFromContractor) : '–',
+    row.segFrom ? fmtDT(row.segFrom) : '–',
+    row.segTo   ? fmtDT(row.segTo)   : '–',
+    row.contNights||'', fmt(row.contCost),
+    row.returnDate ? fmtDT(row.returnDate) : '–',
+    row.actualCheckOut ? fmtDT(row.actualCheckOut) : '–'
   ];
   if(type==='active') return [
     row.refCode, row.reg, row.name, row.phone, row.room, row.status, row.location, row.contractor,
@@ -2981,8 +2983,12 @@ function previewReport(){
     let tot={month:'TOTAL',vehicles:'',hotelNights:rows.reduce((s,r)=>s+r.hotelNights,0),contNights:rows.reduce((s,r)=>s+r.contNights,0),contCost:rows.reduce((s,r)=>s+r.contCost,0),contractors:''};
     tfoot.innerHTML='<tr style="font-weight:700;background:#f5f5f3">'+rowToArray(tot,type).map(c=>'<td style="padding:8px 10px;font-size:12px;border-top:2px solid #ddd">'+c+'</td>').join('')+'</tr>';
   } else if(rows.length>0&&type==='contractor'){
-    let tot={reg:'TOTAL',name:'',contractor:'',rate:'',status:'',checkIn:'',segFrom:'',segTo:'',contNights:rows.reduce((s,r)=>s+r.contNights,0),contCost:rows.reduce((s,r)=>s+r.contCost,0)};
-    tfoot.innerHTML='<tr style="font-weight:700;background:#f5f5f3">'+rowToArray(tot,type).map(c=>'<td style="padding:8px 10px;font-size:12px;border-top:2px solid #ddd">'+c+'</td>').join('')+'</tr>';
+    let tot={reg:'TOTAL',name:'',contractor:'',rate:'',status:'',checkIn:'',
+      sentToContractor:'',returnedFromContractor:'',segFrom:'',segTo:'',
+      contNights:rows.reduce((s,r)=>s+(r.contNights||0),0),
+      contCost:rows.reduce((s,r)=>s+(r.contCost||0),0),
+      returnDate:'',actualCheckOut:''};
+    tfoot.innerHTML='<tr style="font-weight:700;background:#f5f5f3">'+rowToArray(tot,type).map(c=>'<td style="padding:8px 10px;font-size:12px;border-top:2px solid #ddd">'+(c||'')+'</td>').join('')+'</tr>';
   } else tfoot.innerHTML='';
 }
 
@@ -6236,10 +6242,14 @@ async function confirmBatchMove(){
 async function staffConfirmArrival(reg){
   let v = vehicles.find(x=>x.reg===reg);
   if(!v) return;
-  if(!confirm('Confirm '+reg+' has arrived at '+(v.move_pending_to==='hotel'?'hotel':'contractor')+'?')) return;
+  let dest = v.move_pending_to==='hotel' ? 'hotel' : 'contractor';
+  // Ask staff for the actual arrival time, not the current time
+  let enteredDT = prompt('Enter the actual date & time the vehicle arrived at '+dest+' (leave as-is if just now):', nowLocal());
+  if(enteredDT===null) return; // cancelled
+  let parsedDT = enteredDT && !isNaN(new Date(enteredDT)) ? new Date(enteredDT).toISOString() : new Date().toISOString();
 
   let toLocation = v.move_pending_to;
-  let moveDate = nowLocal();
+  let moveDate = parsedDT;
   let log=[]; try{log=JSON.parse(v.move_log||'[]');}catch(e){}
   let nightsHere = nightsApart(v.current_location_start, moveDate);
   let newHd = (v.hotel_days||0) + (v.location==='hotel' ? nightsHere : 0);
@@ -6317,10 +6327,11 @@ function launchContractorPortal(){
 
 async function loadContractorPortal(){
   try{
+    if(!currentUser){ document.getElementById('cp-alert').innerHTML='<div class="alert warn">Session expired. Please refresh and log in again.</div>'; return; }
     let all = await sbFetch('vehicles?status=eq.active&select=*');
     if(!Array.isArray(all)) all=[];
     // Filter to vehicles assigned to this contractor (by contractor_name matching user's full_name or username)
-    let myName = currentUser.full_name || currentUser.username;
+    let myName = (currentUser.full_name || currentUser.username || '');
     let mine = all.filter(v=>
       v.contractor_name && (
         v.contractor_name.toLowerCase()===myName.toLowerCase() ||
@@ -6362,7 +6373,6 @@ function renderCPList(elId, list, action){
       +'<div style="font-size:26px;font-weight:800;letter-spacing:.06em;color:#1E407C">'+v.reg+'</div>'
       +'<span style="background:'+badgeBg+';color:'+badgeCol+';padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600">'+badgeText+'</span>'
       +'</div>'
-      +'<div style="font-size:13px;color:#555;margin-bottom:10px">'+v.name+'</div>'
       +'<button onclick="openCPConfirmModal(\''+v.reg+'\',\''+action+'\')"'
       +' style="width:100%;padding:12px;background:'+btnBg+';color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">'+btnText+'</button>'
       +'</div>';
@@ -6379,7 +6389,7 @@ function renderCPReturnSection(toReturn, withMe){
     html += withMe.map(v=>{
       return '<div style="background:#fff;border:1px solid #eee;border-radius:10px;padding:14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">'
         +'<div><div style="font-size:22px;font-weight:800;letter-spacing:.06em;color:#1E407C">'+v.reg+'</div>'
-        +'<div style="font-size:12px;color:#888">'+v.name+'</div></div>'
+        +'</div>'
         +'<span style="background:#f5f5f3;color:#888;padding:4px 10px;border-radius:20px;font-size:11px">Parked with you</span>'
         +'</div>';
     }).join('');
@@ -6395,7 +6405,6 @@ function renderCPListHTML(list, action){
       +'<div style="font-size:26px;font-weight:800;letter-spacing:.06em;color:#1E407C">'+v.reg+'</div>'
       +'<span style="background:#E1F5EE;color:#085041;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600">Return to hotel</span>'
       +'</div>'
-      +'<div style="font-size:13px;color:#555;margin-bottom:10px">'+v.name+'</div>'
       +'<button onclick="openCPConfirmModal(\''+v.reg+'\',\'return\')"'
       +' style="width:100%;padding:12px;background:#1D9E75;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">Take photos + Confirm returned</button>'
       +'</div>';
@@ -6417,6 +6426,9 @@ function openCPConfirmModal(reg, action){
       : 'You are confirming this vehicle has been returned to the hotel. Take each view live.';
 
   document.getElementById('cp-modal-error').innerHTML = '';
+  // Pre-fill move datetime with current time — contractor should adjust if vehicle moved earlier
+  let moveDTEl = document.getElementById('cp-move-datetime');
+  if(moveDTEl) moveDTEl.value = nowLocal();
   let aiEl=document.getElementById('cp-ai-status');
   if(aiEl){aiEl.style.display='none'; aiEl.innerHTML='';}
   let btn=document.getElementById('cp-confirm-btn');
@@ -6715,7 +6727,10 @@ async function cpConfirmMove(){
   if(!v){alert('Vehicle not found.');return;}
 
   let toLocation=action==='deliver'?'contractor':'hotel';
-  let moveDate=new Date().toISOString();
+  // Use the actual move datetime entered by contractor, fallback to now
+  let moveDTEl=document.getElementById('cp-move-datetime');
+  let moveDTVal=moveDTEl&&moveDTEl.value?moveDTEl.value:'';
+  let moveDate=moveDTVal?new Date(moveDTVal).toISOString():new Date().toISOString();
   let log=[]; try{log=JSON.parse(v.move_log||'[]');}catch(e){}
   let nightsHere=nightsApart(v.current_location_start,moveDate);
   let newHd=(v.hotel_days||0)+(v.location==='hotel'?nightsHere:0);
@@ -6929,6 +6944,12 @@ window.addEventListener('DOMContentLoaded',()=>{
         <div style="height:6px;background:#eee;border-radius:3px;overflow:hidden">
           <div id="cp-progress-fill" style="height:100%;background:#1D9E75;border-radius:3px;transition:width .3s;width:0%"></div>
         </div>
+      </div>
+      <div style="margin-bottom:12px;background:#f9f9f7;border:1px solid #eee;border-radius:8px;padding:10px">
+        <label style="font-size:11px;font-weight:600;color:#555;display:block;margin-bottom:4px">📅 Actual date &amp; time of move</label>
+        <input type="datetime-local" id="cp-move-datetime"
+          style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box">
+        <div style="font-size:10px;color:#888;margin-top:3px">Enter when the vehicle was actually moved, not the current time</div>
       </div>
       <div id="cp-modal-error" style="margin-bottom:8px"></div>
       <button id="cp-confirm-btn" disabled
