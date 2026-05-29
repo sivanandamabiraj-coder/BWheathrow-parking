@@ -6404,24 +6404,9 @@ function cpShowTab(tab, btn){
 // ── Contractor dashboard ──
 function renderCPDashboard(){
   if(!currentUser) return;
-  let myName=(currentUser.full_name||currentUser.username||'').toLowerCase();
-  let myId=currentUser.contractor_id||null;
-
-  // My vehicles = currently at contractor location linked to me
-  let mine=vehicles.filter(v=>{
-    if(v.location!=='contractor') return false;
-    if(myId && v.contractor_id===myId) return true;
-    if(myName && (v.contractor_name||'').toLowerCase()===myName) return true;
-    return false;
-  });
-
-  // Awaiting collection = move_status=pending_to_contractor or hotel requested delivery
-  let toCollect=vehicles.filter(v=>{
-    if(v.move_status!=='pending_to_contractor') return false;
-    if(myId && v.contractor_id===myId) return true;
-    if(myName && (v.contractor_name||'').toLowerCase()===myName) return true;
-    return false;
-  });
+  // Use the vehicles already fetched by loadContractorPortal
+  let mine    = _cpMineActive.filter(v=>v.location==='contractor' && (!v.move_status||v.move_status==='null'||v.move_status===''));
+  let toCollect = _cpMineActive.filter(v=>v.move_status==='pending_to_contractor');
 
   // Due back = at contractor and return_date within 3 days
   let td=today();
@@ -6471,31 +6456,26 @@ function renderCPDashboard(){
 // ── Contractor report ──
 function getCPReportRows(){
   if(!currentUser) return [];
-  let myName=(currentUser.full_name||currentUser.username||'').toLowerCase();
-  let myId=currentUser.contractor_id||null;
   let fromF=(document.getElementById('cp-rpt-from')||{}).value||'';
   let toF=(document.getElementById('cp-rpt-to')||{}).value||'';
   let td=today();
   let rows=[];
 
-  let all=[...vehicles,...historyData];
-  all.forEach(v=>{
+  // Use vehicles already filtered to this contractor by loadContractorPortal
+  _cpAllVehicles.forEach(v=>{
     let log=[]; try{let r=v.move_log;log=Array.isArray(r)?r:(typeof r==='string'&&r?JSON.parse(r):[]);log=log.filter(e=>e&&e.loc);}catch(e){log=[];}
     let endDate=v.check_out_date||td;
+    let myId=currentUser.contractor_id?String(currentUser.contractor_id):null;
+    let myName=(currentUser.full_name||currentUser.username||'').toLowerCase();
 
     // Build contractor segments for this vehicle
     let segs=[];
     if(!log.length){
-      if(v.location==='contractor'){
-        let isMe=myId?(v.contractor_id===myId):(v.contractor_name||'').toLowerCase()===myName;
-        if(isMe) segs.push({from:v.check_in_date,to:endDate,rate:v.contractor_rate});
-      }
+      if(v.location==='contractor')
+        segs.push({from:v.check_in_date,to:endDate,rate:v.contractor_rate});
     } else {
       for(let i=0;i<log.length;i++){
         if(log[i].loc!=='contractor') continue;
-        let isMe=myId?(log[i].contractor_id===myId||v.contractor_id===myId)
-                     :(log[i].contractor_name||'').toLowerCase()===myName;
-        if(!isMe) continue;
         let segEnd=i+1<log.length?log[i+1].date:endDate;
         segs.push({from:log[i].date,to:segEnd,rate:log[i].rate!=null?+log[i].rate:v.contractor_rate});
       }
@@ -6529,7 +6509,7 @@ function renderCPReport(){
   let tfoot=document.getElementById('cp-rpt-tfoot');
   if(!thead||!tbody) return;
 
-  thead.innerHTML=headers.map(h=>'<th style="padding:8px 10px;font-size:11px;font-weight:600;color:#666;border-bottom:2px solid #ddd;text-align:left;white-space:nowrap">'+h+'</th>').join('');
+  thead.innerHTML=headers.map(h=>'<th style="padding:8px 10px;font-size:11px;font-weight:600;color:#666;border-bottom:2px solid #ddd;text-align:left;white-space:nowrap;min-width:90px">'+h+'</th>').join('');
 
   if(!rows.length){
     tbody.innerHTML='<tr><td colspan="'+headers.length+'" style="text-align:center;padding:2rem;color:#aaa">No records found</td></tr>';
@@ -6587,19 +6567,40 @@ function launchContractorPortal(){
   setInterval(loadContractorPortal, 30000);
 }
 
+let _cpAllVehicles = [];   // all active vehicles for this contractor (active + history)
+let _cpMineActive  = [];   // active vehicles currently linked to this contractor
+
 async function loadContractorPortal(){
   try{
     if(!currentUser){ document.getElementById('cp-alert').innerHTML='<div class="alert warn">Session expired. Please refresh and log in again.</div>'; return; }
-    let all = await sbFetch('vehicles?status=eq.active&select=*');
-    if(!Array.isArray(all)) all=[];
-    // Filter to vehicles assigned to this contractor (by contractor_name matching user's full_name or username)
-    let myName = (currentUser.full_name || currentUser.username || '');
-    let mine = all.filter(v=>
-      v.contractor_name && (
-        v.contractor_name.toLowerCase()===myName.toLowerCase() ||
-        (v.contractor_id && String(v.contractor_id)===String(currentUser.contractor_id))
-      )
-    );
+    // Fetch active AND completed vehicles for report/dashboard
+    let [allActive, allHistory] = await Promise.all([
+      sbFetch('vehicles?status=eq.active&select=*'),
+      sbFetch('vehicles?status=eq.checked-out&order=check_out_date.desc&limit=500&select=*')
+    ]);
+    if(!Array.isArray(allActive))  allActive=[];
+    if(!Array.isArray(allHistory)) allHistory=[];
+
+    let myName  = (currentUser.full_name || currentUser.username || '');
+    let myId    = currentUser.contractor_id ? String(currentUser.contractor_id) : null;
+
+    function isMyVehicle(v){
+      if(myId && v.contractor_id && String(v.contractor_id)===myId) return true;
+      if(myName && v.contractor_name && v.contractor_name.toLowerCase()===myName.toLowerCase()) return true;
+      // Also check move_log for any segment linked to this contractor
+      try{
+        let log=Array.isArray(v.move_log)?v.move_log:JSON.parse(v.move_log||'[]');
+        return log.some(e=>e&&(
+          (myId && e.contractor_id && String(e.contractor_id)===myId) ||
+          (myName && (e.contractor_name||'').toLowerCase()===myName.toLowerCase())
+        ));
+      }catch(e){ return false; }
+    }
+
+    let mine = allActive.filter(isMyVehicle);
+    let mineHistory = allHistory.filter(isMyVehicle);
+    _cpMineActive  = mine;
+    _cpAllVehicles = [...mine, ...mineHistory];
 
     // Deliver list: pending_to_contractor (hotel → contractor, needs my confirmation)
     let toDeliver = mine.filter(v=>v.move_status==='pending_to_contractor');
