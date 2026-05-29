@@ -6593,17 +6593,11 @@ async function loadContractorPortal(){
     let myName  = (currentUser.full_name || currentUser.username || '');
     let myId    = currentUser.contractor_id ? String(currentUser.contractor_id) : null;
 
+    // Match only on current contractor_id or contractor_name — NOT move_log history
     function isMyVehicle(v){
       if(myId && v.contractor_id && String(v.contractor_id)===myId) return true;
       if(myName && v.contractor_name && v.contractor_name.toLowerCase()===myName.toLowerCase()) return true;
-      // Also check move_log for any segment linked to this contractor
-      try{
-        let log=Array.isArray(v.move_log)?v.move_log:JSON.parse(v.move_log||'[]');
-        return log.some(e=>e&&(
-          (myId && e.contractor_id && String(e.contractor_id)===myId) ||
-          (myName && (e.contractor_name||'').toLowerCase()===myName.toLowerCase())
-        ));
-      }catch(e){ return false; }
+      return false;
     }
 
     let mine = allActive.filter(isMyVehicle);
