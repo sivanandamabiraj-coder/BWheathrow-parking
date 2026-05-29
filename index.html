@@ -152,6 +152,7 @@
   }
   td{padding:9px 10px;border-bottom:1px solid var(--border);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text)}
   #rpt-table td,#rpt-table th{overflow:visible;text-overflow:clip}
+  #cp-rpt-table td,#cp-rpt-table th{overflow:visible;text-overflow:clip;white-space:nowrap}
   tr:last-child td{border-bottom:none}
   tbody tr{transition:background .1s}
   tbody tr:hover td{background:var(--blue-pale)}
@@ -1678,6 +1679,8 @@ async function loadData(silent){
     let hist=await sbFetch("vehicles?status=eq.checked-out&order=check_out_date.desc&limit=200&select=*");
     vehicles=active||[];
     historyData=hist||[];
+    // Also refresh contractors so rate changes from settings are picked up
+    await loadContractors();
     updateDash();renderActive();renderHistory();loadPending();
     document.getElementById('db-status').textContent='● Connected · '+new Date().toLocaleTimeString();
     document.getElementById('db-status').className='sheet-status ok';
@@ -6288,14 +6291,35 @@ async function confirmBatchMove(){
       let v=vehicles.find(x=>x.reg===reg);
       if(!v) continue;
       let moveStatus = toLocation==='contractor' ? 'pending_to_contractor' : 'pending_to_hotel';
+      // Add move_log entry (same as single confirmMove)
+      let vlog=[]; try{vlog=JSON.parse(v.move_log||'[]');}catch(e){vlog=[];}
+      let logNote=note||(toLocation==='contractor'?'Moved to '+newConName:'Moved to hotel');
+      let nightsHere=nightsApart(v.current_location_start, moveDate);
+      let newHd=(v.hotel_days||0)+(v.location==='hotel'?nightsHere:0);
+      let newCd=(v.contractor_days||0)+(v.location==='contractor'?nightsHere:0);
+      vlog.push({
+        loc:toLocation, date:moveDate,
+        note:logNote+(newConRate?' @ £'+newConRate+'/night':''),
+        contractor_id:newConId||null,
+        contractor_name:newConName||null,
+        rate:newConRate||null
+      });
       let patch = {
         move_status: moveStatus,
         move_pending_to: toLocation,
+        move_log: JSON.stringify(vlog),
+        hotel_days: newHd,
+        contractor_days: newCd,
+        current_location_start: moveDate
       };
       if(toLocation==='contractor' && newConId){
         patch.contractor_id = newConId;
         patch.contractor_name = newConName;
         patch.contractor_rate = newConRate;
+      } else if(toLocation==='hotel'){
+        patch.contractor_id = null;
+        patch.contractor_name = null;
+        patch.contractor_rate = null;
       }
       await sbFetch('vehicles?reg=eq.'+encodeURIComponent(reg), {method:'PATCH', body:JSON.stringify(patch)});
     }
@@ -6397,6 +6421,9 @@ function cpShowTab(tab, btn){
       b.style.borderBottomColor = t===tab ? '#1E407C' : 'transparent';
     }
   });
+  // Widen container for report tab so table can scroll horizontally
+  let container=document.getElementById('cp-main-container');
+  if(container) container.style.maxWidth = tab==='report' ? '100%' : '680px';
   if(tab==='dashboard') renderCPDashboard();
   if(tab==='report') renderCPReport();
 }
@@ -6467,6 +6494,8 @@ function renderCPDashboard(){
 // ── Contractor report ──
 function getCPReportRows(){
   if(!currentUser) return [];
+  let myId  = currentUser.contractor_id ? String(currentUser.contractor_id) : null;
+  let myName= (currentUser.full_name || currentUser.username || '').toLowerCase();
   let fromF=(document.getElementById('cp-rpt-from')||{}).value||'';
   let toF=(document.getElementById('cp-rpt-to')||{}).value||'';
   let td=today();
@@ -6476,45 +6505,83 @@ function getCPReportRows(){
     let log=[]; try{let r=v.move_log;log=Array.isArray(r)?r:(typeof r==='string'&&r?JSON.parse(r):[]);log=log.filter(e=>e&&e.loc);}catch(e){log=[];}
     let endDate=v.check_out_date||td;
 
-    // Find the date vehicle was sent to contractor (first contractor log entry)
-    let sentToContractor=null, returnedFromContractor=null;
-    for(let i=0;i<log.length;i++){
-      if(log[i].loc==='contractor' && !sentToContractor) sentToContractor=log[i].date;
-      if(log[i].loc==='hotel' && sentToContractor && !returnedFromContractor) returnedFromContractor=log[i].date;
+    // Build contractor segments — same logic as main system getReportData contractor type
+    // Each move_log entry where loc='contractor' starts a contractor segment
+    // The segment ends at the next log entry or endDate
+    let segs=[];
+    if(!log.length){
+      // No log — if currently at contractor, use check_in as start
+      if(v.location==='contractor')
+        segs.push({from:v.check_in_date, to:endDate, rate:v.contractor_rate,
+          contractor_name:v.contractor_name});
+    } else {
+      for(let i=0;i<log.length;i++){
+        if(log[i].loc!=='contractor') continue;
+        // Check this segment belongs to me
+        let entryConId = log[i].contractor_id ? String(log[i].contractor_id) : null;
+        let entryConName = (log[i].contractor_name||'').toLowerCase();
+        let isMe = (myId && entryConId===myId) || (myName && entryConName===myName);
+        if(!isMe) continue;
+        let segEnd = i+1<log.length && log[i+1] ? log[i+1].date : endDate;
+        segs.push({
+          from:log[i].date, to:segEnd,
+          rate:log[i].rate!=null?+log[i].rate:v.contractor_rate,
+          contractor_name:log[i].contractor_name||v.contractor_name,
+          hasPhotos:!!(log[i].photo_categories&&log[i].photo_categories.length>0)
+        });
+      }
     }
 
-    // Contractor segment: from sentToContractor (or check_in if direct) to returnedFromContractor (or endDate)
-    let segFrom = sentToContractor || (v.location==='contractor'?v.check_in_date:null);
-    if(!segFrom) return; // never went to contractor
+    // For each segment, find the sent/confirmed/returned dates from full log
+    let sentDate=null, confirmedDate=null, returnedDate=null;
+    for(let i=0;i<log.length;i++){
+      let e=log[i];
+      if(!e) continue;
+      let entryConId=e.contractor_id?String(e.contractor_id):null;
+      let entryConName=(e.contractor_name||'').toLowerCase();
+      let isMe=(myId&&entryConId===myId)||(myName&&entryConName===myName);
+      if(e.loc==='contractor'&&isMe){
+        let hasPhotos=e.photo_categories&&e.photo_categories.length>0;
+        if(!hasPhotos&&!sentDate)   sentDate=e.date;
+        if(hasPhotos&&!confirmedDate) confirmedDate=e.date;
+      }
+      if(e.loc==='hotel'&&i>0){
+        let hasPhotos=e.photo_categories&&e.photo_categories.length>0;
+        if(hasPhotos&&!returnedDate) returnedDate=e.date;
+      }
+    }
+    if(!sentDate&&v.location==='contractor') sentDate=v.check_in_date;
 
-    let segTo = returnedFromContractor || endDate;
-    let rate = v.contractor_rate!=null ? +v.contractor_rate : 0;
-    let nights = nightsApart(segFrom, segTo);
-
-    // Apply date range filter to segment
-    let clipped = clipSegmentToRange({from:segFrom, to:segTo}, fromF, toF);
-    if(!clipped || clipped.nights<=0) return;
+    // Merge all segments for this vehicle into one row (total nights at contractor)
+    let totalSegs=segs.map(seg=>clipSegmentToRange(seg,fromF,toF)).filter(c=>c&&c.nights>0);
+    if(!totalSegs.length) return;
+    let nightsInPeriod=totalSegs.reduce((s,c)=>s+c.nights,0);
+    let rate=segs[0]?+(segs[0].rate||0):0;
+    let cost=+(nightsInPeriod*rate).toFixed(2);
 
     rows.push({
-      reg:           v.reg,
-      checkIn:       v.check_in_date,
-      sentToContractor:      segFrom,
-      returnedFromContractor: returnedFromContractor,
-      estimatedCheckOut:     v.return_date,
-      actualCheckOut:        v.check_out_date,
-      nightsInPeriod:        clipped.nights,
-      totalNightsAtContractor: nights,
-      rate:          rate,
-      cost:          +(clipped.nights * rate).toFixed(2),
-      status:        v.status==='active'?'Active':'Completed'
+      reg:              v.reg,
+      checkIn:          v.check_in_date,
+      sentToContractor: sentDate,
+      confirmedAtContractor: confirmedDate,
+      returnedToHotel:  returnedDate,
+      estimatedCheckOut: v.return_date,
+      actualCheckOut:   v.check_out_date,
+      nightsInPeriod,
+      rate,
+      cost,
+      status: v.status==='active'?'Active':'Completed'
     });
   });
+
+  // Sort by check-in date descending (newest first)
+  rows.sort((a,b)=>(b.checkIn||'')>(a.checkIn||'')?1:-1);
   return rows;
 }
 
 function renderCPReport(){
   let rows=getCPReportRows();
-  let headers=['Reg','Check-in','Sent to us','Returned to hotel','Est. check-out','Actual check-out','Nights (period)','Rate/night','Cost (period)','Status'];
+  let headers=['Reg','Check-in','Sent to contractor','Confirmed receipt','Returned to hotel','Est. check-out','Actual check-out','Nights (period)','Rate/night','Cost (period)','Status'];
   let thead=document.getElementById('cp-rpt-thead');
   let tbody=document.getElementById('cp-rpt-tbody');
   let tfoot=document.getElementById('cp-rpt-tfoot');
@@ -6530,13 +6597,15 @@ function renderCPReport(){
   }
 
   let fdt=d=>d?fmtDT(d):'–';
+  let pend='<span style="color:#aaa;font-size:11px">Pending</span>';
   tbody.innerHTML=rows.map(r=>'<tr style="border-bottom:1px solid #f0f0f0">'
     +'<td style="padding:7px 10px;font-weight:700;color:#1E407C;white-space:nowrap">'+r.reg+'</td>'
     +'<td style="padding:7px 10px;white-space:nowrap">'+fdt(r.checkIn)+'</td>'
     +'<td style="padding:7px 10px;white-space:nowrap">'+fdt(r.sentToContractor)+'</td>'
-    +'<td style="padding:7px 10px;white-space:nowrap">'+fdt(r.returnedFromContractor)+'</td>'
+    +'<td style="padding:7px 10px;white-space:nowrap">'+(r.confirmedAtContractor?fdt(r.confirmedAtContractor):pend)+'</td>'
+    +'<td style="padding:7px 10px;white-space:nowrap">'+(r.returnedToHotel?fdt(r.returnedToHotel):pend)+'</td>'
     +'<td style="padding:7px 10px;white-space:nowrap">'+fdt(r.estimatedCheckOut)+'</td>'
-    +'<td style="padding:7px 10px;white-space:nowrap">'+(r.actualCheckOut?fdt(r.actualCheckOut):'<span style="color:#aaa">Pending</span>')+'</td>'
+    +'<td style="padding:7px 10px;white-space:nowrap">'+(r.actualCheckOut?fdt(r.actualCheckOut):pend)+'</td>'
     +'<td style="padding:7px 10px;text-align:center;font-weight:600">'+r.nightsInPeriod+'</td>'
     +'<td style="padding:7px 10px;white-space:nowrap">£'+r.rate.toFixed(2)+'</td>'
     +'<td style="padding:7px 10px;font-weight:700;color:#633806;white-space:nowrap">£'+r.cost.toFixed(2)+'</td>'
@@ -6547,7 +6616,7 @@ function renderCPReport(){
   let totalCost=rows.reduce((s,r)=>s+r.cost,0);
   if(tfoot) tfoot.innerHTML=
     '<td style="padding:8px 10px;font-weight:700;border-top:2px solid #ddd">TOTAL</td>'
-    +'<td colspan="5" style="border-top:2px solid #ddd"></td>'
+    +'<td colspan="6" style="border-top:2px solid #ddd"></td>'
     +'<td style="padding:8px 10px;font-weight:700;text-align:center;border-top:2px solid #ddd">'+totalNights+'</td>'
     +'<td style="border-top:2px solid #ddd"></td>'
     +'<td style="padding:8px 10px;font-weight:700;color:#633806;border-top:2px solid #ddd">£'+totalCost.toFixed(2)+'</td>'
@@ -6565,8 +6634,8 @@ function exportCPReport(){
   let rows=getCPReportRows();
   if(!rows.length){ alert('No data to export.'); return; }
   let fdt=d=>d?fmtDT(d):'';
-  let csv=[['Reg','Check-in','Sent to us','Returned to hotel','Est. check-out','Actual check-out','Nights (period)','Rate/night','Cost (period)','Status']];
-  rows.forEach(r=>csv.push([r.reg,fdt(r.checkIn),fdt(r.sentToContractor),fdt(r.returnedFromContractor),fdt(r.estimatedCheckOut),fdt(r.actualCheckOut),r.nightsInPeriod,'£'+r.rate.toFixed(2),'£'+r.cost.toFixed(2),r.status]));
+  let csv=[['Reg','Check-in','Sent to contractor','Confirmed receipt','Returned to hotel','Est. check-out','Actual check-out','Nights (period)','Rate/night','Cost (period)','Status']];
+  rows.forEach(r=>csv.push([r.reg,fdt(r.checkIn),fdt(r.sentToContractor),fdt(r.confirmedAtContractor),fdt(r.returnedToHotel),fdt(r.estimatedCheckOut),fdt(r.actualCheckOut),r.nightsInPeriod,'£'+r.rate.toFixed(2),'£'+r.cost.toFixed(2),r.status]));
   let blob=new Blob([csv.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n')],{type:'text/csv'});
   let a=document.createElement('a'); a.href=URL.createObjectURL(blob);
   a.download='contractor-report-'+today()+'.csv'; a.click();
@@ -6598,17 +6667,30 @@ async function loadContractorPortal(){
     let myName  = (currentUser.full_name || currentUser.username || '');
     let myId    = currentUser.contractor_id ? String(currentUser.contractor_id) : null;
 
-    // Match only on current contractor_id or contractor_name — NOT move_log history
+    // For vehicles tab + dashboard: match only current contractor_id/name fields
     function isMyVehicle(v){
       if(myId && v.contractor_id && String(v.contractor_id)===myId) return true;
       if(myName && v.contractor_name && v.contractor_name.toLowerCase()===myName.toLowerCase()) return true;
       return false;
     }
 
+    // For report: also include vehicles that EVER had this contractor in move_log
+    // (fields get cleared when vehicle returns to hotel, so we need log scan for history)
+    function wasEverMine(v){
+      if(isMyVehicle(v)) return true;
+      try{
+        let log=Array.isArray(v.move_log)?v.move_log:JSON.parse(v.move_log||'[]');
+        return log.some(e=>e&&(
+          (myId && e.contractor_id && String(e.contractor_id)===myId) ||
+          (myName && (e.contractor_name||'').toLowerCase()===myName.toLowerCase())
+        ));
+      }catch(e){ return false; }
+    }
+
     let mine = allActive.filter(isMyVehicle);
     let mineHistory = allHistory.filter(isMyVehicle);
     _cpMineActive  = mine;
-    _cpAllVehicles = [...mine, ...mineHistory];
+    _cpAllVehicles = [...allActive,...allHistory].filter(wasEverMine);
 
     // Deliver list: pending_to_contractor (hotel → contractor, needs my confirmation)
     let toDeliver = mine.filter(v=>v.move_status==='pending_to_contractor');
@@ -7168,7 +7250,7 @@ window.addEventListener('DOMContentLoaded',()=>{
     </button>
   </div>
 
-  <div style="max-width:680px;margin:0 auto;padding:1rem">
+  <div id="cp-main-container" style="max-width:680px;margin:0 auto;padding:1rem">
     <div id="cp-alert" style="margin-bottom:1rem"></div>
 
     <!-- ── VEHICLES TAB ── -->
@@ -7237,7 +7319,7 @@ window.addEventListener('DOMContentLoaded',()=>{
       </div>
       <div id="cp-rpt-summary" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:1rem"></div>
       <div style="overflow-x:auto;border:1px solid #eee;border-radius:8px">
-        <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <table id="cp-rpt-table" style="min-width:900px;border-collapse:collapse;font-size:12px;table-layout:auto">
           <thead><tr id="cp-rpt-thead" style="background:#fafaf8"></tr></thead>
           <tbody id="cp-rpt-tbody"></tbody>
           <tfoot><tr id="cp-rpt-tfoot"></tr></tfoot>
