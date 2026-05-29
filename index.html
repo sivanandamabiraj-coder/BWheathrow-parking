@@ -2823,12 +2823,13 @@ function getReportData(){
     vehicles.filter(matchFilters).forEach(v=>{
       try{
         let e=estimateCost(v,td);
-        let conNames=e.contSegments.map(s=>s.name).join(', ')||'–';
-        let conDetail=e.contSegments.map(s=>s.name+': '+s.nights+'n @ £'+(s.rate!=null?(+s.rate).toFixed(2):'?')+' = £'+(+s.cost).toFixed(2)).join(' | ')||'–';
+        let segs=Array.isArray(e.contSegments)?e.contSegments:[];
+        let conNames=segs.map(s=>s.name||'').join(', ')||'–';
+        let conDetailVal=segs.map(s=>(s.name||'?')+': '+s.nights+'n @ £'+(s.rate!=null?(+s.rate).toFixed(2):'?')+' = £'+(+(s.cost||0)).toFixed(2)).join(' | ')||'–';
         let dates=getMoveLogDates(v);
         rows.push({reg:v.reg,name:v.name||'',phone:v.phone||'',room:v.room_number||'',
           status:'Active',location:v.location==='hotel'?'Hotel':'Off-site',
-          contractor:conNames,contDetail,
+          contractor:conNames,contDetail:conDetailVal,
           checkIn:v.check_in_date,
           sentToContractor:dates.firstSentToContractor,
           returnedFromContractor:dates.lastReturnedFromContractor,
@@ -2844,12 +2845,13 @@ function getReportData(){
     historyData.filter(matchFilters).forEach(v=>{
       try{
         let e=estimateCost(v,v.check_out_date||td);
-        let conNames=e.contSegments.map(s=>s.name).join(', ')||'–';
-        let conDetail=e.contSegments.map(s=>s.name+': '+s.nights+'n @ £'+(s.rate!=null?(+s.rate).toFixed(2):'?')+' = £'+(+s.cost).toFixed(2)).join(' | ')||'–';
+        let segs=Array.isArray(e.contSegments)?e.contSegments:[];
+        let conNames=segs.map(s=>s.name||'').join(', ')||'–';
+        let conDetailVal=segs.map(s=>(s.name||'?')+': '+s.nights+'n @ £'+(s.rate!=null?(+s.rate).toFixed(2):'?')+' = £'+(+(s.cost||0)).toFixed(2)).join(' | ')||'–';
         let dates=getMoveLogDates(v);
         rows.push({reg:v.reg,name:v.name||'',phone:v.phone||'',room:v.room_number||'',
           status:'Completed',location:e.cd>0?'Off-site':'Hotel',
-          contractor:conNames,contDetail,
+          contractor:conNames,contDetail:conDetailVal,
           checkIn:v.check_in_date,
           sentToContractor:dates.firstSentToContractor,
           returnedFromContractor:dates.lastReturnedFromContractor,
