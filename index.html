@@ -6404,15 +6404,21 @@ function cpShowTab(tab, btn){
 // ── Contractor dashboard ──
 function renderCPDashboard(){
   if(!currentUser) return;
-  // Use the vehicles already fetched by loadContractorPortal
-  let mine    = _cpMineActive.filter(v=>v.location==='contractor' && (!v.move_status||v.move_status==='null'||v.move_status===''));
+  // If data not loaded yet, fetch first then re-render
+  if(!_cpMineActive.length && !_cpAllVehicles.length){
+    loadContractorPortal().then(()=>renderCPDashboard());
+    return;
+  }
+  // Total with us = all mine that are active (regardless of move_status)
+  let mine    = _cpMineActive;
+  let mineAtContractor = _cpMineActive.filter(v=>v.location==='contractor');
   let toCollect = _cpMineActive.filter(v=>v.move_status==='pending_to_contractor');
 
   // Due back = at contractor and return_date within 3 days
   let td=today();
   let in3=addDays(td,3);
-  let dueBack=mine.filter(v=>(v.return_date||'').slice(0,10)<=in3);
-  let overdue=mine.filter(v=>(v.return_date||'').slice(0,10)<td);
+  let dueBack=mineAtContractor.filter(v=>(v.return_date||'').slice(0,10)<=in3);
+  let overdue=mineAtContractor.filter(v=>(v.return_date||'').slice(0,10)<td);
 
   document.getElementById('cpd-n-total').textContent=mine.length;
   document.getElementById('cpd-n-collect').textContent=toCollect.length;
@@ -6421,7 +6427,7 @@ function renderCPDashboard(){
 
   // Vehicle list — reg and dates only, no customer details
   let listEl=document.getElementById('cpd-vehicle-list');
-  if(!mine.length){
+  if(!mineAtContractor.length){
     listEl.innerHTML='<div style="color:#aaa;padding:8px 0">No vehicles currently with you.</div>';
     return;
   }
@@ -6433,7 +6439,7 @@ function renderCPDashboard(){
     +'<th style="padding:5px 8px;text-align:left;font-weight:600">Nights with you</th>'
     +'<th style="padding:5px 8px;text-align:left;font-weight:600">Status</th>'
     +'</tr>'
-    +mine.map(v=>{
+    +mineAtContractor.map(v=>{
       let nights=nightsApart((v.current_location_start||v.check_in_date||'').slice(0,10), td);
       let isOverdue=(v.return_date||'').slice(0,10)<td;
       let isDueSoon=(v.return_date||'').slice(0,10)<=in3;
@@ -6611,6 +6617,10 @@ async function loadContractorPortal(){
 
     renderCPList('cp-deliver-list', toDeliver, 'deliver');
     renderCPReturnSection(toReturn, withMe);
+
+    // Refresh dashboard/report if currently visible
+    if(document.getElementById('cp-section-dashboard')&&document.getElementById('cp-section-dashboard').style.display!=='none') renderCPDashboard();
+    if(document.getElementById('cp-section-report')&&document.getElementById('cp-section-report').style.display!=='none') renderCPReport();
   }catch(e){
     document.getElementById('cp-alert').innerHTML='<div class="alert warn">Error loading vehicles: '+e.message+'</div>';
   }
