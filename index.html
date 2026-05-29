@@ -6423,9 +6423,11 @@ function renderCPDashboard(){
   let dueBack=mineAtContractor.filter(v=>(v.return_date||'').slice(0,10)<=in3);
   let overdue=mineAtContractor.filter(v=>(v.return_date||'').slice(0,10)<td);
 
+  // toReturn = hotel has asked back (pending_to_hotel)
+  let toReturn = _cpMineActive.filter(v=>v.move_status==='pending_to_hotel');
   document.getElementById('cpd-n-total').textContent=mine.length;
   document.getElementById('cpd-n-collect').textContent=toCollect.length;
-  document.getElementById('cpd-n-return').textContent=dueBack.length;
+  document.getElementById('cpd-n-return').textContent=toReturn.length;
   document.getElementById('cpd-n-overdue').textContent=overdue.length;
 
   // Vehicle list — reg and dates only, no customer details
@@ -6470,41 +6472,41 @@ function getCPReportRows(){
   let td=today();
   let rows=[];
 
-  // Use vehicles already filtered to this contractor by loadContractorPortal
   _cpAllVehicles.forEach(v=>{
     let log=[]; try{let r=v.move_log;log=Array.isArray(r)?r:(typeof r==='string'&&r?JSON.parse(r):[]);log=log.filter(e=>e&&e.loc);}catch(e){log=[];}
     let endDate=v.check_out_date||td;
-    let myId=currentUser.contractor_id?String(currentUser.contractor_id):null;
-    let myName=(currentUser.full_name||currentUser.username||'').toLowerCase();
 
-    // Build contractor segments for this vehicle
-    let segs=[];
-    if(!log.length){
-      if(v.location==='contractor')
-        segs.push({from:v.check_in_date,to:endDate,rate:v.contractor_rate});
-    } else {
-      for(let i=0;i<log.length;i++){
-        if(log[i].loc!=='contractor') continue;
-        let segEnd=i+1<log.length?log[i+1].date:endDate;
-        segs.push({from:log[i].date,to:segEnd,rate:log[i].rate!=null?+log[i].rate:v.contractor_rate});
-      }
+    // Find the date vehicle was sent to contractor (first contractor log entry)
+    let sentToContractor=null, returnedFromContractor=null;
+    for(let i=0;i<log.length;i++){
+      if(log[i].loc==='contractor' && !sentToContractor) sentToContractor=log[i].date;
+      if(log[i].loc==='hotel' && sentToContractor && !returnedFromContractor) returnedFromContractor=log[i].date;
     }
 
-    segs.forEach(seg=>{
-      let clipped=clipSegmentToRange(seg,fromF,toF);
-      if(!clipped||clipped.nights<=0) return;
-      let rate=seg.rate!=null?+seg.rate:0;
-      rows.push({
-        reg:v.reg,
-        checkIn:v.check_in_date,
-        segFrom:clipped.from,
-        segTo:clipped.to,
-        nights:clipped.nights,
-        rate:rate,
-        cost:+(clipped.nights*rate).toFixed(2),
-        returnDate:v.return_date,
-        status:v.status==='active'?'Active':'Completed'
-      });
+    // Contractor segment: from sentToContractor (or check_in if direct) to returnedFromContractor (or endDate)
+    let segFrom = sentToContractor || (v.location==='contractor'?v.check_in_date:null);
+    if(!segFrom) return; // never went to contractor
+
+    let segTo = returnedFromContractor || endDate;
+    let rate = v.contractor_rate!=null ? +v.contractor_rate : 0;
+    let nights = nightsApart(segFrom, segTo);
+
+    // Apply date range filter to segment
+    let clipped = clipSegmentToRange({from:segFrom, to:segTo}, fromF, toF);
+    if(!clipped || clipped.nights<=0) return;
+
+    rows.push({
+      reg:           v.reg,
+      checkIn:       v.check_in_date,
+      sentToContractor:      segFrom,
+      returnedFromContractor: returnedFromContractor,
+      estimatedCheckOut:     v.return_date,
+      actualCheckOut:        v.check_out_date,
+      nightsInPeriod:        clipped.nights,
+      totalNightsAtContractor: nights,
+      rate:          rate,
+      cost:          +(clipped.nights * rate).toFixed(2),
+      status:        v.status==='active'?'Active':'Completed'
     });
   });
   return rows;
@@ -6512,57 +6514,60 @@ function getCPReportRows(){
 
 function renderCPReport(){
   let rows=getCPReportRows();
-  let headers=['Reg','Check-in','At contractor from','At contractor to','Nights','Rate/night','Cost','Return due','Status'];
+  let headers=['Reg','Check-in','Sent to us','Returned to hotel','Est. check-out','Actual check-out','Nights (period)','Rate/night','Cost (period)','Status'];
   let thead=document.getElementById('cp-rpt-thead');
   let tbody=document.getElementById('cp-rpt-tbody');
   let tfoot=document.getElementById('cp-rpt-tfoot');
   if(!thead||!tbody) return;
 
-  thead.innerHTML=headers.map(h=>'<th style="padding:8px 10px;font-size:11px;font-weight:600;color:#666;border-bottom:2px solid #ddd;text-align:left;white-space:nowrap;min-width:90px">'+h+'</th>').join('');
+  thead.innerHTML=headers.map(h=>'<th style="padding:8px 10px;font-size:11px;font-weight:600;color:#666;border-bottom:2px solid #ddd;text-align:left;white-space:nowrap;min-width:100px">'+h+'</th>').join('');
 
   if(!rows.length){
-    tbody.innerHTML='<tr><td colspan="'+headers.length+'" style="text-align:center;padding:2rem;color:#aaa">No records found</td></tr>';
+    tbody.innerHTML='<tr><td colspan="'+headers.length+'" style="text-align:center;padding:2rem;color:#aaa">No records found — try clearing the date filters</td></tr>';
     if(tfoot) tfoot.innerHTML='';
     document.getElementById('cp-rpt-summary').innerHTML='';
     return;
   }
 
+  let fdt=d=>d?fmtDT(d):'–';
   tbody.innerHTML=rows.map(r=>'<tr style="border-bottom:1px solid #f0f0f0">'
     +'<td style="padding:7px 10px;font-weight:700;color:#1E407C;white-space:nowrap">'+r.reg+'</td>'
-    +'<td style="padding:7px 10px;white-space:nowrap">'+fmtD(r.checkIn)+'</td>'
-    +'<td style="padding:7px 10px;white-space:nowrap">'+fmtD(r.segFrom)+'</td>'
-    +'<td style="padding:7px 10px;white-space:nowrap">'+fmtD(r.segTo)+'</td>'
-    +'<td style="padding:7px 10px;text-align:center">'+r.nights+'</td>'
+    +'<td style="padding:7px 10px;white-space:nowrap">'+fdt(r.checkIn)+'</td>'
+    +'<td style="padding:7px 10px;white-space:nowrap">'+fdt(r.sentToContractor)+'</td>'
+    +'<td style="padding:7px 10px;white-space:nowrap">'+fdt(r.returnedFromContractor)+'</td>'
+    +'<td style="padding:7px 10px;white-space:nowrap">'+fdt(r.estimatedCheckOut)+'</td>'
+    +'<td style="padding:7px 10px;white-space:nowrap">'+(r.actualCheckOut?fdt(r.actualCheckOut):'<span style="color:#aaa">Pending</span>')+'</td>'
+    +'<td style="padding:7px 10px;text-align:center;font-weight:600">'+r.nightsInPeriod+'</td>'
     +'<td style="padding:7px 10px;white-space:nowrap">£'+r.rate.toFixed(2)+'</td>'
-    +'<td style="padding:7px 10px;font-weight:600;color:#633806;white-space:nowrap">£'+r.cost.toFixed(2)+'</td>'
-    +'<td style="padding:7px 10px;white-space:nowrap">'+fmtD(r.returnDate)+'</td>'
+    +'<td style="padding:7px 10px;font-weight:700;color:#633806;white-space:nowrap">£'+r.cost.toFixed(2)+'</td>'
     +'<td style="padding:7px 10px"><span style="font-size:10px;padding:2px 7px;border-radius:10px;background:'+(r.status==='Active'?'#E1F5EE':'#f0f0f0')+';color:'+(r.status==='Active'?'#085041':'#555')+'">'+r.status+'</span></td>'
     +'</tr>').join('');
 
-  let totalNights=rows.reduce((s,r)=>s+r.nights,0);
+  let totalNights=rows.reduce((s,r)=>s+r.nightsInPeriod,0);
   let totalCost=rows.reduce((s,r)=>s+r.cost,0);
   if(tfoot) tfoot.innerHTML=
-    '<td style="padding:8px 10px;font-weight:700">TOTAL</td>'
-    +'<td colspan="3"></td>'
-    +'<td style="padding:8px 10px;font-weight:700;text-align:center">'+totalNights+'</td>'
-    +'<td></td>'
-    +'<td style="padding:8px 10px;font-weight:700;color:#633806">£'+totalCost.toFixed(2)+'</td>'
-    +'<td colspan="2"></td>';
+    '<td style="padding:8px 10px;font-weight:700;border-top:2px solid #ddd">TOTAL</td>'
+    +'<td colspan="5" style="border-top:2px solid #ddd"></td>'
+    +'<td style="padding:8px 10px;font-weight:700;text-align:center;border-top:2px solid #ddd">'+totalNights+'</td>'
+    +'<td style="border-top:2px solid #ddd"></td>'
+    +'<td style="padding:8px 10px;font-weight:700;color:#633806;border-top:2px solid #ddd">£'+totalCost.toFixed(2)+'</td>'
+    +'<td style="border-top:2px solid #ddd"></td>';
 
   document.getElementById('cp-rpt-summary').innerHTML=
-    '<div style="background:#f5f5f3;border-radius:8px;padding:8px 14px;font-size:12px">'
+    '<div style="background:#f5f5f3;border-radius:8px;padding:10px 14px;font-size:12px">'
     +'<strong>'+rows.length+'</strong> vehicle(s) &nbsp;·&nbsp; '
-    +'<strong>'+totalNights+'</strong> total nights &nbsp;·&nbsp; '
-    +'Total cost: <strong style="color:#633806">£'+totalCost.toFixed(2)+'</strong>'
+    +'<strong>'+totalNights+'</strong> nights in period &nbsp;·&nbsp; '
+    +'Earnings: <strong style="color:#633806;font-size:14px">£'+totalCost.toFixed(2)+'</strong>'
     +'</div>';
 }
 
 function exportCPReport(){
   let rows=getCPReportRows();
   if(!rows.length){ alert('No data to export.'); return; }
-  let csv=[['Reg','Check-in','At contractor from','At contractor to','Nights','Rate/night','Cost','Return due','Status']];
-  rows.forEach(r=>csv.push([r.reg,fmtD(r.checkIn),fmtD(r.segFrom),fmtD(r.segTo),r.nights,'£'+r.rate.toFixed(2),'£'+r.cost.toFixed(2),fmtD(r.returnDate),r.status]));
-  let blob=new Blob([csv.map(r=>r.join(',')).join('\n')],{type:'text/csv'});
+  let fdt=d=>d?fmtDT(d):'';
+  let csv=[['Reg','Check-in','Sent to us','Returned to hotel','Est. check-out','Actual check-out','Nights (period)','Rate/night','Cost (period)','Status']];
+  rows.forEach(r=>csv.push([r.reg,fdt(r.checkIn),fdt(r.sentToContractor),fdt(r.returnedFromContractor),fdt(r.estimatedCheckOut),fdt(r.actualCheckOut),r.nightsInPeriod,'£'+r.rate.toFixed(2),'£'+r.cost.toFixed(2),r.status]));
+  let blob=new Blob([csv.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n')],{type:'text/csv'});
   let a=document.createElement('a'); a.href=URL.createObjectURL(blob);
   a.download='contractor-report-'+today()+'.csv'; a.click();
 }
