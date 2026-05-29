@@ -2032,32 +2032,22 @@ function estimateCost(v, asOfDate){
 
   let segments = [];
   if(!log.length){
-    // No move history — vehicle has been at its current location since check-in
+    // No move_log at all — fall back to current vehicle state
     segments.push({
       loc: v.location, from: v.check_in_date, to: td,
       contractor_name: v.contractor_name||null,
       rate: v.contractor_rate!=null ? +v.contractor_rate : null
     });
   } else {
-    // The move_log records each location AFTER a move.
-    // log[0] = where the vehicle went first. Before that it was at check-in location.
-    // We infer the initial location as opposite of log[0].loc only if check_in_date < log[0].date.
-    // More reliably: if log[0].loc === 'contractor', vehicle started at hotel (check-in is always hotel).
-    // If log[0].loc === 'hotel', vehicle started at contractor (unusual but possible).
-    let firstLog = log[0];
-    let initLoc = firstLog.loc === 'contractor' ? 'hotel' : 'contractor';
-    if(v.check_in_date && firstLog.date && (v.check_in_date+'').slice(0,10) < (firstLog.date+'').slice(0,10)){
-      segments.push({
-        loc: initLoc, from: v.check_in_date, to: firstLog.date,
-        contractor_name: initLoc==='contractor' ? (v.contractor_name||null) : null,
-        rate: initLoc==='contractor' ? (v.contractor_rate!=null ? +v.contractor_rate : null) : null
-      });
-    }
-    // Build segments from each log entry
+    // move_log[0] IS the check-in entry (loc = initial location, date = check-in date).
+    // Each subsequent entry is a move to a new location.
+    // Segment i = log[i].loc, from log[i].date to log[i+1].date (or td).
     for(let i=0; i<log.length; i++){
       let segStart = log[i].date;
-      if(!segStart || segStart >= td) break;
-      let segEnd = (i+1 < log.length && log[i+1].date && log[i+1].date < td) ? log[i+1].date : td;
+      if(!segStart) continue;
+      if((segStart+'').slice(0,10) >= (td+'').slice(0,10)) break;
+      let segEnd = (i+1 < log.length && log[i+1] && log[i+1].date)
+        ? log[i+1].date : td;
       segments.push({
         loc: log[i].loc, from: segStart, to: segEnd,
         contractor_name: log[i].contractor_name||null,
