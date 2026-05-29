@@ -151,6 +151,7 @@
     text-transform:uppercase;letter-spacing:.05em
   }
   td{padding:9px 10px;border-bottom:1px solid var(--border);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text)}
+  #rpt-table td,#rpt-table th{overflow:visible;text-overflow:clip}
   tr:last-child td{border-bottom:none}
   tbody tr{transition:background .1s}
   tbody tr:hover td{background:var(--blue-pale)}
@@ -882,7 +883,7 @@ on conflict (key) do nothing;</textarea>
         <div id="rpt-summary-strip" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:1rem"></div>
         <div style="overflow-x:auto;border:1px solid #eee;border-radius:8px">
           <div id="rpt-preview-wrap">
-            <table id="rpt-table">
+            <table id="rpt-table" style="min-width:100%;border-collapse:collapse;table-layout:auto">
               <thead><tr id="rpt-thead"></tr></thead>
               <tbody id="rpt-tbody"></tbody>
               <tfoot><tr id="rpt-tfoot"></tr></tfoot>
@@ -3014,7 +3015,7 @@ function previewReport(){
   let tfoot=document.getElementById('rpt-tfoot');
   let countEl=document.getElementById('rpt-count');
 
-  thead.innerHTML=headers.map(h=>'<th style="padding:8px 10px;font-size:11px;font-weight:600;color:#666;border-bottom:1px solid #eee;background:#fafaf8;white-space:nowrap">'+h+'</th>').join('');
+  thead.innerHTML=headers.map(h=>'<th style="padding:8px 10px;font-size:11px;font-weight:600;color:#666;border-bottom:2px solid #ddd;background:#fafaf8;white-space:nowrap;min-width:90px;text-align:left">'+h+'</th>').join('');
 
   if(!rows.length){
     let src=type==='active'?'vehicles':type==='history'?'historyData':'data';
@@ -3026,7 +3027,10 @@ function previewReport(){
     return;
   }
 
-  tbody.innerHTML=rows.map(r=>'<tr>'+rowToArray(r,type).map(c=>'<td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:12px;white-space:nowrap">'+(c!==null&&c!==undefined?c:'–')+'</td>').join('')+'</tr>').join('');
+  tbody.innerHTML=rows.map(r=>'<tr style="border-bottom:1px solid #f0f0f0">'+rowToArray(r,type).map((c,i)=>{
+    let isDetail = i===rowToArray(r,type).length-1; // last col = detail, allow wrap
+    return '<td style="padding:8px 10px;font-size:12px;white-space:'+(isDetail?'normal':'nowrap')+';min-width:80px;max-width:'+(isDetail?'220px':'180px')+';overflow:hidden;text-overflow:ellipsis">'+(c!==null&&c!==undefined?c:'–')+'</td>';
+  }).join('')+'</tr>').join('');
   if(countEl) countEl.textContent=rows.length+' row(s)';
 
   let totalCont=rows.reduce((s,r)=>s+(+r.contCost||0),0);
