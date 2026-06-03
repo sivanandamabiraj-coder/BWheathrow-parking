@@ -862,6 +862,7 @@ on conflict (key) do nothing;</textarea>
               <option value="history">Completed bookings</option>
               <option value="contractor">Contractor usage</option>
               <option value="monthly">Monthly cost summary</option>
+              <option value="monthly-detail">Monthly detail report</option>
               <option value="tc">T&amp;C acceptance log</option>
             </select>
           </div>
@@ -2947,6 +2948,84 @@ function getReportData(){
     }))};
   }
 
+  if(type==='monthly-detail'){
+    // Mirror the SQL report: clip each vehicle's segments to the selected period
+    // fromF and toF define the period (default to current month if blank)
+    let pFrom = fromF || today().slice(0,7)+'-01';
+    let pTo   = toF   || today();
+
+    let allVehicles=[...vehicles,...historyData];
+    allVehicles.forEach(v=>{
+      if(regF && !(v.reg||'').toUpperCase().includes(regF)) return;
+
+      // Skip vehicles with no overlap with the period
+      let vStart=(v.check_in_date||'').slice(0,10);
+      let vEnd=(v.check_out_date||pTo).slice(0,10);
+      if(vStart>pTo || vEnd<pFrom) return;
+
+      // Build segments from move_log (same as estimateCost)
+      let log=[]; 
+      try{
+        let r=v.move_log;
+        log=Array.isArray(r)?r:(typeof r==='string'&&r?JSON.parse(r):[]);
+        log=log.filter(e=>e&&e.loc);
+      }catch(e){log=[];}
+
+      let segments=[];
+      if(!log.length){
+        segments.push({loc:v.location, from:vStart, to:vEnd,
+          rate:v.contractor_rate!=null?+v.contractor_rate:0,
+          contractor_name:v.contractor_name||null});
+      } else {
+        for(let i=0;i<log.length;i++){
+          let segFrom=log[i].date?(log[i].date+'').slice(0,10):vStart;
+          let segTo=i+1<log.length&&log[i+1]&&log[i+1].date
+            ?(log[i+1].date+'').slice(0,10):vEnd;
+          segments.push({
+            loc:log[i].loc, from:segFrom, to:segTo,
+            rate:log[i].rate!=null?+log[i].rate:(v.contractor_rate||0),
+            contractor_name:log[i].contractor_name||v.contractor_name||null
+          });
+        }
+      }
+
+      // Clip each segment to the period and accumulate
+      let hotelNights=0, contNights=0, contCost=0;
+      let contractorNames=new Set();
+      segments.forEach(seg=>{
+        let c=clipSegmentToRange(seg, pFrom, pTo);
+        if(!c||c.nights<=0) return;
+        if(seg.loc==='hotel'){
+          hotelNights+=c.nights;
+        } else {
+          contNights+=c.nights;
+          contCost+=c.nights*(seg.rate||0);
+          if(seg.contractor_name) contractorNames.add(seg.contractor_name);
+        }
+      });
+
+      let totalNights=hotelNights+contNights;
+      if(totalNights<=0) return;
+
+      rows.push({
+        reg:          v.reg,
+        name:         v.name||'–',
+        room:         v.room_number||'',
+        status:       v.status==='active'?'Active':'Completed',
+        checkIn:      v.check_in_date,
+        expectedOut:  v.return_date,
+        actualOut:    v.check_out_date||null,
+        hotelNights,
+        contNights,
+        totalNights,
+        contCost:     +contCost.toFixed(2),
+        contractors:  [...contractorNames].join(', ')||null
+      });
+    });
+    // Sort by check-in date
+    rows.sort((a,b)=>(a.checkIn||'')>(b.checkIn||'')?1:-1);
+  }
+
   if(type==='tc'){
     let tcRows=[...pendingData.filter(p=>p.tc_accepted),...historyData.filter(h=>h.tc_accepted_at)].map(r=>({
       ref:r.ref_code||'–',reg:r.reg,name:r.name,phone:r.phone||'–',email:r.email||'–',
@@ -2961,6 +3040,7 @@ function getReportData(){
 function getReportHeaders(type){
   if(type==='tc') return ['Ref','Reg','Name','Phone','Email','T&C accepted at','Check-in','Status'];
   if(type==='monthly') return ['Month','Vehicles','Hotel nights','Cont. nights','Cont. cost','Contractors'];
+  if(type==='monthly-detail') return ['Reg','Customer','Room','Status','Check-in','Expected out','Actual out','Hotel nights','Contractor nights','Total nights','Contractor cost','Contractor'];
   if(type==='contractor') return ['Reg','Customer','Contractor','Rate/night','Status','Check-in','Sent to Contractor','Returned from Contractor','Seg. from (clipped)','Seg. to (clipped)','Nights (in period)','Cost (in period)','Checkout date','Actual check-out'];
   if(type==='active') return ['Ref','Reg','Customer','Phone','Room','Status','Location','Contractor','Check-in','Sent to Contractor','Returned from Contractor','Expected Return','Hotel nights','Cont. nights','Cont. cost','Detail'];
   return ['Ref','Reg','Customer','Phone','Room','Status','Location','Contractor','Check-in','Sent to Contractor','Returned from Contractor','Expected Return','Checkout date','Actual check-out','Hotel nights','Cont. nights','Cont. cost','Detail'];
@@ -2971,6 +3051,13 @@ function rowToArray(row,type){
   let fd=v=>v?fmtD(v):'–';
   if(type==='tc') return [row.ref,row.reg,row.name,row.phone,row.email,row.accepted_at,row.check_in,row.status];
   if(type==='monthly') return [row.month,row.vehicles,row.hotelNights,row.contNights,fmt(row.contCost),row.contractors];
+  if(type==='monthly-detail') return [
+    row.reg, row.name, row.room||'–', row.status,
+    fd(row.checkIn), fd(row.expectedOut), row.actualOut?fd(row.actualOut):'–',
+    row.hotelNights, row.contNights, row.totalNights,
+    row.contCost>0?fmt(row.contCost):'–',
+    row.contractors||'–'
+  ];
   if(type==='contractor') return [
     row.reg, row.name, row.contractor, row.rate, row.status,
     fd(row.checkIn),
@@ -3048,10 +3135,18 @@ function previewReport(){
   let totalCont=rows.reduce((s,r)=>s+(+r.contCost||0),0);
   let totalContN=rows.reduce((s,r)=>s+(+r.contNights||0),0);
   let totalHN=rows.reduce((s,r)=>s+(+r.hotelNights||0),0);
+  let totalTN=rows.reduce((s,r)=>s+(+r.totalNights||0),0);
   let strip=`<div class="metric"><div class="lbl">Records</div><div class="val">${rows.length}</div></div>`;
-  if(totalHN>0) strip+=`<div class="metric"><div class="lbl">Hotel nights</div><div class="val">${totalHN}</div></div>`;
-  if(totalContN>0) strip+=`<div class="metric"><div class="lbl">Off-site nights</div><div class="val">${totalContN}</div></div>`;
-  if(totalCont>0) strip+=`<div class="metric"><div class="lbl">Contractor cost</div><div class="val" style="color:#633806">£${totalCont.toFixed(2)}</div></div>`;
+  if(type==='monthly-detail'){
+    strip+=`<div class="metric"><div class="lbl">Hotel nights</div><div class="val">${totalHN}</div></div>`;
+    strip+=`<div class="metric"><div class="lbl">Contractor nights</div><div class="val">${totalContN}</div></div>`;
+    strip+=`<div class="metric"><div class="lbl">Total nights</div><div class="val">${totalTN}</div></div>`;
+    if(totalCont>0) strip+=`<div class="metric"><div class="lbl">Contractor cost</div><div class="val" style="color:#633806">£${totalCont.toFixed(2)}</div></div>`;
+  } else {
+    if(totalHN>0) strip+=`<div class="metric"><div class="lbl">Hotel nights</div><div class="val">${totalHN}</div></div>`;
+    if(totalContN>0) strip+=`<div class="metric"><div class="lbl">Off-site nights</div><div class="val">${totalContN}</div></div>`;
+    if(totalCont>0) strip+=`<div class="metric"><div class="lbl">Contractor cost</div><div class="val" style="color:#633806">£${totalCont.toFixed(2)}</div></div>`;
+  }
   document.getElementById('rpt-summary-strip').innerHTML=strip;
 
   // Totals footer
@@ -3063,6 +3158,14 @@ function previewReport(){
     tfoot.innerHTML=rowToArray(tot,type).map(tfootCells).join('');
   } else if(type==='contractor'){
     let tot={reg:'TOTAL',name:'',contractor:'',rate:'',status:'',checkIn:'',sentToContractor:'',returnedFromContractor:'',segFrom:'',segTo:'',contNights:rows.reduce((s,r)=>s+(+r.contNights||0),0),contCost:rows.reduce((s,r)=>s+(+r.contCost||0),0),returnDate:'',actualCheckOut:''};
+    tfoot.innerHTML=rowToArray(tot,type).map(tfootCells).join('');
+  } else if(type==='monthly-detail'){
+    let mdHN=rows.reduce((s,r)=>s+(+r.hotelNights||0),0);
+    let mdCN=rows.reduce((s,r)=>s+(+r.contNights||0),0);
+    let mdTN=rows.reduce((s,r)=>s+(+r.totalNights||0),0);
+    let mdCC=rows.reduce((s,r)=>s+(+r.contCost||0),0);
+    let tot={reg:'TOTAL',name:rows.length+' vehicles',room:'',status:'',checkIn:'',expectedOut:'',actualOut:'',
+      hotelNights:mdHN,contNights:mdCN,totalNights:mdTN,contCost:mdCC,contractors:''};
     tfoot.innerHTML=rowToArray(tot,type).map(tfootCells).join('');
   } else if(type==='active'||type==='history'){
     let tot={refCode:'TOTAL',reg:'',name:'',phone:'',room:'',status:'',location:'',contractor:'',checkIn:'',sentToContractor:'',returnedFromContractor:'',returnDate:'',checkOut:'',actualCheckOut:'',hotelNights:totalHN,contNights:totalContN,contCost:totalCont,contDetail:''};
