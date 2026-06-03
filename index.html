@@ -2813,28 +2813,36 @@ function renderHistory(){
 // ════════════════════════════════════════════
 // REPORTS ENGINE
 // ════════════════════════════════════════════
-function getReportData(){
-  let type=document.getElementById('rpt-type').value;
-  let fromF=document.getElementById('rpt-from').value;
-  let toF=document.getElementById('rpt-to').value;
-  let regF=document.getElementById('rpt-reg').value.trim().toUpperCase();
-  let locF=document.getElementById('rpt-loc').value;
-  let td=today();
+async function getReportData(){
+  let type  = document.getElementById('rpt-type').value;
+  let fromF = document.getElementById('rpt-from').value;   // yyyy-mm-dd or ''
+  let toF   = document.getElementById('rpt-to').value;     // yyyy-mm-dd or ''
+  let regF  = (document.getElementById('rpt-reg')?.value||'').trim().toUpperCase();
+  let td    = today();
 
-  function matchFilters(v){
-    let ciDate=(v.check_in_date||'').slice(0,10); // strip time for date comparison
-    // Location filter only applies to contractor usage report
-    let locMatch = (type==='contractor') ? (!locF||v.location===locF) : true;
-    return (!regF||v.reg.includes(regF))&&
-           locMatch&&
-           (!fromF||ciDate>=fromF)&&
-           (!toF||ciDate<=toF);
+  // ── Fetch data directly from Supabase for this report ─────────────────
+  // Apply date range filter at query level — no limit issues
+  async function fetchForReport(statuses){
+    let queries = statuses.map(async st=>{
+      let url='vehicles?status=eq.'+st+'&order=check_in_date.desc&limit=5000&select=*';
+      // Apply date range overlap filter when dates are set
+      if(fromF) url+='&check_in_date=lte.'+toF+'T23:59:59Z';
+      if(toF)   url+='&or=(check_out_date.is.null,check_out_date.gte.'+fromF+'T00:00:00Z)';
+      // Registration filter at DB level
+      if(regF)  url+='&reg=ilike.*'+encodeURIComponent(regF)+'*';
+      try{ let r=await sbFetch(url); return Array.isArray(r)?r:[]; }
+      catch(e){ console.warn('fetchForReport failed:',e.message); return []; }
+    });
+    let results = await Promise.all(queries);
+    return results.flat();
   }
 
   let rows=[];
 
+  // ── Active vehicles report ────────────────────────────────────────────
   if(type==='active'){
-    vehicles.filter(matchFilters).forEach(v=>{
+    let data = await fetchForReport(['active']);
+    data.forEach(v=>{
       try{
         let e=estimateCost(v,td);
         let segs=Array.isArray(e.contSegments)?e.contSegments:[];
@@ -2855,8 +2863,10 @@ function getReportData(){
     });
   }
 
+  // ── Completed bookings report ─────────────────────────────────────────
   if(type==='history'){
-    historyData.filter(matchFilters).forEach(v=>{
+    let data = await fetchForReport(['checked-out']);
+    data.forEach(v=>{
       try{
         let e=estimateCost(v,v.check_out_date||td);
         let segs=Array.isArray(e.contSegments)?e.contSegments:[];
@@ -2878,164 +2888,134 @@ function getReportData(){
     });
   }
 
+  // ── Contractor usage report ───────────────────────────────────────────
   if(type==='contractor'){
-    [...vehicles,...historyData].forEach(v=>{
-      if(regF&&!v.reg.includes(regF)) return;
+    let locF=document.getElementById('rpt-loc')?.value||'';
+    let data = await fetchForReport(['active','checked-out']);
+    data.forEach(v=>{
+      if(locF && v.location!==locF) return;
       let endDate=v.check_out_date||td;
-      let log=[]; try{log=JSON.parse(v.move_log||'[]');}catch(e){}
+      let log=[]; try{let r=v.move_log;log=Array.isArray(r)?r:(typeof r==='string'&&r?JSON.parse(r):[]);log=log.filter(e=>e&&e.loc);}catch(e){log=[];}
       let dates=getMoveLogDates(v);
       let segs=log.length?log.map((entry,i)=>({
         loc:entry.loc,from:entry.date,
-        to:(i+1<log.length?log[i+1].date:endDate),
+        to:(i+1<log.length&&log[i+1])?log[i+1].date:endDate,
         contractor_name:entry.contractor_name||null,
         rate:entry.rate!=null?+entry.rate:null
       })).filter(s=>s.loc==='contractor'&&(s.from||'')<endDate)
-      :[{loc:v.location,from:v.check_in_date,to:endDate,contractor_name:v.contractor_name||null,rate:v.contractor_rate!=null?+v.contractor_rate:null}]
-        .filter(s=>s.loc==='contractor');
+      :[{loc:v.location,from:v.check_in_date,to:endDate,contractor_name:v.contractor_name||null,
+         rate:v.contractor_rate!=null?+v.contractor_rate:null}].filter(s=>s.loc==='contractor');
       segs.forEach(seg=>{
-        // Clip segment to the selected date range window
-        let clipped=clipSegmentToRange(seg, fromF, toF);
-        if(!clipped) return;
-        let nights=clipped.nights;
-        if(nights<=0) return;
+        let clipped=clipSegmentToRange(seg,fromF,toF);
+        if(!clipped||clipped.nights<=0) return;
         let rate=seg.rate;
         if(rate==null){let con=getContractorById(v.contractor_id)||(Array.isArray(contractorsList)?contractorsList.find(c=>c.active):null);rate=con?calcContractorRate(con):0;}
         rows.push({reg:v.reg,name:v.name,contractor:seg.contractor_name||'Off-site',
-          rate:'£'+rate.toFixed(2)+'/night',status:v.status==='active'?'Active':'Completed',
+          rate:'£'+(+rate).toFixed(2)+'/night',status:v.status==='active'?'Active':'Completed',
           checkIn:v.check_in_date,
           sentToContractor:dates.firstSentToContractor,
           returnedFromContractor:dates.lastReturnedFromContractor,
-          returnDate:v.return_date,
-          actualCheckOut:v.check_out_date,
-          segFrom:clipped.from, segTo:clipped.to,
-          fullSegFrom:seg.from, fullSegTo:seg.to,
-          contNights:nights,contCost:+(nights*rate).toFixed(2)});
+          segFrom:clipped.from,segTo:clipped.to,
+          fullSegFrom:seg.from,fullSegTo:seg.to,
+          contNights:clipped.nights,contCost:+(clipped.nights*(+rate)).toFixed(2),
+          returnDate:v.return_date,actualCheckOut:v.check_out_date});
       });
     });
   }
 
+  // ── Monthly cost summary ──────────────────────────────────────────────
   if(type==='monthly'){
+    let data = await fetchForReport(['active','checked-out']);
     let byMonth={};
-    function em(k){if(!byMonth[k])byMonth[k]={month:k,vehicles:new Set(),hotelNights:0,contNights:0,contCost:0,contractors:new Set()};return byMonth[k];}
-    [...vehicles,...historyData].forEach(v=>{
-      let log=[]; try{log=JSON.parse(v.move_log||'[]');}catch(e){}
-      let endDate=v.check_out_date||td;
-      let segs=log.length?log.map((entry,i)=>({loc:entry.loc,from:entry.date,to:(i+1<log.length?log[i+1].date:endDate),contractor_name:entry.contractor_name||null,rate:entry.rate!=null?+entry.rate:null}))
-        :[{loc:v.location,from:v.check_in_date,to:endDate,contractor_name:v.contractor_name||null,rate:v.contractor_rate!=null?+v.contractor_rate:null}];
-      segs.forEach(seg=>{
-        let nights=nightsApart(seg.from,seg.to);
-        if(nights<=0) return;
-        let cur=new Date(seg.from); let endD=new Date(seg.to);
-        while(cur<endD){
-          let mk=cur.toISOString().slice(0,7);
-          if(fromF&&mk<fromF.slice(0,7)){cur=new Date(cur.getFullYear(),cur.getMonth()+1,1);continue;}
-          if(toF&&mk>toF.slice(0,7)) break;
-          let me=new Date(cur.getFullYear(),cur.getMonth()+1,1); if(me>endD)me=endD;
-          let mn=nightsApart(cur.toISOString().slice(0,10),me.toISOString().slice(0,10));
-          if(mn>0){
-            let m=em(mk); m.vehicles.add(v.reg);
-            if(seg.loc==='hotel'){m.hotelNights+=mn;}
-            else{let rate=seg.rate;if(rate==null){let con=getContractorById(v.contractor_id)||(Array.isArray(contractorsList)?contractorsList.find(c=>c.active):null);rate=con?calcContractorRate(con):0;}m.contNights+=mn;m.contCost+=+(mn*rate).toFixed(2);if(seg.contractor_name)m.contractors.add(seg.contractor_name);}
-          }
-          cur=new Date(cur.getFullYear(),cur.getMonth()+1,1);
-        }
-      });
+    data.forEach(v=>{
+      let e=estimateCost(v,v.check_out_date||td);
+      let mo=(v.check_in_date||'').slice(0,7);
+      if(!mo) return;
+      if(!byMonth[mo]) byMonth[mo]={month:mo,vehicles:0,hotelNights:0,contNights:0,contCost:0,contractors:new Set()};
+      byMonth[mo].vehicles++;
+      byMonth[mo].hotelNights+=e.hd;
+      byMonth[mo].contNights+=e.cd;
+      byMonth[mo].contCost+=e.contCost;
+      e.contSegments.forEach(s=>s.name&&byMonth[mo].contractors.add(s.name));
     });
     return{type,rows:Object.values(byMonth).sort((a,b)=>a.month>b.month?1:-1).map(r=>({
-      month:r.month,vehicles:r.vehicles.size,hotelNights:r.hotelNights,
-      contNights:r.contNights,contCost:+(r.contCost).toFixed(2),
-      contractors:[...r.contractors].join(', ')||'–'
+      ...r,contCost:+r.contCost.toFixed(2),contractors:[...r.contractors].join(', ')||'–'
     }))};
   }
 
+  // ── Monthly detail report ─────────────────────────────────────────────
   if(type==='monthly-detail'){
-    // Mirror the SQL report: clip each vehicle's segments to the selected period
-    // fromF and toF define the period (default to current month if blank)
     let pFrom = fromF || today().slice(0,7)+'-01';
     let pTo   = toF   || today();
+    showLoading('Loading vehicles for period...');
+    let data=[];
+    try{
+      let [active,history]=await Promise.all([
+        sbFetch('vehicles?status=eq.active&select=*&limit=5000'),
+        sbFetch('vehicles?status=eq.checked-out&check_in_date=lte.'+pTo+'T23:59:59Z&or=(check_out_date.is.null,check_out_date.gte.'+pFrom+'T00:00:00Z)&select=*&limit=5000')
+      ]);
+      data=[...(Array.isArray(active)?active:[]),...(Array.isArray(history)?history:[])];
+      hideLoading();
+    }catch(e){ hideLoading(); data=[...vehicles,...historyData]; }
 
-    let allVehicles=[...vehicles,...historyData];
-    allVehicles.forEach(v=>{
-      if(regF && !(v.reg||'').toUpperCase().includes(regF)) return;
-
-      // Skip vehicles with no overlap with the period
+    data.forEach(v=>{
+      if(regF&&!(v.reg||'').toUpperCase().includes(regF)) return;
       let vStart=(v.check_in_date||'').slice(0,10);
       let vEnd=(v.check_out_date||pTo).slice(0,10);
-      if(vStart>pTo || vEnd<pFrom) return;
-
-      // Build segments from move_log (same as estimateCost)
-      let log=[]; 
-      try{
-        let r=v.move_log;
-        log=Array.isArray(r)?r:(typeof r==='string'&&r?JSON.parse(r):[]);
-        log=log.filter(e=>e&&e.loc);
-      }catch(e){log=[];}
-
+      if(vStart>pTo||vEnd<pFrom) return;
+      let log=[];
+      try{let r=v.move_log;log=Array.isArray(r)?r:(typeof r==='string'&&r?JSON.parse(r):[]);log=log.filter(e=>e&&e.loc);}catch(e){log=[];}
       let segments=[];
       if(!log.length){
-        segments.push({loc:v.location, from:vStart, to:vEnd,
-          rate:v.contractor_rate!=null?+v.contractor_rate:0,
-          contractor_name:v.contractor_name||null});
+        segments.push({loc:v.location,from:vStart,to:vEnd,rate:v.contractor_rate!=null?+v.contractor_rate:0,contractor_name:v.contractor_name||null});
       } else {
         for(let i=0;i<log.length;i++){
           let segFrom=log[i].date?(log[i].date+'').slice(0,10):vStart;
-          let segTo=i+1<log.length&&log[i+1]&&log[i+1].date
-            ?(log[i+1].date+'').slice(0,10):vEnd;
-          segments.push({
-            loc:log[i].loc, from:segFrom, to:segTo,
+          let segTo=i+1<log.length&&log[i+1]&&log[i+1].date?(log[i+1].date+'').slice(0,10):vEnd;
+          segments.push({loc:log[i].loc,from:segFrom,to:segTo,
             rate:log[i].rate!=null?+log[i].rate:(v.contractor_rate||0),
-            contractor_name:log[i].contractor_name||v.contractor_name||null
-          });
+            contractor_name:log[i].contractor_name||v.contractor_name||null});
         }
       }
-
-      // Clip each segment to the period and accumulate
-      let hotelNights=0, contNights=0, contCost=0;
+      let hotelNights=0,contNights=0,contCost=0;
       let contractorNames=new Set();
       segments.forEach(seg=>{
-        let c=clipSegmentToRange(seg, pFrom, pTo);
+        let c=clipSegmentToRange(seg,pFrom,pTo);
         if(!c||c.nights<=0) return;
-        if(seg.loc==='hotel'){
-          hotelNights+=c.nights;
-        } else {
-          contNights+=c.nights;
-          contCost+=c.nights*(seg.rate||0);
-          if(seg.contractor_name) contractorNames.add(seg.contractor_name);
-        }
+        if(seg.loc==='hotel'){hotelNights+=c.nights;}
+        else{contNights+=c.nights;contCost+=c.nights*(seg.rate||0);if(seg.contractor_name)contractorNames.add(seg.contractor_name);}
       });
-
       let totalNights=hotelNights+contNights;
       if(totalNights<=0) return;
-
-      rows.push({
-        reg:          v.reg,
-        name:         v.name||'–',
-        room:         v.room_number||'',
-        status:       v.status==='active'?'Active':'Completed',
-        checkIn:      v.check_in_date,
-        expectedOut:  v.return_date,
-        actualOut:    v.check_out_date||null,
-        hotelNights,
-        contNights,
-        totalNights,
-        contCost:     +contCost.toFixed(2),
-        contractors:  [...contractorNames].join(', ')||null
-      });
+      rows.push({reg:v.reg,name:v.name||'–',room:v.room_number||'',
+        status:v.status==='active'?'Active':'Completed',
+        checkIn:v.check_in_date,expectedOut:v.return_date,actualOut:v.check_out_date||null,
+        hotelNights,contNights,totalNights,contCost:+contCost.toFixed(2),
+        contractors:[...contractorNames].join(', ')||null});
     });
-    // Sort by check-in date
-    rows.sort((a,b)=>(a.checkIn||'')>(b.checkIn||'')?1:-1);
+    rows.sort((a,b)=>(a.checkIn||'')<(b.checkIn||'')? -1:1);
   }
 
+  // ── T&C acceptance log ────────────────────────────────────────────────
   if(type==='tc'){
-    let tcRows=[...pendingData.filter(p=>p.tc_accepted),...historyData.filter(h=>h.tc_accepted_at)].map(r=>({
-      ref:r.ref_code||'–',reg:r.reg,name:r.name,phone:r.phone||'–',email:r.email||'–',
-      accepted_at:r.tc_accepted_at?new Date(r.tc_accepted_at).toLocaleString('en-GB'):'–',
-      check_in:r.check_in_date||'–',status:r.status||'–'
+    let tcData=[];
+    try{
+      let url='pending_checkins?select=ref_code,reg,name,phone,email,tc_accepted_at,check_in_date,status&order=tc_accepted_at.desc&limit=2000';
+      if(fromF) url+='&tc_accepted_at=gte.'+fromF+'T00:00:00Z';
+      if(toF)   url+='&tc_accepted_at=lte.'+toF+'T23:59:59Z';
+      tcData=await sbFetch(url);
+      if(!Array.isArray(tcData)) tcData=[];
+    }catch(e){ tcData=[]; }
+    let tcRows=tcData.map(r=>({ref:r.ref_code,reg:r.reg,name:r.name,phone:r.phone||'–',
+      email:r.email||'–',accepted_at:r.tc_accepted_at?fmtDT(r.tc_accepted_at):'–',
+      check_in:r.check_in_date?fmtD(r.check_in_date):'–',status:r.status||'–'
     }));
     return{type,rows:tcRows};
   }
+
   return{type,rows};
 }
+
 
 function getReportHeaders(type){
   if(type==='tc') return ['Ref','Reg','Name','Phone','Email','T&C accepted at','Check-in','Status'];
@@ -3090,7 +3070,7 @@ function rowToArray(row,type){
   ];
 }
 
-function previewReport(){
+async function previewReport(){
   let type=document.getElementById('rpt-type')?.value||'active';
 
   // Show/hide location filter — only relevant for contractor report
@@ -3105,7 +3085,7 @@ function previewReport(){
     }
   }
 
-  let{rows}=getReportData();
+  let{rows}=await getReportData();
   let headers=getReportHeaders(type);
 
   // Show empty state if no data
@@ -3175,8 +3155,8 @@ function previewReport(){
   }
 }
 
-function exportExcel(){
-  let {type,rows}=getReportData();
+async function exportExcel(){
+  let {type,rows}=await getReportData();
   if(!rows.length){alert('No data to export.');return;}
   let headers=getReportHeaders(type);
   let wsData=[headers,...rows.map(r=>rowToArray(r,type))];
@@ -3187,8 +3167,8 @@ function exportExcel(){
   XLSX.writeFile(wb,'Parking_Report_'+today()+'.xlsx');
 }
 
-function exportPDF(){
-  let {type,rows}=getReportData();
+async function exportPDF(){
+  let {type,rows}=await getReportData();
   if(!rows.length){alert('No data to export.');return;}
   let headers=getReportHeaders(type);
   let totalC=rows.reduce((s,r)=>s+(r.contCost||0),0);
