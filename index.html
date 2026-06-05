@@ -505,7 +505,7 @@ create policy "eq_update" on email_queue for update using (true);
 -- Email settings keys (added to app_settings)
 insert into app_settings (key, value) values
   ('email_api_key',''),('email_from',''),
-  ('email_hotel_name','Demo Hotel'),
+  ('email_hotel_name','Best Western Ariel Hotel'),
   ('email_reply_to',''),
   ('email_on_checkin','true'),('email_on_checkout','true'),
   ('email_on_pending','true'),('email_on_approved','true'),
@@ -548,7 +548,7 @@ on conflict (key) do nothing;</textarea>
       <div style="position:absolute;top:-30px;right:-30px;width:120px;height:120px;border-radius:50%;background:rgba(201,168,76,.06)"></div>
       <div style="position:absolute;bottom:-20px;left:-20px;width:80px;height:80px;border-radius:50%;background:rgba(201,168,76,.04)"></div>
       <div style="width:58px;height:58px;background:linear-gradient(135deg,#C9A84C,#E8C97A);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:#0F2A4A;margin:0 auto 12px;box-shadow:0 4px 14px rgba(201,168,76,.4);position:relative">BW</div>
-      <div style="font-size:17px;font-weight:700;color:#fff;margin-bottom:3px;letter-spacing:.01em">Demo Hotel</div>
+      <div style="font-size:17px;font-weight:700;color:#fff;margin-bottom:3px;letter-spacing:.01em">Best Western Ariel Hotel</div>
       <div style="font-size:11px;color:rgba(255,255,255,.55);letter-spacing:.06em;text-transform:uppercase">Airport Parking · Staff Portal</div>
     </div>
     <!-- Step 1: Email + Password -->
@@ -605,7 +605,7 @@ on conflict (key) do nothing;</textarea>
   <header style="background:#1E407C;border-bottom:3px solid #C9A84C;padding:0;position:sticky;top:0;z-index:10">
     <div style="display:flex;align-items:center;gap:0;height:42px;padding:0 0.75rem">
       <div style="width:30px;height:30px;background:linear-gradient(135deg,#C9A84C,#E8C97A);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:#0F2A4A;flex-shrink:0;margin-right:8px;box-shadow:0 2px 6px rgba(201,168,76,.4)">BW</div>
-      <div style="font-size:13px;font-weight:700;color:#fff;white-space:nowrap;margin-right:6px;letter-spacing:.01em">Demo Hotel</div>
+      <div style="font-size:13px;font-weight:700;color:#fff;white-space:nowrap;margin-right:6px;letter-spacing:.01em">Best Western Ariel Hotel</div>
       <nav style="display:flex;gap:0;overflow-x:auto;flex:1;height:42px">
         <button class="active" onclick="showTab('dashboard',this)">Dashboard</button>
         <button id="nav-pending" onclick="showTab('pending',this)" style="position:relative">Pending <span id="pending-badge" style="display:none;position:absolute;top:4px;right:2px;background:#E24B4A;color:#fff;border-radius:50%;width:14px;height:14px;font-size:9px;font-weight:700;align-items:center;justify-content:center;line-height:14px">0</span></button>
@@ -1207,7 +1207,7 @@ on conflict (key) do nothing;</textarea>
             </div>
             <div>
               <label for="s-hotel-name" style="font-size:12px;color:#555;display:block;margin-bottom:4px">Hotel name (shown in every email)</label>
-              <input type="text" id="s-hotel-name" placeholder="Demo Hotel">
+              <input type="text" id="s-hotel-name" placeholder="Best Western Ariel Hotel">
             </div>
             <div>
               <label for="s-reply-email" style="font-size:12px;color:#555;display:block;margin-bottom:4px">Reply-to email</label>
@@ -1339,7 +1339,7 @@ select cron.schedule(
           <ol style="font-size:13px;color:#555;line-height:2;padding-left:1.2rem;margin-bottom:1rem">
             <li>Go to <strong>uptimerobot.com</strong> → create a free account</li>
             <li>Click <strong>Add New Monitor</strong> → type: HTTP(s)</li>
-            <li>Friendly name: <em>Demo Hotel Parking</em></li>
+            <li>Friendly name: <em>Best Western Ariel Hotel Parking</em></li>
             <li>URL: <code style="background:#f0f0ee;padding:1px 6px;border-radius:4px">https://heathrowariel.co.uk/</code></li>
             <li>Monitoring interval: <strong>5 minutes</strong></li>
             <li>Add your mobile number for SMS alerts</li>
@@ -1462,7 +1462,7 @@ create policy "photos_insert" on storage.objects
     <div style="display:flex;gap:12px;align-items:center">
       <a href="/privacy.html" target="_blank" style="font-size:10px;color:rgba(255,255,255,.6);text-decoration:none">Privacy Policy</a>
       <span style="font-size:10px;color:rgba(255,255,255,.4)">·</span>
-      <a href="https://ico.org.uk" target="_blank" style="font-size:10px;color:rgba(255,255,255,.6);text-decoration:none" title="ICO Registration">ICO Reg: <span id="footer-ico-number">[ICO Number]</span></a>
+      <a href="https://ico.org.uk" target="_blank" style="font-size:10px;color:rgba(255,255,255,.6);text-decoration:none" title="ICO Registration">ICO Reg: <span id="footer-ico-number">ZA567485</span></a>
       <span style="font-size:10px;color:rgba(255,255,255,.4)">·</span>
       <span style="font-size:10px;color:rgba(255,255,255,.4)" id="footer-version">v2.0</span>
     </div>
@@ -2200,7 +2200,7 @@ async function checkIn(){
       if(!_emailCFGLoaded) await loadEmailCFG();
       sendEmail({
         to:      email,
-        subject: (emailCFG.hotelName||'Demo Hotel')+' — Parking Confirmed ('+reg+')',
+        subject: (emailCFG.hotelName||'Best Western Ariel Hotel')+' — Parking Confirmed ('+reg+')',
         html:    emailCheckinHTML({reg, name, check_in_date:checkinDate, return_date:ret, room_number:room, email, loyalty_visits:loyaltyCount}, loc),
         type:    'checkin',
         reg:     reg
@@ -2749,7 +2749,7 @@ async function confirmCheckout(reg,hd,cd,contCost,coDate){
     if(!_emailCFGLoaded) await loadEmailCFG();
     sendEmail({
       to:      v.email,
-      subject: (emailCFG.hotelName||'Demo Hotel')+' — Parking Checkout Receipt ('+reg+')',
+      subject: (emailCFG.hotelName||'Best Western Ariel Hotel')+' — Parking Checkout Receipt ('+reg+')',
       html:    emailCheckoutHTML({...v,check_out_date:checkoutDate},hd,cd,contCost),
       type:    'checkout',
       reg:     reg
@@ -3610,7 +3610,7 @@ function showPhotoQRPanel(){
 //              email_on_approved, email_on_reminder, email_overstay_days,
 //              email_overstay_rate
 let emailCFG = {
-  apiKey:'', fromEmail:'', hotelName:'Demo Hotel',
+  apiKey:'', fromEmail:'', hotelName:'Best Western Ariel Hotel',
   replyEmail:'', onCheckin:true, onCheckout:true, onPending:true,
   onApproved:true, onReminder:true,
   overstayDays:1,    // send overstay notice after this many days overdue
@@ -3632,7 +3632,7 @@ async function loadEmailCFG(){
       rows.forEach(r=>{ map[r.key]=r.value; });
       if(map.email_api_key    !== undefined) emailCFG.apiKey      = map.email_api_key;
       if(map.email_from       !== undefined) emailCFG.fromEmail   = map.email_from;
-      if(map.email_hotel_name !== undefined) emailCFG.hotelName   = map.email_hotel_name||'Demo Hotel';
+      if(map.email_hotel_name !== undefined) emailCFG.hotelName   = map.email_hotel_name||'Best Western Ariel Hotel';
       if(map.email_reply_to   !== undefined) emailCFG.replyEmail  = map.email_reply_to;
       if(map.email_on_checkin !== undefined) emailCFG.onCheckin   = map.email_on_checkin==='true';
       if(map.email_on_checkout!== undefined) emailCFG.onCheckout  = map.email_on_checkout==='true';
@@ -3698,7 +3698,7 @@ function populateSecurityFields(){
     if(!s('s-resend-key')) return; // panel not in DOM yet
     s('s-resend-key').value    = emailCFG.apiKey||'';
     s('s-from-email').value    = emailCFG.fromEmail||'';
-    s('s-hotel-name').value    = emailCFG.hotelName||'Demo Hotel';
+    s('s-hotel-name').value    = emailCFG.hotelName||'Best Western Ariel Hotel';
     s('s-reply-email').value   = emailCFG.replyEmail||'';
     s('email-on-checkin').checked  = emailCFG.onCheckin!==false;
     s('email-on-checkout').checked = emailCFG.onCheckout!==false;
@@ -3811,7 +3811,7 @@ async function doSendTestEmail(){
   if(!sbUrl||!sbKey){ show('❌ Not connected. Please log out and log in again.','#E24B4A'); return; }
 
   // Fetch email config from Supabase
-  let apiKey='', fromEmail='', hotelName='Demo Hotel';
+  let apiKey='', fromEmail='', hotelName='Best Western Ariel Hotel';
   try{
     show('⏳ Fetching API key from database...','#378ADD');
     let resp = await fetch(sbUrl+'/rest/v1/app_settings?select=key,value&key=in.(email_api_key,email_from,email_hotel_name)',{
@@ -3822,7 +3822,7 @@ async function doSendTestEmail(){
     rows.forEach(r=>{
       if(r.key==='email_api_key')    apiKey    = r.value;
       if(r.key==='email_from')       fromEmail = r.value;
-      if(r.key==='email_hotel_name') hotelName = r.value||'Demo Hotel';
+      if(r.key==='email_hotel_name') hotelName = r.value||'Best Western Ariel Hotel';
     });
   }catch(e){ show('❌ Network error fetching settings: '+e.message,'#E24B4A'); return; }
 
@@ -3906,7 +3906,7 @@ async function sendTestEmail(){
   }
 
   // Step 2: Fetch email settings directly from Supabase REST API
-  let apiKey='', fromEmail='', hotelName='Demo Hotel', replyTo='';
+  let apiKey='', fromEmail='', hotelName='Best Western Ariel Hotel', replyTo='';
   try{
     showMsg('<div style="background:#E6F1FB;border:1px solid #B5D4F4;border-radius:7px;padding:10px 14px;font-size:12px;color:#0C447C">⏳ Fetching email settings from database...</div>');
     let r = await fetch(sbUrl+'/rest/v1/app_settings?key=like.email_%25&select=key,value',{
@@ -3925,7 +3925,7 @@ async function sendTestEmail(){
     (rows||[]).forEach(row=>{ map[row.key]=row.value; });
     apiKey    = map['email_api_key']   ||'';
     fromEmail = map['email_from']      ||'';
-    hotelName = map['email_hotel_name']||'Demo Hotel';
+    hotelName = map['email_hotel_name']||'Best Western Ariel Hotel';
     replyTo   = map['email_reply_to']  ||fromEmail;
   }catch(e){
     showMsg('<div style="background:#FCEBEB;border:1px solid #F7C1C1;border-radius:7px;padding:10px 14px;font-size:12px;color:#791F1F">❌ Failed to reach database: '+e.message+'</div>');
@@ -4159,7 +4159,7 @@ async function queueEmail({to, subject, html, type, reg}){
 }
 
 function emailCheckinHTML(v,loc){
-  let hotel=emailCFG.hotelName||'Demo Hotel';
+  let hotel=emailCFG.hotelName||'Best Western Ariel Hotel';
   let loyalty='';
   if(v.loyalty_visits>1){
     let t=getLoyaltyTier(v.loyalty_visits);
@@ -4193,7 +4193,7 @@ function emailCheckinHTML(v,loc){
 }
 
 function emailCheckoutHTML(v,hd,cd,contCost){
-  let hotel=emailCFG.hotelName||'Demo Hotel';
+  let hotel=emailCFG.hotelName||'Best Western Ariel Hotel';
   return `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:20px;color:#1a1a1a">
   <div style="background:#1E407C;padding:16px 20px;border-radius:8px 8px 0 0;border-bottom:3px solid #C9A84C">
     <h1 style="color:#fff;margin:0;font-size:18px">${hotel}</h1>
@@ -4216,7 +4216,7 @@ function emailCheckoutHTML(v,hd,cd,contCost){
 }
 
 function emailPendingHTML(p){
-  let hotel=emailCFG.hotelName||'Demo Hotel';
+  let hotel=emailCFG.hotelName||'Best Western Ariel Hotel';
   return `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:20px;color:#1a1a1a">
   <div style="background:#1E407C;padding:16px 20px;border-radius:8px 8px 0 0;border-bottom:3px solid #C9A84C">
     <h1 style="color:#fff;margin:0;font-size:18px">${hotel}</h1>
@@ -4243,7 +4243,7 @@ function emailPendingHTML(p){
 // REMINDER EMAILS (2 days before return)
 // ════════════════════════════════════════════
 function emailReminderHTML(v){
-  let hotel=emailCFG.hotelName||'Demo Hotel';
+  let hotel=emailCFG.hotelName||'Best Western Ariel Hotel';
   let daysLeft=nightsApart(today(),v.return_date);
   return `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:20px;color:#1a1a1a">
   <div style="background:#1E407C;padding:16px 20px;border-radius:8px 8px 0 0;border-bottom:3px solid #C9A84C">
@@ -4262,7 +4262,7 @@ function emailReminderHTML(v){
     <div style="background:#FAEEDA;border:1px solid #FAC775;border-radius:8px;padding:12px 16px;margin:12px 0;font-size:13px;color:#633806">
       <strong>⏰ Please collect your vehicle on time.</strong> If you need to extend your parking, please contact reception as soon as possible to avoid additional charges.
     </div>
-    <p style="font-size:12px;color:#888">Please contact reception if you have any questions: <strong>[Reception number]</strong></p>
+    <p style="font-size:12px;color:#888">Please contact reception if you have any questions: <strong>0371 942 9040</strong></p>
     <hr style="border:none;border-top:1px solid #eee;margin:16px 0">
     <p style="font-size:11px;color:#aaa">${hotel} &nbsp;·&nbsp; </p>
   </div></body></html>`;
@@ -4277,7 +4277,7 @@ async function sendReminderEmail(reg){
   try{
     await sendEmail({
       to:email,
-      subject:(emailCFG.hotelName||'Demo Hotel')+' — Parking Collection Reminder ('+reg+')',
+      subject:(emailCFG.hotelName||'Best Western Ariel Hotel')+' — Parking Collection Reminder ('+reg+')',
       html:emailReminderHTML(v)
     });
     // Mark reminder sent in DB
@@ -4337,7 +4337,7 @@ async function checkSendReminders(){
     try{
       await sendEmail({
         to: v.email,
-        subject: (emailCFG.hotelName||'Demo Hotel')+' — Collection Reminder: '+v.reg,
+        subject: (emailCFG.hotelName||'Best Western Ariel Hotel')+' — Collection Reminder: '+v.reg,
         html: emailReminderHTML(v),
         type: 'reminder',
         reg: v.reg
@@ -4373,7 +4373,7 @@ async function checkSendOverstayNotices(){
     try{
       await sendEmail({
         to: v.email,
-        subject: (emailCFG.hotelName||'Demo Hotel')+' — URGENT: Parking Overstay ('+v.reg+')',
+        subject: (emailCFG.hotelName||'Best Western Ariel Hotel')+' — URGENT: Parking Overstay ('+v.reg+')',
         html: emailOverstayHTML(v, overDays, emailCFG.overstayRate||10),
         type: 'overstay',
         reg: v.reg
@@ -4392,7 +4392,7 @@ async function checkSendOverstayNotices(){
 // OVERSTAY / PAYMENT REQUEST EMAILS
 // ════════════════════════════════════════════
 function emailOverstayHTML(v, extraDays, dailyRate){
-  let hotel=emailCFG.hotelName||'Demo Hotel';
+  let hotel=emailCFG.hotelName||'Best Western Ariel Hotel';
   let e=estimateCost(v, today());
   let extraCharge=(extraDays*(dailyRate||0)).toFixed(2);
   return `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:20px;color:#1a1a1a">
@@ -4417,7 +4417,7 @@ function emailOverstayHTML(v, extraDays, dailyRate){
     <div style="background:#EAF3DE;border:1px solid #C0DD97;border-radius:8px;padding:12px 16px;margin:12px 0;font-size:13px;color:#27500A">
       <strong>To resolve this, please either:</strong><br>
       1. Collect your vehicle as soon as possible and settle any outstanding charges at reception<br>
-      2. Call reception to arrange an extension: <strong>[Reception number]</strong>
+      2. Call reception to arrange an extension: <strong>0371 942 9040</strong>
     </div>
     <p style="font-size:12px;color:#888">Failure to respond may result in further action. Please contact us immediately.</p>
     <hr style="border:none;border-top:1px solid #eee;margin:16px 0">
@@ -4443,7 +4443,7 @@ async function sendOverstayEmail(reg){
   try{
     await sendEmail({
       to:email,
-      subject:(emailCFG.hotelName||'Demo Hotel')+' — URGENT: Parking Overstay Notice ('+reg+')',
+      subject:(emailCFG.hotelName||'Best Western Ariel Hotel')+' — URGENT: Parking Overstay Notice ('+reg+')',
       html:emailOverstayHTML(v,extraDays,dailyRate)
     });
     hideLoading();
@@ -4656,7 +4656,7 @@ function saveIcoNumber(num){
   num = (num||'').trim().toUpperCase();
   localStorage.setItem('heathrow_ico_number', num);
   let el = document.getElementById('footer-ico-number');
-  if(el) el.textContent = num || '[ICO Number]';
+  if(el) el.textContent = num || 'ZA567485';
   // Save to Supabase app_settings too
   sbFetch('app_settings?key=eq.ico_registration_number',{
     method:'PATCH', body:JSON.stringify({value:num}),
@@ -4995,7 +4995,7 @@ function printQR(){
     @media print{body{padding:0}.poster{border:none}}
   </style></head><body>
   <div class="poster">
-    <h1>Demo Hotel</h1>
+    <h1>Best Western Ariel Hotel</h1>
     <div class="sub">Airport Parking — Self Check-In</div>
     <img src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(CHECKIN_FORM_URL)}" alt="QR Code">
     <div class="instructions">
@@ -5161,7 +5161,7 @@ async function approvePending(id, reg){
       let emailLoc = loc||'hotel';
       sendEmail({
         to:      p.email,
-        subject: (emailCFG.hotelName||'Demo Hotel')+' — Parking Confirmed ('+p.reg+')',
+        subject: (emailCFG.hotelName||'Best Western Ariel Hotel')+' — Parking Confirmed ('+p.reg+')',
         html:    emailCheckinHTML({...p, check_in_date:p.check_in_date, loyalty_visits:loyaltyCount}, emailLoc),
         type:    'approved',
         reg:     p.reg
@@ -5248,7 +5248,7 @@ function printKeyTagFromPending(p){
       '<div class="tag">',
       '  <div class="tag-hdr">',
       '    <div style="display:flex;justify-content:space-between;align-items:center">',
-      '      <div><h1>Demo Hotel</h1><p>Airport Parking \u2014 Key Tag</p></div>',
+      '      <div><h1>Best Western Ariel Hotel</h1><p>Airport Parking \u2014 Key Tag</p></div>',
       '      <div style="font-size:9px;color:rgba(255,255,255,.6)">Copy '+copyNum+' of 2</div>',
       '    </div>',
       '  </div>',
@@ -5353,7 +5353,7 @@ function buildReceiptHTML(v, mode){
   return `
     <div id="printable-receipt">
       <div style="text-align:center;padding-bottom:1rem;border-bottom:2px solid #eee;margin-bottom:0.6rem">
-        <div style="font-size:20px;font-weight:700;margin-bottom:2px">Demo Hotel</div>
+        <div style="font-size:20px;font-weight:700;margin-bottom:2px">Best Western Ariel Hotel</div>
         <div style="font-size:13px;color:#888">Airport Parking — Cost Summary</div>
         <div style="font-size:11px;color:#aaa;margin-top:4px">Printed: ${new Date().toLocaleString('en-GB')}</div>
       </div>
@@ -5416,7 +5416,7 @@ function buildReceiptHTML(v, mode){
       ${timelineHTML}
 
       <div style="margin-top:1.5rem;padding-top:1rem;border-top:1px solid #eee;text-align:center;font-size:11px;color:#aaa">
-        Demo Hotel &nbsp;·&nbsp; Airport Parking
+        Best Western Ariel Hotel &nbsp;·&nbsp; Airport Parking
       </div>
     </div>`
 }
@@ -5764,7 +5764,7 @@ async function send2FACode(u){
   }catch(e){ console.warn('2FA table insert failed (may not exist yet):', e.message); }
 
   // Queue the code email
-  let hotel = emailCFG.hotelName||'Demo Hotel';
+  let hotel = emailCFG.hotelName||'Best Western Ariel Hotel';
   let sbUrl  = localStorage.getItem('heathrow_sb_url')||SB_URL||'';
   let sbKey  = localStorage.getItem('heathrow_sb_key')||SB_KEY||'';
 
@@ -6584,7 +6584,7 @@ function renderCPDashboard(){
 }
 
 // ── Contractor report ──
-function getCPReportRows(){
+async function getCPReportRows(){
   if(!currentUser) return [];
   let myId  = currentUser.contractor_id ? String(currentUser.contractor_id) : null;
   let myName= (currentUser.full_name || currentUser.username || '').toLowerCase();
@@ -6593,7 +6593,37 @@ function getCPReportRows(){
   let td=today();
   let rows=[];
 
-  _cpAllVehicles.forEach(v=>{
+  // Fetch all vehicles directly from Supabase — no limit issues
+  let fetchData=[];
+  try{
+    let pFrom=fromF||'2000-01-01'; let pTo=toF||td;
+    let [active,history]=await Promise.all([
+      sbFetch('vehicles?status=eq.active&select=*&limit=5000'),
+      sbFetch('vehicles?status=eq.checked-out'
+        +'&check_in_date=lte.'+pTo+'T23:59:59Z'
+        +'&or=(check_out_date.is.null,check_out_date.gte.'+pFrom+'T00:00:00Z)'
+        +'&select=*&limit=5000')
+    ]);
+    fetchData=[...(Array.isArray(active)?active:[]),...(Array.isArray(history)?history:[])];
+  }catch(e){
+    console.warn('CP report fetch failed, using cached:',e.message);
+    fetchData=_cpAllVehicles;
+  }
+
+  // Filter to only vehicles that ever belonged to this contractor
+  function wasEverMineLocal(v){
+    if(myId&&v.contractor_id&&String(v.contractor_id)===myId) return true;
+    if(myName&&v.contractor_name&&v.contractor_name.toLowerCase()===myName) return true;
+    try{
+      let log=Array.isArray(v.move_log)?v.move_log:JSON.parse(v.move_log||'[]');
+      return log.some(e=>e&&(
+        (myId&&e.contractor_id&&String(e.contractor_id)===myId)||
+        (myName&&(e.contractor_name||'').toLowerCase()===myName)
+      ));
+    }catch(e){return false;}
+  }
+
+  fetchData.filter(wasEverMineLocal).forEach(v=>{
     let log=[]; try{let r=v.move_log;log=Array.isArray(r)?r:(typeof r==='string'&&r?JSON.parse(r):[]);log=log.filter(e=>e&&e.loc);}catch(e){log=[];}
     let endDate=v.check_out_date||td;
 
@@ -6671,8 +6701,8 @@ function getCPReportRows(){
   return rows;
 }
 
-function renderCPReport(){
-  let rows=getCPReportRows();
+async function renderCPReport(){
+  let rows=await getCPReportRows();
   let headers=['Reg','Check-in','Sent to contractor','Confirmed receipt','Returned to hotel','Est. check-out','Actual check-out','Nights (period)','Rate/night','Cost (period)','Status'];
   let thead=document.getElementById('cp-rpt-thead');
   let tbody=document.getElementById('cp-rpt-tbody');
@@ -6722,8 +6752,8 @@ function renderCPReport(){
     +'</div>';
 }
 
-function exportCPReport(){
-  let rows=getCPReportRows();
+async function exportCPReport(){
+  let rows=await getCPReportRows();
   if(!rows.length){ alert('No data to export.'); return; }
   let fdt=d=>d?fmtDT(d):'';
   let csv=[['Reg','Check-in','Sent to contractor','Confirmed receipt','Returned to hotel','Est. check-out','Actual check-out','Nights (period)','Rate/night','Cost (period)','Status']];
@@ -7318,7 +7348,7 @@ window.addEventListener('DOMContentLoaded',()=>{
 <div id="contractor-portal" style="display:none;min-height:100vh;background:#f5f5f3">
   <div style="background:#1E407C;padding:12px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #C9A84C">
     <div>
-      <div style="color:#fff;font-size:16px;font-weight:700">Demo Hotel</div>
+      <div style="color:#fff;font-size:16px;font-weight:700">Best Western Ariel Hotel</div>
       <div style="color:rgba(255,255,255,.7);font-size:11px">Contractor Vehicle Portal</div>
     </div>
     <div style="display:flex;align-items:center;gap:10px">
