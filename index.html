@@ -6863,42 +6863,41 @@ function renderCPReturnSection(toReturn, withMe){
   if(!returnEl) return;
   let html = '';
 
-  // Hotel-requested returns — action cards (use renderCPList which handles action correctly)
-  if(toReturn.length){
-    let tempDiv = document.createElement('div');
-    renderCPList('_temp_return_', toReturn, 'return');
-    // Use renderCPList inline by building the HTML directly
-    // Render using the same function as deliver (renderCPList handles both actions)
-    let tempEl = document.createElement('div');
-    tempEl.id = '_cp_return_temp_';
-    document.body.appendChild(tempEl);
-    renderCPList('_cp_return_temp_', toReturn, 'return');
-    html += tempEl.innerHTML;
-    document.body.removeChild(tempEl);
-  }
+  // Hotel-requested returns — identical card style to "Collect from hotel"
+  toReturn.forEach(function(v){
+    html += '<div style="background:#fff;border:1px solid #1D9E75;border-radius:10px;padding:14px;margin-bottom:10px">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
+      + '<div style="font-size:26px;font-weight:800;letter-spacing:.06em;color:#1E407C">'+v.reg+'</div>'
+      + '<span style="background:#E1F5EE;color:#085041;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600">Return to hotel</span>'
+      + '</div>'
+      + '<button data-reg="'+v.reg+'" data-action="return" onclick="openCPConfirmModal(this.dataset.reg,this.dataset.action)"'
+      + ' style="width:100%;padding:12px;background:#1D9E75;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">Take photos + Confirm returned</button>'
+      + '</div>';
+  });
 
-  // Currently parked — compact list, no action buttons
+  // Currently parked with contractor — compact info list, no action needed
   if(withMe.length){
     let td=today();
-    html += '<div style="font-size:12px;font-weight:600;color:#555;margin:'+(toReturn.length?'16px':'0')+' 0 8px;text-transform:uppercase;letter-spacing:.04em">Currently parked with you ('+withMe.length+')</div>';
+    if(toReturn.length) html += '<div style="height:8px"></div>';
+    html += '<div style="font-size:12px;font-weight:600;color:#555;margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em">Currently parked with you ('+withMe.length+')</div>';
     html += '<div style="background:#fff;border:1px solid #eee;border-radius:10px;overflow:hidden">';
-    html += withMe.map((v,i)=>{
+    withMe.forEach(function(v, i){
       let isOverdue=(v.return_date||'').slice(0,10)<td;
       let isDueSoon=(v.return_date||'').slice(0,10)<=addDays(td,3);
       let statusCol=isOverdue?'#791F1F':isDueSoon?'#633806':'#085041';
       let statusBg=isOverdue?'#FCEBEB':isDueSoon?'#FAEEDA':'#E1F5EE';
       let statusText=isOverdue?'Overdue':isDueSoon?'Due soon':'OK';
-      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;'+(i>0?'border-top:1px solid #f0f0f0':'')+'">'
-        +'<div style="font-size:16px;font-weight:800;letter-spacing:.05em;color:#1E407C">'+v.reg+'</div>'
-        +'<div style="font-size:11px;color:#888;text-align:right">'
-        +'<div>Return: '+fmtD(v.return_date)+'</div>'
-        +'<span style="background:'+statusBg+';color:'+statusCol+';padding:1px 7px;border-radius:8px;font-size:10px;font-weight:600">'+statusText+'</span>'
-        +'</div></div>';
-    }).join('');
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;'+(i>0?'border-top:1px solid #f0f0f0':'')+'">'
+        + '<div style="font-size:16px;font-weight:800;letter-spacing:.05em;color:#1E407C">'+v.reg+'</div>'
+        + '<div style="font-size:11px;color:#888;text-align:right">'
+        + '<div>Return: '+fmtD(v.return_date)+'</div>'
+        + '<span style="background:'+statusBg+';color:'+statusCol+';padding:1px 7px;border-radius:8px;font-size:10px;font-weight:600">'+statusText+'</span>'
+        + '</div></div>';
+    });
     html += '</div>';
   }
 
-  if(!html) html='<div style="background:#f5f5f3;border-radius:8px;padding:14px;color:#aaa;font-size:13px;text-align:center">No vehicles pending</div>';
+  if(!html) html = '<div style="background:#f5f5f3;border-radius:8px;padding:14px;color:#aaa;font-size:13px;text-align:center">No vehicles to return</div>';
   returnEl.innerHTML = html;
 }
 
