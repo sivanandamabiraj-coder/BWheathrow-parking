@@ -6863,9 +6863,18 @@ function renderCPReturnSection(toReturn, withMe){
   if(!returnEl) return;
   let html = '';
 
-  // Hotel-requested returns — action cards
+  // Hotel-requested returns — action cards (use renderCPList which handles action correctly)
   if(toReturn.length){
-    html += renderCPListHTML(toReturn, 'return');
+    let tempDiv = document.createElement('div');
+    renderCPList('_temp_return_', toReturn, 'return');
+    // Use renderCPList inline by building the HTML directly
+    // Render using the same function as deliver (renderCPList handles both actions)
+    let tempEl = document.createElement('div');
+    tempEl.id = '_cp_return_temp_';
+    document.body.appendChild(tempEl);
+    renderCPList('_cp_return_temp_', toReturn, 'return');
+    html += tempEl.innerHTML;
+    document.body.removeChild(tempEl);
   }
 
   // Currently parked — compact list, no action buttons
@@ -7058,6 +7067,7 @@ async function cpStartCamera(){
     });
     let video = document.getElementById('cam-video');
     video.srcObject = _camStream;
+    try{ await video.play(); }catch(pe){ console.log('autoplay ok'); }
   }catch(e){
     // getUserMedia failed (desktop browser, permissions denied, etc.)
     // Fall back to file input with capture attribute
@@ -7158,32 +7168,27 @@ async function cpProcessDataUrl(dataUrl, cat){
 }
 
 async function cpValidatePhotoWithAI(dataUrl, category){
-  let label = CP_LABELS[category] ? CP_LABELS[category].label : category;
-  let base64 = dataUrl.split(',')[1];
-  let mediaType = dataUrl.split(';')[0].split(':')[1]||'image/jpeg';
-
-  let prompt = 'A contractor driver just took a live photo labelled "'+label+'" for a vehicle inspection.'
-    +' Check: (1) Does it show the '+label+' view of a car/vehicle?'
-    +' (2) Is it a real photo, not a blank screen, hand, ceiling, or unrelated object?'
-    +' (3) Is it clear enough for an inspection record?'
-    +' Reply ONLY with JSON, no markdown: {"valid":true/false,"reason":"under 10 words"}';
-
-  let resp = await fetch('https://api.anthropic.com/v1/messages',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({
-      model:'claude-sonnet-4-20250514',
-      max_tokens:80,
-      messages:[{role:'user',content:[
-        {type:'image',source:{type:'base64',media_type:mediaType,data:base64}},
-        {type:'text',text:prompt}
-      ]}]
-    })
+  // Client-side validation: check photo is not blank/black screen
+  return new Promise(resolve=>{
+    let img = new Image();
+    img.onload = ()=>{
+      let canvas = document.createElement('canvas');
+      canvas.width = 16; canvas.height = 16;
+      let ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, 16, 16);
+      let d = ctx.getImageData(0, 0, 16, 16).data;
+      let total = 0;
+      for(let i=0; i<d.length; i+=4) total += d[i]+d[i+1]+d[i+2];
+      let avg = total / (d.length/4*3);
+      if(avg < 8){
+        resolve({valid:false, reason:'Image appears blank or too dark. Please retake.'});
+      } else {
+        resolve({valid:true, reason:'Photo accepted'});
+      }
+    };
+    img.onerror = ()=> resolve({valid:true, reason:'Accepted'});
+    img.src = dataUrl;
   });
-  if(!resp.ok) throw new Error('status '+resp.status);
-  let data=await resp.json();
-  let text=(data.content||[]).map(c=>c.text||'').join('').replace(/```json?|```/g,'').trim();
-  try{ return JSON.parse(text); }catch(e){ return {valid:true,reason:'Accepted'}; }
 }
 
 function updateCPProgress(){
