@@ -653,49 +653,65 @@ on conflict (key) do nothing;</textarea>
 
     </div>
     <div id="tab-dashboard" class="section active">
+
+      <!-- ── Row 1: Key metrics ── -->
       <div class="metrics" id="dash-metrics"></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;margin-bottom:0.6rem">
-        <div class="card">
-          <h3>Hotel spaces (100 total)</h3>
-          <div style="margin-bottom:6px">
-            <div style="display:flex;justify-content:space-between;font-size:12px;color:#888"><span>Daily (40 slots — ANPR pending)</span><span id="d-daily-lbl">0 / 40</span></div>
-            <div class="bar-wrap"><div class="bar hotel" id="bar-daily" style="width:0%"></div></div>
-          </div>
-          <div>
-            <div style="display:flex;justify-content:space-between;font-size:12px;color:#888"><span>Long-stay (60 slots — all current vehicles)</span><span id="d-long-lbl">0 / 60</span></div>
-            <div class="bar-wrap"><div class="bar hotel" id="bar-long" style="width:0%"></div></div>
-          </div>
-        </div>
-        <div class="card">
-          <h3>Contractor</h3>
-          <div style="display:flex;justify-content:space-between;font-size:12px;color:#888"><span>Vehicles at contractor</span><span id="d-cont-lbl">0</span></div>
-          <div class="bar-wrap"><div class="bar contractor" id="bar-cont" style="width:0%"></div></div>
-          <div style="margin-top:6px;font-size:11px;color:#aaa">Up to 20: £4.50/day &nbsp;·&nbsp; Above 20: £3.50/day</div>
-        </div>
-      </div>
+
+      <!-- ── Row 2: Alerts (overdue) — full width, highest priority ── -->
       <div id="dash-alerts"></div>
 
-      <!-- Smart action panels -->
+      <!-- ── Row 3: Due back + Space management side by side ── -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;margin-bottom:0.6rem">
         <div class="card" style="border-left:4px solid #E24B4A;padding:1rem">
-          <h3 style="color:#E24B4A;margin-bottom:0.75rem">
-            <span style="font-size:16px">&#9888;</span> Vehicles due back (next 2 days)
-          </h3>
+          <h3 style="color:#E24B4A;margin-bottom:0.75rem">&#9888; Vehicles due back (next 2 days)</h3>
           <div id="dash-due-soon"></div>
         </div>
         <div class="card" style="border-left:4px solid #378ADD;padding:1rem">
-          <h3 style="color:#378ADD;margin-bottom:0.75rem">
-            <span style="font-size:16px">&#8635;</span> Space management suggestions
-          </h3>
+          <h3 style="color:#378ADD;margin-bottom:0.75rem">&#8635; Space management suggestions</h3>
           <div id="dash-suggestions"></div>
         </div>
       </div>
 
+      <!-- ── Row 4: Space bars ── -->
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:0.6rem;margin-bottom:0.6rem">
+        <div class="card">
+          <h3 id="dash-space-title">Hotel spaces</h3>
+          <div style="margin-bottom:8px">
+            <div style="display:flex;justify-content:space-between;font-size:12px;color:#888">
+              <span>Daily parking (ANPR pending)</span>
+              <span id="d-daily-lbl" style="font-weight:600">–</span>
+            </div>
+            <div class="bar-wrap"><div class="bar hotel" id="bar-daily" style="width:0%;background:#378ADD"></div></div>
+          </div>
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:12px;color:#888">
+              <span>Long-stay parking</span>
+              <span id="d-long-lbl" style="font-weight:600">–</span>
+            </div>
+            <div class="bar-wrap"><div class="bar hotel" id="bar-long" style="width:0%"></div></div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Off-site (Contractor)</h3>
+          <div style="display:flex;justify-content:space-between;font-size:12px;color:#888;margin-bottom:4px">
+            <span>Vehicles off-site</span>
+            <span id="d-cont-lbl" style="font-weight:600;font-size:16px;color:var(--navy)">0</span>
+          </div>
+          <div class="bar-wrap"><div class="bar contractor" id="bar-cont" style="width:0%"></div></div>
+          <div id="d-cont-rate" style="margin-top:6px;font-size:11px;color:#aaa"></div>
+        </div>
+      </div>
+
+      <!-- ── Row 5: Contractor costs side by side ── -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;margin-bottom:0.6rem">
         <div class="card"><h3>Contractor cost to date</h3><div id="dash-cont-cost"></div></div>
         <div class="card"><h3>Forecast contractor cost</h3><div id="dash-forecast"></div></div>
       </div>
+
+      <!-- ── Row 6: Recent vehicles table ── -->
       <div class="card"><h3>Active vehicles — recent</h3><div id="dash-table"></div></div>
+
+      <!-- ── Row 7: Loyalty ── -->
       <div class="card" style="border-left:4px solid #C9A84C">
         <h3 style="color:#B8860B">🏅 Loyalty — Repeat customers</h3>
         <div id="dash-loyalty"></div>
@@ -1790,8 +1806,17 @@ function updateDash(){
   let dLongLbl  = document.getElementById('d-long-lbl');
   let dContLbl  = document.getElementById('d-cont-lbl');
   if(dDailyLbl) dDailyLbl.textContent = '0 / '+DAILY_CAP()+' (ANPR pending)';
-  if(dLongLbl)  dLongLbl.textContent  = long+' / '+longCap;
+  if(dLongLbl)  dLongLbl.textContent  = long+' / '+longCap+' — '+(longCap-long)+' free';
   if(dContLbl)  dContLbl.textContent  = contractor;
+  // Update space title with total
+  let spaceTitle=document.getElementById('dash-space-title');
+  if(spaceTitle) spaceTitle.textContent='Hotel spaces ('+totalCap+' total)';
+  // Update contractor rate info dynamically
+  let contRate=document.getElementById('d-cont-rate');
+  if(contRate&&contractorsList&&contractorsList.length){
+    let con=contractorsList.find(c=>c.active);
+    if(con) contRate.textContent='Up to '+con.threshold+': £'+con.rate1+'/night  ·  Above '+con.threshold+': £'+con.rate2+'/night';
+  }
 
   // ── Overdue alerts ──
   let td=today();
@@ -1806,8 +1831,8 @@ function updateDash(){
       let atContractor=v.location==='contractor';
       let cost=atContractor?((v.contractor_rate||0)*daysOver).toFixed(2):null;
       let actionBtn=atContractor
-        ?'<button onclick="openMoveModal(\''+v.reg+'\',' +"'"+'hotel'+"'"+')" style="background:#DC2626;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:600;cursor:pointer">Bring in</button>'
-        :'<button onclick="showTab(' +"'checkout'" +',null)" style="background:#DC2626;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:600;cursor:pointer">Check out</button>';
+        ?'<button data-reg="'+v.reg+'" onclick="requestReturn(this.dataset.reg)" style="background:#1D9E75;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:600;cursor:pointer">Request return</button>'
+        :'<button onclick="showTab(\'checkout\',null)" style="background:#DC2626;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:600;cursor:pointer">Check out</button>';
       let notify='<button onclick="sendOverstayEmail(\''+v.reg+'\') " style="background:#fff;color:#DC2626;border:1px solid #FECACA;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:600;cursor:pointer">Notify</button>';
       let locBadge=atContractor
         ?'<span style="font-size:10px;background:#FEF9C3;color:#854D0E;padding:1px 6px;border-radius:8px;margin-left:6px">Off-site</span>'
@@ -1874,9 +1899,9 @@ function updateDash(){
               <div style="font-size:11px;color:var(--text-3)">Return by</div>
               <div style="font-size:12px;font-weight:600;color:${urgText}">${returnTime}</div>
             </div>
-            <button onclick="openMoveModal('${v.reg}','hotel')"
-              style="background:var(--navy-mid);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;font-family:inherit">
-              📥 Bring to hotel
+            <button onclick="requestReturn('${v.reg}')"
+              style="background:#1D9E75;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;font-family:inherit">
+              📤 Request return
             </button>
           </div>`;
       });
