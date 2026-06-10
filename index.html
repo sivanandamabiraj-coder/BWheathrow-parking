@@ -1714,8 +1714,8 @@ async function loadData(silent){
     for(let attempt=0; attempt<3; attempt++){
       try{
         if(attempt>0){ if(!silent)showLoading('Retrying connection ('+(attempt+1)+'/3)...'); await new Promise(r=>setTimeout(r,2000)); }
-        active = await sbFetch("vehicles?status=eq.active&order=check_in_date.desc&select=*");
-        hist   = await sbFetch("vehicles?status=eq.checked-out&order=check_out_date.desc&limit=200&select=*");
+        active = await sbFetch("vehicles?status=eq.active&order=check_in_date.desc&select=reg,name,phone,email,room_number,status,location,check_in_date,return_date,check_out_date,hotel_days,contractor_days,contractor_id,contractor_name,contractor_rate,move_status,move_pending_to,move_log,ref_code,current_location_start,vehicle_make,vehicle_model,vehicle_colour");
+        hist   = await sbFetch("vehicles?status=eq.checked-out&order=check_out_date.desc&limit=200&select=reg,name,phone,email,room_number,status,location,check_in_date,return_date,check_out_date,hotel_days,contractor_days,contractor_id,contractor_name,contractor_rate,move_status,move_pending_to,move_log,ref_code,current_location_start,vehicle_make,vehicle_model,vehicle_colour");
         lastErr = null;
         break;
       }catch(e){
@@ -2896,7 +2896,7 @@ async function getReportData(){
   // Apply date range filter at query level — no limit issues
   async function fetchForReport(statuses){
     let queries = statuses.map(async st=>{
-      let url='vehicles?status=eq.'+st+'&order=check_in_date.desc&limit=5000&select=*';
+      let url='vehicles?status=eq.'+st+'&order=check_in_date.desc&limit=5000&select=reg,name,phone,email,room_number,status,location,check_in_date,return_date,check_out_date,hotel_days,contractor_days,contractor_id,contractor_name,contractor_rate,move_status,move_pending_to,move_log,ref_code,current_location_start,vehicle_make,vehicle_model,vehicle_colour';
       // Apply date range overlap filter when dates are set
       if(fromF) url+='&check_in_date=lte.'+toF+'T23:59:59Z';
       if(toF)   url+='&or=(check_out_date.is.null,check_out_date.gte.'+fromF+'T00:00:00Z)';
@@ -3023,8 +3023,8 @@ async function getReportData(){
     let data=[];
     try{
       let [active,history]=await Promise.all([
-        sbFetch('vehicles?status=eq.active&select=*&limit=5000'),
-        sbFetch('vehicles?status=eq.checked-out&check_in_date=lte.'+pTo+'T23:59:59Z&or=(check_out_date.is.null,check_out_date.gte.'+pFrom+'T00:00:00Z)&select=*&limit=5000')
+        sbFetch('vehicles?status=eq.active&select=reg,name,phone,email,room_number,status,location,check_in_date,return_date,check_out_date,hotel_days,contractor_days,contractor_id,contractor_name,contractor_rate,move_status,move_pending_to,move_log,ref_code,current_location_start,vehicle_make,vehicle_model,vehicle_colour&limit=5000'),
+        sbFetch('vehicles?status=eq.checked-out&check_in_date=lte.'+pTo+'T23:59:59Z&or=(check_out_date.is.null,check_out_date.gte.'+pFrom+'T00:00:00Z)&select=reg,name,phone,email,room_number,status,location,check_in_date,return_date,check_out_date,hotel_days,contractor_days,contractor_id,contractor_name,contractor_rate,move_status,move_pending_to,move_log,ref_code,current_location_start,vehicle_make,vehicle_model,vehicle_colour&limit=5000')
       ]);
       data=[...(Array.isArray(active)?active:[]),...(Array.isArray(history)?history:[])];
       hideLoading();
@@ -5102,7 +5102,7 @@ function printQR(){
 
 async function loadPending(){
   try{
-    let rows = await sbFetch('pending_checkins?status=eq.pending&order=submitted_at.desc&select=*');
+    let rows = await sbFetch('pending_checkins?status=eq.pending&order=submitted_at.desc&select=ref_code,reg,name,phone,email,room_number,check_in_date,return_date,location,contractor_name,vehicle_make,vehicle_model,vehicle_colour,status,submitted_at,move_log');
     pendingData = rows||[];
     renderPending();
     // Update badge
@@ -6271,7 +6271,7 @@ function launchApp(){
   Promise.all([loadSettings(), loadContractors()])
     .then(()=>{ loadData(false); populateCheckinDropdowns(); });
   // Auto-refresh every 60 seconds
-setInterval(()=>loadData(true), 60000);
+setInterval(()=>loadData(true), 90000); // 90s refresh — reduces DB load
 // Also refresh immediately when window regains focus (user comes back to tab)
 document.addEventListener('visibilitychange', ()=>{
   if(document.visibilityState==='visible') loadData(true);
@@ -6686,7 +6686,7 @@ async function getCPReportRows(){
   try{
     let pFrom=fromF||'2000-01-01'; let pTo=toF||td;
     let [active,history]=await Promise.all([
-      sbFetch('vehicles?status=eq.active&select=*&limit=5000'),
+      sbFetch('vehicles?status=eq.active&select=reg,name,phone,email,room_number,status,location,check_in_date,return_date,check_out_date,hotel_days,contractor_days,contractor_id,contractor_name,contractor_rate,move_status,move_pending_to,move_log,ref_code,current_location_start,vehicle_make,vehicle_model,vehicle_colour&limit=5000'),
       sbFetch('vehicles?status=eq.checked-out'
         +'&check_in_date=lte.'+pTo+'T23:59:59Z'
         +'&or=(check_out_date.is.null,check_out_date.gte.'+pFrom+'T00:00:00Z)'
@@ -6857,7 +6857,7 @@ function launchContractorPortal(){
   document.getElementById('contractor-portal').style.display='block';
   document.getElementById('cp-user-badge').textContent = currentUser.full_name || currentUser.username;
   Promise.all([loadSettings(), loadContractors()]).then(()=>loadContractorPortal());
-  setInterval(()=>{ loadContractorPortal(); resetSessionTimer(); }, 30000);
+  setInterval(()=>{ loadContractorPortal(); resetSessionTimer(); }, 90000); // 90s — reduces DB load
 }
 
 let _cpAllVehicles = [];   // all active vehicles for this contractor (active + history)
@@ -6868,8 +6868,8 @@ async function loadContractorPortal(){
     if(!currentUser){ document.getElementById('cp-alert').innerHTML='<div class="alert warn">Session expired. Please refresh and log in again.</div>'; return; }
     // Fetch active AND completed vehicles for report/dashboard
     let [allActive, allHistory] = await Promise.all([
-      sbFetch('vehicles?status=eq.active&select=*'),
-      sbFetch('vehicles?status=eq.checked-out&order=check_out_date.desc&limit=500&select=*')
+      sbFetch('vehicles?status=eq.active&select=reg,name,phone,email,room_number,status,location,check_in_date,return_date,check_out_date,hotel_days,contractor_days,contractor_id,contractor_name,contractor_rate,move_status,move_pending_to,move_log,ref_code,current_location_start,vehicle_make,vehicle_model,vehicle_colour'),
+      sbFetch('vehicles?status=eq.checked-out&order=check_out_date.desc&limit=500&select=reg,name,phone,email,room_number,status,location,check_in_date,return_date,check_out_date,hotel_days,contractor_days,contractor_id,contractor_name,contractor_rate,move_status,move_pending_to,move_log,ref_code,current_location_start,vehicle_make,vehicle_model,vehicle_colour')
     ]);
     if(!Array.isArray(allActive))  allActive=[];
     if(!Array.isArray(allHistory)) allHistory=[];
