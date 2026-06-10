@@ -5102,7 +5102,7 @@ function printQR(){
 
 async function loadPending(){
   try{
-    let rows = await sbFetch('pending_checkins?status=eq.pending&order=submitted_at.desc&select=ref_code,reg,name,phone,email,room_number,check_in_date,return_date,location,contractor_name,vehicle_make,vehicle_model,vehicle_colour,status,submitted_at,move_log');
+    let rows = await sbFetch('pending_checkins?status=eq.pending&order=submitted_at.desc&select=ref_code,reg,name,phone,email,room_number,check_in_date,return_date,vehicle_make,vehicle_model,vehicle_colour,status,submitted_at');
     pendingData = rows||[];
     renderPending();
     // Update badge
