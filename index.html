@@ -3030,10 +3030,14 @@ async function getReportData(){
       hideLoading();
     }catch(e){ hideLoading(); data=[...vehicles,...historyData]; }
 
+    // Add 1 day to pTo for night counting — the "night of May 31" runs May31→Jun1
+    // Without this, active vehicles miss the last night of the period
+    let pToEnd = addDays(pTo, 1);
     data.forEach(v=>{
       if(regF&&!(v.reg||'').toUpperCase().includes(regF)) return;
       let vStart=(v.check_in_date||'').slice(0,10);
-      let vEnd=(v.check_out_date||pTo).slice(0,10);
+      // Active vehicles: use pToEnd so the last night is included
+      let vEnd=v.check_out_date ? v.check_out_date.slice(0,10) : pToEnd;
       if(vStart>pTo||vEnd<pFrom) return;
       let log=[];
       try{let r=v.move_log;log=Array.isArray(r)?r:(typeof r==='string'&&r?JSON.parse(r):[]);log=log.filter(e=>e&&e.loc);}catch(e){log=[];}
@@ -3043,6 +3047,7 @@ async function getReportData(){
       } else {
         for(let i=0;i<log.length;i++){
           let segFrom=log[i].date?(log[i].date+'').slice(0,10):vStart;
+          // Last segment: use vEnd (pToEnd for active vehicles, check_out_date for completed)
           let segTo=i+1<log.length&&log[i+1]&&log[i+1].date?(log[i+1].date+'').slice(0,10):vEnd;
           segments.push({loc:log[i].loc,from:segFrom,to:segTo,
             rate:log[i].rate!=null?+log[i].rate:(v.contractor_rate||0),
@@ -3051,8 +3056,6 @@ async function getReportData(){
       }
       let hotelNights=0,contNights=0,contCost=0;
       let contractorNames=new Set();
-      // Use end of day for period end to include full last day
-      let pToEnd=pTo;
       segments.forEach(seg=>{
         let c=clipSegmentToRange(seg,pFrom,pToEnd);
         if(!c||c.nights<=0) return;
