@@ -507,7 +507,7 @@ insert into app_settings (key, value) values
   ('email_api_key',''),('email_from',''),
   ('email_hotel_name','Best Western Ariel Hotel'),
   ('email_reply_to',''),
-  ('email_on_checkin','true'),('email_on_checkout','true'),
+  ('email_on_checkin','true'),('email_on_checkout','false'),
   ('email_on_pending','true'),('email_on_approved','true'),
   ('email_on_reminder','true'),
   ('email_overstay_days','1'),('email_overstay_rate','10')
@@ -2628,7 +2628,7 @@ function setActiveSplit(split){
   renderActive();
 }
 
-function renderActive(){
+function getFilteredVehicles(){
   let q       =(document.getElementById('search-active')?.value||'').toLowerCase();
   let fromF   = document.getElementById('filter-active-from')?.value||'';
   let toF     = document.getElementById('filter-active-to')?.value||'';
@@ -2636,17 +2636,21 @@ function renderActive(){
   let retTo   = document.getElementById('filter-return-to')?.value||'';
   let td=today();
   let in2=addDays(td,2);
-  let list=vehicles.filter(v=>{
+  return vehicles.filter(v=>{
     if(q&&!v.reg.toLowerCase().includes(q)&&!v.name.toLowerCase().includes(q)&&!(v.ref_code||'').toLowerCase().includes(q)&&!(v.room_number||'').toLowerCase().includes(q))return false;
     if(fromF&&v.check_in_date<fromF)return false;
     if(toF&&v.check_in_date>toF+'T23:59')return false;
-    if(retFrom&&(v.return_date||'')< retFrom)return false;
+    if(retFrom&&(v.return_date||'')<retFrom)return false;
     if(retTo&&(v.return_date||'')>retTo+'T23:59')return false;
     if(_activeSplit==='hotel')      return v.location==='hotel';
     if(_activeSplit==='contractor') return v.location==='contractor';
     if(_activeSplit==='returning')  return v.location==='contractor'&&v.return_date&&v.return_date<=in2+'T23:59';
     return true;
   });
+}
+
+function renderActive(){
+  let list=getFilteredVehicles();
   let tbody=document.getElementById('active-tbody');
   let ret=vehicles.filter(v=>v.location==='contractor'&&v.return_date<=td);
   document.getElementById('active-alerts').innerHTML=ret.length?`<div class="alert warn">${ret.length} vehicle(s) due back today — move from contractor to hotel: ${ret.map(v=>'<strong>'+v.reg+'</strong>').join(', ')}</div>`:'';
@@ -2772,13 +2776,15 @@ async function confirmCheckout(reg,hd,cd,contCost,coDate){
   document.getElementById('co-result').innerHTML=`<div class="alert success">Vehicle <strong>${reg}</strong> checked out ${fmtDT(checkoutDate)} — ${cd>0?'Contractor cost: £'+contCost.toFixed(2):'No off-site cost'}</div>`;
   if(v && v.email){
     if(!_emailCFGLoaded) await loadEmailCFG();
-    sendEmail({
-      to:      v.email,
-      subject: (emailCFG.hotelName||'Best Western Ariel Hotel')+' — Parking Checkout Receipt ('+reg+')',
-      html:    emailCheckoutHTML({...v,check_out_date:checkoutDate},hd,cd,contCost),
-      type:    'checkout',
-      reg:     reg
-    }).catch(e=>console.warn('Checkout email:',e));
+    if(emailCFG.onCheckout){
+      sendEmail({
+        to:      v.email,
+        subject: (emailCFG.hotelName||'Best Western Ariel Hotel')+' — Parking Checkout Receipt ('+reg+')',
+        html:    emailCheckoutHTML({...v,check_out_date:checkoutDate},hd,cd,contCost),
+        type:    'checkout',
+        reg:     reg
+      }).catch(e=>console.warn('Checkout email:',e));
+    }
   }
 }
 
@@ -3004,8 +3010,10 @@ async function getReportData(){
       }
       let hotelNights=0,contNights=0,contCost=0;
       let contractorNames=new Set();
+      // Use end of day for period end to include full last day
+      let pToEnd=pTo;
       segments.forEach(seg=>{
-        let c=clipSegmentToRange(seg,pFrom,pTo);
+        let c=clipSegmentToRange(seg,pFrom,pToEnd);
         if(!c||c.nights<=0) return;
         if(seg.loc==='hotel'){hotelNights+=c.nights;}
         else{contNights+=c.nights;contCost+=c.nights*(seg.rate||0);if(seg.contractor_name)contractorNames.add(seg.contractor_name);}
@@ -3636,7 +3644,7 @@ function showPhotoQRPanel(){
 //              email_overstay_rate
 let emailCFG = {
   apiKey:'', fromEmail:'', hotelName:'Best Western Ariel Hotel',
-  replyEmail:'', onCheckin:true, onCheckout:true, onPending:true,
+  replyEmail:'', onCheckin:true, onCheckout:false, onPending:true,
   onApproved:true, onReminder:true,
   overstayDays:1,    // send overstay notice after this many days overdue
   overstayRate:10    // default daily rate to quote in overstay email (£)
@@ -4783,9 +4791,20 @@ function resetSessionTimer(){
   if(sessionTimer) clearTimeout(sessionTimer);
   let saved=localStorage.getItem('heathrow_sec_cfg');
   let sec=saved?JSON.parse(saved):{};
-  let timeout=(sec.sessionTimeout||15)*60*1000;
+  let baseTimeout=(sec.sessionTimeout||15)*60*1000;
+  // Contractors work full shifts — give them 12 hours before expiry
+  // They are in a busy environment and can't be interrupted to re-login
+  let timeout = (currentUser&&currentUser.role==='contractor') ? 12*60*60*1000 : baseTimeout;
   if(timeout>0 && currentUser){
     sessionTimer=setTimeout(()=>{
+      // For contractors: show a gentle banner instead of alert + forced logout
+      if(currentUser&&currentUser.role==='contractor'){
+        let banner=document.getElementById('cp-alert');
+        if(banner) banner.innerHTML='<div class="alert warn">Session expiring soon — please refresh the page to stay logged in.</div>';
+        // Give extra 10 minutes before actual logout
+        sessionTimer=setTimeout(()=>{ doLogout(); }, 10*60*1000);
+        return;
+      }
       alert('Your session has expired. Please log in again.');
       doLogout();
     }, timeout);
@@ -6303,8 +6322,10 @@ let selectedRegs = new Set();
 function toggleSelectAll(chk){
   selectedRegs.clear();
   if(chk.checked){
-    vehicles.forEach(v=>{ if(v.status==='active') selectedRegs.add(v.reg); });
+    // Only select vehicles currently visible after filters applied
+    getFilteredVehicles().forEach(v=>{ selectedRegs.add(v.reg); });
   }
+  updateBatchToolbar();
   renderActive();
 }
 
@@ -6312,8 +6333,9 @@ function toggleSelectVehicle(reg, chk){
   if(chk.checked) selectedRegs.add(reg);
   else selectedRegs.delete(reg);
   updateBatchToolbar();
+  let filtered=getFilteredVehicles();
   document.getElementById('select-all-chk').checked =
-    selectedRegs.size > 0 && selectedRegs.size === vehicles.filter(v=>v.status==='active').length;
+    filtered.length > 0 && filtered.every(v=>selectedRegs.has(v.reg));
 }
 
 function updateBatchToolbar(){
@@ -6794,7 +6816,7 @@ function launchContractorPortal(){
   document.getElementById('contractor-portal').style.display='block';
   document.getElementById('cp-user-badge').textContent = currentUser.full_name || currentUser.username;
   Promise.all([loadSettings(), loadContractors()]).then(()=>loadContractorPortal());
-  setInterval(loadContractorPortal, 30000);
+  setInterval(()=>{ loadContractorPortal(); resetSessionTimer(); }, 30000);
 }
 
 let _cpAllVehicles = [];   // all active vehicles for this contractor (active + history)
@@ -7113,6 +7135,23 @@ async function cpSwitchCamera(){
   await cpStartCamera();
 }
 
+// Compress photo: max 1024px wide, 0.72 quality → ~150KB vs ~1.5MB original
+function cpCompressPhoto(dataUrl){
+  return new Promise(resolve=>{
+    let img=new Image();
+    img.onload=()=>{
+      let w=img.width, h=img.height, MAX=1024;
+      if(w>MAX){h=Math.round(h*MAX/w);w=MAX;}
+      let c=document.createElement('canvas');
+      c.width=w; c.height=h;
+      c.getContext('2d').drawImage(img,0,0,w,h);
+      resolve(c.toDataURL('image/jpeg',0.72));
+    };
+    img.onerror=()=>resolve(dataUrl);
+    img.src=dataUrl;
+  });
+}
+
 function cpCapture(){
   let video = document.getElementById('cam-video');
   let canvas = document.getElementById('cam-canvas');
@@ -7121,7 +7160,10 @@ function cpCapture(){
   canvas.getContext('2d').drawImage(video, 0, 0);
   let dataUrl = canvas.toDataURL('image/jpeg', 0.85);
   cpCloseCamera();
-  cpProcessDataUrl(dataUrl, _cpActiveCat);
+  // Compress before processing and saving — reduces 1.5MB → ~150KB per photo
+  cpCompressPhoto(dataUrl).then(compressed=>{
+    cpProcessDataUrl(compressed, _cpActiveCat);
+  });
 }
 
 function cpCloseCamera(){
@@ -7243,9 +7285,24 @@ async function cpConfirmMove(){
     return;
   }
   let reg=_cpCurrentReg, action=_cpCurrentAction;
-  let vArr=await sbFetch('vehicles?reg=eq.'+encodeURIComponent(reg)+'&select=*');
-  let v=vArr&&vArr[0];
-  if(!v){alert('Vehicle not found.');return;}
+  // Retry up to 3 times — transient network errors can cause empty response
+  let v=null;
+  for(let attempt=0;attempt<3;attempt++){
+    try{
+      let vArr=await sbFetch('vehicles?reg=eq.'+encodeURIComponent(reg.trim())+'&select=*&limit=1');
+      if(vArr&&vArr[0]){v=vArr[0];break;}
+      await new Promise(r=>setTimeout(r,800));
+    }catch(e){
+      if(attempt===2) throw e;
+      await new Promise(r=>setTimeout(r,800));
+    }
+  }
+  if(!v){
+    document.getElementById('cp-modal-error').innerHTML='<div class="alert warn">Could not load vehicle data. Please check your connection and try again.</div>';
+    document.getElementById('cp-confirm-btn').disabled=false;
+    document.getElementById('cp-confirm-btn').textContent='Retry confirm';
+    return;
+  }
 
   let toLocation=action==='deliver'?'contractor':'hotel';
   // Record the exact time contractor submitted confirmation — automatic, not editable
@@ -7308,7 +7365,13 @@ window.addEventListener('DOMContentLoaded',()=>{
   localStorage.setItem('heathrow_sb_key', SB_KEY);
   let savedUser = localStorage.getItem('heathrow_user');
   if(savedUser){
-    try{ currentUser=JSON.parse(savedUser); }catch(e){ currentUser=null; }
+    try{
+      currentUser=JSON.parse(savedUser);
+      // For contractors: extend stored session silently on page reload
+      if(currentUser&&currentUser.role==='contractor'){
+        localStorage.setItem('heathrow_user',JSON.stringify({...currentUser,_refreshed:Date.now()}));
+      }
+    }catch(e){ currentUser=null; }
   }
   if(currentUser){
     if(currentUser.role==='contractor') launchContractorPortal();
