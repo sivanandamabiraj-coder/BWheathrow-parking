@@ -820,14 +820,14 @@ on conflict (key) do nothing;</textarea>
         <div id="active-rev-strip" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;border-bottom:1px solid #eee"></div>
         <div style="overflow-x:auto">
           <table>
-            <thead><tr>
+            <thead id="active-thead"><tr>
               <th style="width:32px"><input type="checkbox" id="select-all-chk" onchange="toggleSelectAll(this)" title="Select all"></th>
               <th style="width:85px">Reg</th><th style="width:110px">Name</th>
               <th style="width:150px">Location / Contractor</th>
               <th style="width:80px">Check-in</th><th style="width:80px">Return</th>
               <th style="width:50px">Nights</th>
               <th style="width:90px">Cont. cost</th>
-              <th style="width:180px">Move</th><th style="width:80px">Actions</th>
+              <th style="width:180px" class="cm-hide">Move</th><th style="width:80px" class="cm-hide">Actions</th>
             </tr></thead>
             <tbody id="active-tbody"><tr><td colspan="10" style="text-align:center;padding:2rem;color:#aaa">Loading...</td></tr></tbody>
           </table>
@@ -879,10 +879,10 @@ on conflict (key) do nothing;</textarea>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:0.6rem">
           <div class="form-group"><label for="rpt-type">Report type</label>
             <select id="rpt-type" onchange="previewReport()">
-              <option value="active">Active vehicles</option>
-              <option value="history">Completed bookings</option>
+              ${!isCM()?'<option value="active">Active vehicles</option>':''}
+              ${!isCM()?'<option value="history">Completed bookings</option>':''}
               <option value="contractor">Contractor usage</option>
-              <option value="monthly">Monthly cost summary</option>
+              ${!isCM()?'<option value="monthly">Monthly cost summary</option>':''}
               <option value="monthly-detail">Monthly detail report</option>
               <option value="tc">T&amp;C acceptance log</option>
             </select>
@@ -1075,6 +1075,7 @@ on conflict (key) do nothing;</textarea>
                 <option value="staff">Staff — check in/out, view active</option>
                 <option value="manager">Manager — + reports, history</option>
                 <option value="admin">Admin — full access + settings</option>
+                <option value="contractor_manager">Contractor Manager — view only, no personal data</option>
                 <option value="contractor">Contractor — vehicle portal only</option>
               </select>
             </div>
@@ -1597,6 +1598,7 @@ let SB_URL='',SB_KEY='';
 let vehicles=[],historyData=[];
 
 function today(){return new Date().toISOString().split('T')[0];}
+function isCM(){ return currentUser&&currentUser.role==='contractor_manager'; }
 function todayDT(){return new Date().toISOString();} // full ISO datetime for comparisons with datetime fields
 function nowLocal(){let d=new Date();d.setSeconds(0,0);return d.toISOString().slice(0,16);}
 function addDays(d,n){let x=new Date(d);x.setDate(x.getDate()+n);return x.toISOString().split('T')[0];}
@@ -1927,7 +1929,7 @@ function updateDash(){
             <div style="background:${urgBg};border:1px solid ${urgBorder};border-radius:6px;padding:3px 8px;font-size:11px;font-weight:700;color:${urgText};white-space:nowrap">${urgLabel}</div>
             <div style="flex:1;min-width:120px">
               <div style="font-size:16px;font-weight:800;letter-spacing:.05em;color:var(--navy)">${v.reg}</div>
-              <div style="font-size:12px;color:var(--text-2);margin-top:1px">${v.name}${v.room_number?' · Room '+v.room_number:''}</div>
+              <div style="font-size:12px;color:var(--text-2);margin-top:1px">${isCM()?'Room '+v.room_number:(v.name+(v.room_number?' · Room '+v.room_number:''))}</div>
             </div>
             <div style="text-align:right;min-width:80px">
               <div style="font-size:11px;color:var(--text-3)">Return by</div>
@@ -1964,7 +1966,7 @@ function updateDash(){
             <div style="background:${urgBg};border:1px solid ${urgBorder};border-radius:6px;padding:3px 8px;font-size:11px;font-weight:700;color:${urgText};white-space:nowrap">${urgLabel}</div>
             <div style="flex:1;min-width:120px">
               <div style="font-size:16px;font-weight:800;letter-spacing:.05em;color:var(--navy)">${v.reg}</div>
-              <div style="font-size:12px;color:var(--text-2);margin-top:1px">${v.name}${v.room_number?' · Room '+v.room_number:''}</div>
+              <div style="font-size:12px;color:var(--text-2);margin-top:1px">${isCM()?'Room '+v.room_number:(v.name+(v.room_number?' · Room '+v.room_number:''))}</div>
             </div>
             <div style="text-align:right;min-width:80px">
               <div style="font-size:11px;color:var(--text-3)">Collection by</div>
@@ -2742,7 +2744,7 @@ function renderActive(){
       <td>${fmtDT(v.check_in_date)}</td><td>${fmtDT(v.return_date)}</td>
       <td>${nights}</td>
       <td style="color:#633806;font-weight:600">${eCurrent.cd>0?'£'+eCurrent.contCost.toFixed(2):'–'}</td>
-      <td style="display:flex;gap:4px;flex-wrap:wrap;align-items:flex-start">
+      <td class="cm-hide" style="display:flex;gap:4px;flex-wrap:wrap;align-items:flex-start">
         ${isInTransit
           ? '<button class="btn success" style="font-size:11px;padding:4px 10px;background:#1D9E75;border-color:#1D9E75;color:#fff" onclick="staffConfirmArrival(\''+v.reg+'\')">✓ Confirm arrival</button>'
           : v.location==='contractor'
@@ -2751,7 +2753,7 @@ function renderActive(){
             : '<button class="btn" style="font-size:12px;padding:5px 11px;color:#633806;border-color:#FAC775;background:#FAEEDA" onclick="openMoveModal(\''+v.reg+'\',\'contractor\')">Contractor</button>'
         }
       </td>
-      <td style="display:flex;gap:4px;flex-wrap:wrap">
+      <td class="cm-hide" style="display:flex;gap:4px;flex-wrap:wrap">
         <button class="btn" style="font-size:11px;padding:4px 10px;color:#1E407C;border-color:#1E407C;font-weight:600" onclick="showDetail('${v.reg}')">✏ Edit</button>
         <button class="btn" style="font-size:11px;padding:4px 8px" onclick="printReceipt('${v.reg}','active')">Print</button>
         <button class="btn" style="font-size:11px;padding:4px 8px;color:#27500A;border-color:#C0DD97" onclick="printKeyTagFromActive('${v.reg}')" title="Print 2 key tags">🏷 Key tag</button>
@@ -2781,7 +2783,7 @@ function searchCheckout(){
   ).join('');
   div.innerHTML=`<div class="card" style="max-width:480px">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1rem">
-      <div><div style="font-size:18px;font-weight:600">${v.reg}</div><div style="color:#888;font-size:13px">${v.name}${v.phone?' · '+v.phone:''}${v.room_number?' · Room '+v.room_number:''}${v.email?'<br><span style="font-size:11px">✉ '+v.email+'</span>':''}</div></div>
+      <div><div style="font-size:18px;font-weight:600">${v.reg}</div><div style="color:#888;font-size:13px">${isCM()?'Room '+(v.room_number||'–'):(v.name+(v.phone?' · '+v.phone:'')+(v.room_number?' · Room '+v.room_number:'')+(v.email?'<br><span style="font-size:11px">✉ '+v.email+'</span>':''))}</div></div>
       <span class="badge ${v.location}">${v.location==='hotel'?'Hotel':(v.contractor_name||'Off-site')}</span>
     </div>
     <table style="margin-bottom:1rem;width:100%">
@@ -2866,7 +2868,7 @@ function renderHistory(){
       <td style="text-align:center">${e.cd}</td>
       <td style="color:#633806;font-weight:500">${e.contCost>0?'£'+e.contCost.toFixed(2):'–'}</td>
       <td style="font-size:11px;color:#633806">${conNames}</td>
-      <td style="display:flex;gap:4px;flex-wrap:wrap">
+      <td class="cm-hide" style="display:flex;gap:4px;flex-wrap:wrap">
         <button class="btn" style="font-size:11px;padding:4px 8px" onclick="viewReceipt('${r.reg}','history')">View</button>
         <button class="btn" style="font-size:11px;padding:4px 8px" onclick="printReceipt('${r.reg}','history')">Print</button>
         <button class="btn" style="font-size:11px;padding:4px 8px;color:#185FA5;border-color:#B5D4F4" onclick="openPhotos('${r.reg}')">Photos</button>
@@ -4920,7 +4922,7 @@ function renderContractorsList(){
           <td>${c.threshold} vehicles</td>
           <td style="font-size:12px;color:#888">${c.contact||'–'}</td>
           <td><span style="padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;background:${c.active?'#EAF3DE':'#f0f0ee'};color:${c.active?'#27500A':'#888'}">${c.active?'Active':'Inactive'}</span></td>
-          <td style="display:flex;gap:4px;flex-wrap:wrap">
+          <td class="cm-hide" style="display:flex;gap:4px;flex-wrap:wrap">
             <button class="btn" style="font-size:11px;padding:3px 8px" onclick="editContractorInline(${c.id})">Edit</button>
             <button class="btn" style="font-size:11px;padding:3px 8px" onclick="toggleContractor(${c.id},${!c.active})">${c.active?'Deactivate':'Activate'}</button>
           </td>
@@ -5754,7 +5756,7 @@ function showTab(t,el){
 let currentUser=null; // {id,username,role,full_name}
 
 // Roles: staff < manager < admin
-const ROLE_LEVEL={staff:1,manager:2,admin:3,contractor:0};
+const ROLE_LEVEL={staff:1,manager:2,admin:3,contractor:0,contractor_manager:1};
 function can(minRole){return currentUser&&(ROLE_LEVEL[currentUser.role]||0)>=(ROLE_LEVEL[minRole]||99);}
 
 // Simple SHA-256 via SubtleCrypto
@@ -6024,8 +6026,8 @@ function applyRoleUI(){
   if(!currentUser)return;
   let role=currentUser.role;
   // Badge
-  let roleLabel={staff:'Staff',manager:'Manager',admin:'Admin'}[role]||role;
-  let roleColor={staff:'#888',manager:'#185FA5',admin:'#639922'}[role]||'#888';
+  let roleLabel={staff:'Staff',manager:'Manager',admin:'Admin',contractor_manager:'Contractor Mgr'}[role]||role;
+  let roleColor={staff:'#888',manager:'#185FA5',admin:'#639922',contractor_manager:'#633806'}[role]||'#888';
   let badge=document.getElementById('current-user-badge');
   badge.style.display='inline-block';
   badge.style.color=roleColor;
@@ -6033,13 +6035,15 @@ function applyRoleUI(){
   document.getElementById('logout-btn').style.display='inline-block';
 
   // Nav visibility
+  let isCMgr = role==='contractor_manager';
   let navMap={
-    'checkin':   can('staff'),
+    'checkin':   isCMgr ? false : can('staff'),
+    'pending':   isCMgr ? false : can('staff'),
     'active':    can('staff'),
-    'checkout':  can('staff'),
-    'history':   can('manager'),
-    'reports':   can('manager'),
-    'audit':     can('manager'),
+    'checkout':  isCMgr ? false : can('staff'),
+    'history':   isCMgr ? true  : can('manager'),
+    'reports':   isCMgr ? true  : can('manager'),
+    'audit':     isCMgr ? false : can('manager'),
     'settings':  can('admin'),
   };
   document.querySelectorAll('nav button').forEach(btn=>{
@@ -6052,6 +6056,19 @@ function applyRoleUI(){
   });
   document.getElementById('nav-settings').style.display=can('admin')?'':'none';
   document.getElementById('nav-audit').style.display=can('manager')?'':'none';
+
+  // Contractor manager: hide Move/Actions columns
+  if(isCMgr){
+    // Add style rule to hide cm-hide elements
+    if(!document.getElementById('cm-hide-style')){
+      let s=document.createElement('style');
+      s.id='cm-hide-style';
+      s.textContent='.cm-hide{display:none!important}';
+      document.head.appendChild(s);
+    }
+    // Default to active tab
+    setTimeout(()=>showTab('active',document.querySelector('nav button[onclick*="active"]')),100);
+  }
 }
 
 // ════════════════════════════════════════════
@@ -6164,12 +6181,13 @@ async function loadUsers(){
         <td><span style="display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:600;background:${roleBg[u.role]||'#f0f0ee'};color:${roleColors[u.role]||'#888'}">${u.role}</span></td>
         <td>${twofaBadge}</td>
         <td><span style="font-size:11px;color:${u.active?'#639922':'#E24B4A'}">${u.active?'Active':'Disabled'}</span></td>
-        <td style="display:flex;gap:4px;flex-wrap:wrap">
+        <td class="cm-hide" style="display:flex;gap:4px;flex-wrap:wrap">
           ${u.username!=='admin'?`
             <select id="role-sel-${u.id}" style="height:28px;font-size:12px;width:100px">
               <option value="staff" ${u.role==='staff'?'selected':''}>Staff</option>
               <option value="manager" ${u.role==='manager'?'selected':''}>Manager</option>
               <option value="admin" ${u.role==='admin'?'selected':''}>Admin</option>
+              <option value="contractor_manager" ${u.role==='contractor_manager'?'selected':''}>Contractor Manager</option>
             </select>
             <button class="btn" style="font-size:11px;padding:3px 8px" onclick="changeRole(${u.id})">Role</button>
             <button class="btn" style="font-size:11px;padding:3px 8px" onclick="setUserEmail(${u.id},'${u.email||''}')">Email</button>
@@ -6386,7 +6404,7 @@ function updateBatchToolbar(){
   let tb = document.getElementById('batch-toolbar');
   let cnt = document.getElementById('batch-count');
   if(!tb||!cnt) return;
-  if(selectedRegs.size > 0){
+  if(selectedRegs.size > 0 && !isCM()){
     tb.style.display = 'flex';
     cnt.textContent = selectedRegs.size + ' vehicle' + (selectedRegs.size>1?'s':'') + ' selected';
   } else {
