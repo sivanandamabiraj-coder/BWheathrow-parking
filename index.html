@@ -879,11 +879,12 @@ on conflict (key) do nothing;</textarea>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:0.6rem">
           <div class="form-group"><label for="rpt-type">Report type</label>
             <select id="rpt-type" onchange="previewReport()">
-              ${!isCM()?'<option value="active">Active vehicles</option>':''}
-              ${!isCM()?'<option value="history">Completed bookings</option>':''}
+              <option value="active">Active vehicles</option>
+              <option value="history">Completed bookings</option>
               <option value="contractor">Contractor usage</option>
-              ${!isCM()?'<option value="monthly">Monthly cost summary</option>':''}
+              <option value="monthly">Monthly cost summary</option>
               <option value="monthly-detail">Monthly detail report</option>
+              <option value="tc">T&amp;C acceptance log</option>
               <option value="tc">T&amp;C acceptance log</option>
             </select>
           </div>
@@ -1063,7 +1064,7 @@ on conflict (key) do nothing;</textarea>
           <h3>Add new user</h3>
           <div id="user-save-msg" style="margin-bottom:6px"></div>
           <div style="background:#E6F1FB;border:1px solid #B5D4F4;border-radius:7px;padding:8px 12px;font-size:12px;color:#0C447C;margin-bottom:12px">
-            🔒 Users log in with their <strong>email address</strong> and password. Admin and manager accounts also require a <strong>2FA verification code</strong> sent to their email on every login.
+            🔒 Users log in with their <strong>email address</strong> and password. Admin, Manager and Contractor Manager accounts also require a <strong>2FA verification code</strong> sent to their email on every login.
           </div>
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:12px">
             <div><label for="nu-name" style="font-size:12px;color:#555;display:block;margin-bottom:4px">Full name</label><input type="text" id="nu-name" placeholder="e.g. Jane Smith"></div>
@@ -1999,7 +2000,7 @@ function updateDash(){
   if(moveCandidates.length){
     suggestHtml+=`<div style="font-size:11px;font-weight:600;color:#555;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">Suggested moves (${'>'}7 days left)</div>`;
     suggestHtml+=moveCandidates.map(v=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:#f5f5f3;border-radius:7px;margin-bottom:6px;border-left:3px solid #378ADD">
-      <div><strong style="font-size:13px">${v.reg}</strong><span style="font-size:12px;color:#555;margin-left:6px">${v.name}</span><span style="font-size:11px;color:#888;margin-left:6px">${nightsApart(td,v.return_date)} days left</span></div>
+      <div><strong style="font-size:13px">${v.reg}</strong><span style="font-size:12px;color:#555;margin-left:6px">${isCM()?'':(v.name)}</span><span style="font-size:11px;color:#888;margin-left:6px">${nightsApart(td,v.return_date)} days left</span></div>
       <button onclick="openMoveModal('${v.reg}','contractor')" style="font-size:11px;padding:3px 10px;background:#378ADD;color:#fff;border:none;border-radius:5px;cursor:pointer">Move out</button>
     </div>`).join('');
   }
@@ -2007,7 +2008,7 @@ function updateDash(){
 
   // ── Recent vehicles table ──
   let recent=vehicles.slice(0,8);
-  document.getElementById('dash-table').innerHTML=recent.length?`<table><thead><tr><th>Reg</th><th>Name</th><th>Location</th><th>Return</th><th>Cont. cost</th></tr></thead><tbody>${recent.map(v=>`<tr><td><strong>${v.reg}</strong></td><td>${v.name}</td><td><span class="badge ${v.location}">${v.location==='hotel'?'Hotel':(v.contractor_name||'Contractor')}</span></td><td>${fmtDT(v.return_date)}</td><td style="color:#633806;font-weight:600">£${estimateCost(v).contCost.toFixed(2)}</td></tr>`).join('')}</tbody></table>`:'<p style="color:#aaa;text-align:center;padding:1rem">No active vehicles</p>';
+  document.getElementById('dash-table').innerHTML=recent.length?`<table><thead><tr><th>Reg</th><th>Name</th><th>Location</th><th>Return</th><th>Cont. cost</th></tr></thead><tbody>${recent.map(v=>`<tr><td><strong>${v.reg}</strong></td><td>${isCM()?'–':v.name}</td><td><span class="badge ${v.location}">${v.location==='hotel'?'Hotel':(v.contractor_name||'Contractor')}</span></td><td>${fmtDT(v.return_date)}</td><td style="color:#633806;font-weight:600">£${estimateCost(v).contCost.toFixed(2)}</td></tr>`).join('')}</tbody></table>`:'<p style="color:#aaa;text-align:center;padding:1rem">No active vehicles</p>';
 
   // ── Loyalty widget ──
   let loyaltyEl=document.getElementById('dash-loyalty');
@@ -2735,7 +2736,7 @@ function renderActive(){
         ${(()=>{let cnt=[...vehicles,...historyData].filter(x=>x.reg===v.reg).length;return cnt>=2?'<br>'+renderLoyaltyBadge(cnt):'';})()}
         ${transitBadge}
       </td>
-      <td style="overflow:hidden;text-overflow:ellipsis">${v.name}</td>
+      <td style="overflow:hidden;text-overflow:ellipsis">${isCM()?'<span style="color:#ccc">●●●●●●</span>':v.name}</td>
       <td>
         <span class="badge ${v.location}" style="display:block;margin-bottom:2px">${v.location==='hotel'?'Hotel':'Off-site'}</span>
         ${v.location==='contractor'&&v.contractor_name?'<span style="font-size:10px;color:#633806;font-weight:500">'+v.contractor_name+'</span>':''}
@@ -5814,7 +5815,7 @@ async function doLogin(){
 
     // Password correct — check if 2FA is needed
     // Admin and manager always get 2FA; staff only if they have an email
-    let needs2FA = (u.role==='admin'||u.role==='manager') || (u.email && u.role==='staff');
+    let needs2FA = (u.role==='admin'||u.role==='manager'||u.role==='contractor_manager') || (u.email && u.role==='staff');
 
     if(!needs2FA || !u.email){
       // No 2FA — log straight in
@@ -6037,6 +6038,7 @@ function applyRoleUI(){
   // Nav visibility
   let isCMgr = role==='contractor_manager';
   let navMap={
+    'dashboard': isCMgr ? false : true,
     'checkin':   isCMgr ? false : can('staff'),
     'pending':   isCMgr ? false : can('staff'),
     'active':    can('staff'),
@@ -6049,7 +6051,7 @@ function applyRoleUI(){
   document.querySelectorAll('nav button').forEach(btn=>{
     let onclick=btn.getAttribute('onclick')||'';
     let m=onclick.match(/showTab\('(\w+)'/);
-    if(m&&m[1]!=='dashboard'){
+    if(m){
       let tabName=m[1];
       btn.style.display=(navMap[tabName]===false)?'none':'';
     }
@@ -6057,8 +6059,16 @@ function applyRoleUI(){
   document.getElementById('nav-settings').style.display=can('admin')?'':'none';
   document.getElementById('nav-audit').style.display=can('manager')?'':'none';
 
-  // Contractor manager: hide Move/Actions columns
+  // Contractor manager: restrict report types + hide columns
   if(isCMgr){
+    // Only show contractor-related reports
+    let rptSel=document.getElementById('rpt-type');
+    if(rptSel){
+      [...rptSel.options].forEach(o=>{
+        if(!['contractor','monthly-detail'].includes(o.value)) o.style.display='none';
+      });
+      rptSel.value='contractor';
+    }
     // Add style rule to hide cm-hide elements
     if(!document.getElementById('cm-hide-style')){
       let s=document.createElement('style');
@@ -6441,7 +6451,7 @@ function batchMoveSelected(toLocation){
   document.getElementById('bmm-vehicles').innerHTML =
     vList.map(v=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #eee">
       <strong style="font-size:14px;letter-spacing:.04em">${v.reg}</strong>
-      <span style="font-size:12px;color:#888">${v.name}</span>
+      <span style="font-size:12px;color:#888">${isCM()?'':v.name}</span>
       <span class="badge ${v.location}" style="font-size:10px;margin-left:auto">${v.location==='hotel'?'Hotel':(v.contractor_name||'Contractor')}</span>
     </div>`).join('');
 
