@@ -860,7 +860,7 @@ on conflict (key) do nothing;</textarea>
         <div style="overflow-x:auto">
           <table>
             <thead><tr>
-              <th style="width:85px">Reg</th><th style="width:100px">Name</th>
+              <th style="width:85px">Reg</th><th class="cm-hide" style="width:100px">Name</th>
               <th style="width:90px">Check-in</th><th style="width:90px">Check-out</th>
               <th style="width:65px">Hotel nights</th>
               <th style="width:65px">Cont. nights</th><th style="width:80px">Cont. cost</th>
@@ -1878,7 +1878,7 @@ function updateDash(){
         +'<div style="background:#DC2626;color:#fff;border-radius:5px;padding:2px 8px;font-size:11px;font-weight:700">'+daysOver+' DAY'+(daysOver>1?'S':'')+' OVERDUE</div>'
         +'<div style="flex:1"><span style="font-size:15px;font-weight:800;letter-spacing:.05em;color:#0F2A4A">'+v.reg+'</span>'
         +locBadge
-        +'<span style="font-size:12px;color:#555;margin-left:8px">'+v.name+'</span>'
+        +'<span style="font-size:12px;color:#555;margin-left:8px">'+(isCM()?'':v.name)+'</span>'
         +'<span style="font-size:11px;color:#999;margin-left:6px">Due: '+fmtD(v.return_date)+'</span></div>'
         +(cost?'<div style="font-size:12px;color:#DC2626;font-weight:600">+£'+cost+'</div>':'')
         +actionBtn+notify+'</div>';
@@ -2021,7 +2021,7 @@ function updateDash(){
       let v=all.find(x=>x.reg===reg);
       return`<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #f0f0f0">
         <span style="font-size:14px;font-weight:700;color:#1E407C;min-width:90px">${reg}</span>
-        <span style="font-size:12px;color:#555;flex:1">${v?v.name:''}</span>
+        <span style="font-size:12px;color:#555;flex:1">${v&&!isCM()?v.name:''}</span>
         ${renderLoyaltyBadge(cnt)}
       </div>`;
     }).join('');
@@ -2321,7 +2321,7 @@ function openMoveModal(reg,toLocation){
   let fromLabel=v.location==='hotel'?'Hotel':(v.contractor_name||'Contractor');
   let toLabel=toLocation==='hotel'?'Hotel':'Off-site contractor';
   document.getElementById('modal-title').textContent='Move '+reg+' → '+toLabel;
-  document.getElementById('modal-desc').textContent=reg+' ('+v.name+') currently at '+fromLabel+' since '+fmtDT(v.current_location_start)+'.';
+  document.getElementById('modal-desc').textContent=reg+(isCM()?'':' ('+v.name+')')+' currently at '+fromLabel+' since '+fmtDT(v.current_location_start)+'.';
   document.getElementById('modal-note').value='';
   document.getElementById('modal-move-date').value=nowLocal();
 
@@ -2449,8 +2449,7 @@ function showDetail(reg){
 
   document.getElementById('detail-header').innerHTML=
     '<div style="font-size:16px;font-weight:700">'+v.reg+'</div>'+
-    '<div style="font-size:12px;opacity:0.8;margin-top:1px">'+v.name+
-    (v.phone?' &nbsp;·&nbsp; '+v.phone:'')+
+    '<div style="font-size:12px;opacity:0.8;margin-top:1px">'+(isCM()?'':v.name+(v.phone?' &nbsp;·&nbsp; '+v.phone:''))+
     (v.room_number?' &nbsp;·&nbsp; Room '+v.room_number:'')+
     '</div>';
 
@@ -2862,7 +2861,7 @@ function renderHistory(){
     let conNames=e.contSegments.length?e.contSegments.map(s=>s.name).join(', '):'–';
     return`<tr>
       <td><strong>${r.reg}</strong>${r.ref_code?'<br><span style="font-size:10px;color:#0C447C">'+r.ref_code+'</span>':''}${(()=>{let cnt=[...vehicles,...historyData].filter(v=>v.reg===r.reg).length;return cnt>=2?'<br>'+renderLoyaltyBadge(cnt):'';})()}</td>
-      <td>${r.name}</td>
+      <td class="cm-hide">${isCM()?'<span style="color:#ccc">●●●●●●</span>':r.name}</td>
       <td>${fmtDT(r.check_in_date)}</td>
       <td>${fmtDT(r.check_out_date)}</td>
       <td style="text-align:center">${e.hd}</td>
