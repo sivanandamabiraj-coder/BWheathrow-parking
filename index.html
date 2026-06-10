@@ -6595,7 +6595,7 @@ let _cpCurrentAction = null;
 
 // ── Contractor portal tab switcher ──
 function cpShowTab(tab, btn){
-  ['vehicles','dashboard','report'].forEach(t=>{
+  ['vehicles','dashboard'].forEach(t=>{
     let s=document.getElementById('cp-section-'+t);
     let b=document.getElementById('cp-tab-'+t);
     if(s) s.style.display = t===tab ? '' : 'none';
@@ -6604,11 +6604,9 @@ function cpShowTab(tab, btn){
       b.style.borderBottomColor = t===tab ? '#1E407C' : 'transparent';
     }
   });
-  // Widen container for report tab so table can scroll horizontally
   let container=document.getElementById('cp-main-container');
-  if(container) container.style.maxWidth = tab==='report' ? '100%' : '680px';
+  if(container) container.style.maxWidth = '680px';
   if(tab==='dashboard') renderCPDashboard();
-  if(tab==='report') renderCPReport();
 }
 
 // ── Contractor dashboard ──
@@ -6917,7 +6915,7 @@ async function loadContractorPortal(){
 
     // Refresh dashboard/report if currently visible
     if(document.getElementById('cp-section-dashboard')&&document.getElementById('cp-section-dashboard').style.display!=='none') renderCPDashboard();
-    if(document.getElementById('cp-section-report')&&document.getElementById('cp-section-report').style.display!=='none') renderCPReport();
+
   }catch(e){
     document.getElementById('cp-alert').innerHTML='<div class="alert warn">Error loading vehicles: '+e.message+'</div>';
   }
@@ -7506,10 +7504,6 @@ window.addEventListener('DOMContentLoaded',()=>{
       style="padding:10px 18px;border:none;border-bottom:3px solid transparent;background:transparent;font-size:13px;font-weight:600;color:#888;cursor:pointer;font-family:inherit">
       📊 Summary
     </button>
-    <button onclick="cpShowTab('report',this)" id="cp-tab-report"
-      style="padding:10px 18px;border:none;border-bottom:3px solid transparent;background:transparent;font-size:13px;font-weight:600;color:#888;cursor:pointer;font-family:inherit">
-      📋 Report
-    </button>
   </div>
 
   <div id="cp-main-container" style="max-width:680px;margin:0 auto;padding:1rem">
@@ -7562,29 +7556,6 @@ window.addEventListener('DOMContentLoaded',()=>{
       <div style="background:#fff;border:1px solid #eee;border-radius:10px;padding:14px">
         <div style="font-size:13px;font-weight:700;color:#1E407C;margin-bottom:10px">Current vehicles with us</div>
         <div id="cpd-vehicle-list" style="font-size:12px;color:#555">Loading...</div>
-      </div>
-    </div>
-
-    <!-- ── REPORT TAB ── -->
-    <div id="cp-section-report" style="display:none">
-      <div style="display:flex;gap:8px;margin-bottom:1rem;flex-wrap:wrap;align-items:flex-end">
-        <div>
-          <label style="font-size:11px;color:#666;display:block;margin-bottom:3px">Date from</label>
-          <input type="date" id="cp-rpt-from" oninput="renderCPReport()" style="padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:12px">
-        </div>
-        <div>
-          <label style="font-size:11px;color:#666;display:block;margin-bottom:3px">Date to</label>
-          <input type="date" id="cp-rpt-to" oninput="renderCPReport()" style="padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:12px">
-        </div>
-        <button onclick="renderCPReport()" style="padding:7px 14px;background:#1E407C;color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit">↻ Refresh</button>
-        <button onclick="exportCPReport()" style="padding:7px 14px;background:#1D9E75;color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit">⬇ Download CSV</button>
-      </div>
-      <div id="cp-rpt-summary" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:1rem"></div>
-      <div style="overflow-x:auto;border:1px solid #eee;border-radius:8px">
-        <table id="cp-rpt-table" style="min-width:900px;border-collapse:collapse;font-size:12px;table-layout:auto">
-          <thead><tr id="cp-rpt-thead" style="background:#fafaf8"></tr></thead>
-          <tbody id="cp-rpt-tbody"></tbody>
-          <tfoot><tr id="cp-rpt-tfoot"></tr></tfoot>
         </table>
       </div>
     </div>
