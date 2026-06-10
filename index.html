@@ -1665,11 +1665,23 @@ async function sbFetch(path,opts={}){
     ...(opts.headers||{})
   };
   let r=await fetch(url,{...opts,headers});
-  if(r.status===204)return null;
+  if(r.status===204) return null;
   let text=await r.text();
-  if(!text)return null;
-  let json=JSON.parse(text);
-  if(json&&json.error){console.error('Supabase error:',json);throw new Error(json.message||json.error);}
+  if(!text) return null;
+  let json;
+  try{ json=JSON.parse(text); }catch(e){ throw new Error('Invalid response from database'); }
+
+  // Supabase error responses: {"code","message","details","hint"} or {"error","message"}
+  if(json && !Array.isArray(json) && (json.code||json.error)){
+    let msg=json.message||json.error||'Database error';
+    if(json.code==='PGRST301'||msg.includes('JWT')||r.status===401) throw new Error('Auth failed — check your API key in Settings');
+    if(r.status===503||r.status===500) throw new Error('Database unavailable ('+r.status+') — check if your Supabase project is paused at supabase.com');
+    throw new Error(msg);
+  }
+  // For GET requests (no method = GET), always return an array
+  if(!opts.method || opts.method==='GET'){
+    return Array.isArray(json) ? json : (json===null ? [] : json);
+  }
   return json;
 }
 
@@ -1694,8 +1706,10 @@ async function loadData(silent){
   try{
     let active=await sbFetch("vehicles?status=eq.active&order=check_in_date.desc&select=*");
     let hist=await sbFetch("vehicles?status=eq.checked-out&order=check_out_date.desc&limit=200&select=*");
-    vehicles=active||[];
-    historyData=hist||[];
+    vehicles=Array.isArray(active)?active:[];
+    historyData=Array.isArray(hist)?hist:[];
+    if(!Array.isArray(vehicles)) vehicles=[];      // belt-and-braces
+    if(!Array.isArray(historyData)) historyData=[];
     // Also refresh contractors so rate changes from settings are picked up
     try{ await loadContractors(); }catch(ce){ console.warn('loadContractors:',ce.message); }
     updateDash();renderActive();renderHistory();loadPending();
@@ -1755,8 +1769,7 @@ async function saveSetup(){
 }
 
 function hotelCounts(){
-  // All hotel vehicles are long-stay until ANPR is integrated
-  // Daily slots reserved for future ANPR-based detection
+  if(!Array.isArray(vehicles)) return {daily:0, long:0, contractor:0};
   let hotelVehicles = vehicles.filter(v=>v.location==='hotel');
   let long       = hotelVehicles.length;
   let daily      = 0;
@@ -1773,6 +1786,8 @@ function allocateSpace(){
 }
 
 function updateDash(){
+  if(!Array.isArray(vehicles)){vehicles=[];historyData=[];}
+  if(!Array.isArray(contractorsList)) contractorsList=[];
   let{daily,long,contractor}=hotelCounts();
   let total=daily+long;
   let totalCap   = DAILY_CAP()+LONG_CAP();
@@ -2629,6 +2644,7 @@ function setActiveSplit(split){
 }
 
 function getFilteredVehicles(){
+  if(!Array.isArray(vehicles)) return [];
   let q       =(document.getElementById('search-active')?.value||'').toLowerCase();
   let fromF   = document.getElementById('filter-active-from')?.value||'';
   let toF     = document.getElementById('filter-active-to')?.value||'';
@@ -2650,9 +2666,11 @@ function getFilteredVehicles(){
 }
 
 function renderActive(){
+  if(!Array.isArray(vehicles)){vehicles=[];} // guard against non-array
+  let td=today();
   let list=getFilteredVehicles();
   let tbody=document.getElementById('active-tbody');
-  let ret=vehicles.filter(v=>v.location==='contractor'&&v.return_date<=td);
+  let ret=vehicles.filter(v=>v.location==='contractor'&&v.return_date&&v.return_date.slice(0,10)<=td);
   document.getElementById('active-alerts').innerHTML=ret.length?`<div class="alert warn">${ret.length} vehicle(s) due back today — move from contractor to hotel: ${ret.map(v=>'<strong>'+v.reg+'</strong>').join(', ')}</div>`:'';
 
   // Active strip - contractor cost only
