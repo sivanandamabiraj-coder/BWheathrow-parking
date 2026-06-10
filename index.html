@@ -366,7 +366,7 @@ create table if not exists pending_checkins (
   id bigint generated always as identity primary key,
   ref_code text,
   reg text, name text, phone text, email text,
-  vehicle_make text, vehicle_colour text,
+  vehicle_make text, vehicle_model text, vehicle_colour text,
   check_in_date date, return_date date, flight_date date, flight_number text,
   type text,
   package_id text,
@@ -724,6 +724,11 @@ on conflict (key) do nothing;</textarea>
         <div id="ci-alert"></div>
         <div class="form-row">
           <div class="form-group"><label for="ci-reg">Registration plate *</label><input type="text" id="ci-reg" placeholder="AB12 CDE" style="text-transform:uppercase" onchange="checkRepeatCustomer()"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+            <div class="form-group" style="margin:0"><label for="ci-make">Vehicle make</label><input type="text" id="ci-make" placeholder="e.g. Ford"></div>
+            <div class="form-group" style="margin:0"><label for="ci-model">Model</label><input type="text" id="ci-model" placeholder="e.g. Focus"></div>
+            <div class="form-group" style="margin:0"><label for="ci-colour">Colour</label><input type="text" id="ci-colour" placeholder="e.g. Red"></div>
+          </div>
           <div class="form-group"><label for="ci-name">Customer name *</label><input type="text" id="ci-name"></div>
         </div>
         <div class="form-row">
@@ -1704,8 +1709,22 @@ async function testConnection(){
 async function loadData(silent){
   if(!silent)showLoading('Connecting to database...');
   try{
-    let active=await sbFetch("vehicles?status=eq.active&order=check_in_date.desc&select=*");
-    let hist=await sbFetch("vehicles?status=eq.checked-out&order=check_out_date.desc&limit=200&select=*");
+    // Retry up to 3 times on 500 (Supabase waking from idle)
+    let active, hist, lastErr;
+    for(let attempt=0; attempt<3; attempt++){
+      try{
+        if(attempt>0){ if(!silent)showLoading('Retrying connection ('+(attempt+1)+'/3)...'); await new Promise(r=>setTimeout(r,2000)); }
+        active = await sbFetch("vehicles?status=eq.active&order=check_in_date.desc&select=*");
+        hist   = await sbFetch("vehicles?status=eq.checked-out&order=check_out_date.desc&limit=200&select=*");
+        lastErr = null;
+        break;
+      }catch(e){
+        lastErr=e;
+        if(!e.message.includes('500')&&!e.message.includes('unavailable')) throw e; // don't retry auth errors
+        console.warn('loadData attempt '+(attempt+1)+' failed:',e.message);
+      }
+    }
+    if(lastErr) throw lastErr;
     vehicles=Array.isArray(active)?active:[];
     historyData=Array.isArray(hist)?hist:[];
     if(!Array.isArray(vehicles)) vehicles=[];      // belt-and-braces
@@ -2180,6 +2199,9 @@ async function checkIn(){
   let reg  = (document.getElementById('ci-reg')?.value||'').trim().toUpperCase();
   let name = (document.getElementById('ci-name')?.value||'').trim();
   let phone= (document.getElementById('ci-phone')?.value||'').trim();
+  let vMake   = (document.getElementById('ci-make')?.value||'').trim()||null;
+  let vModel  = (document.getElementById('ci-model')?.value||'').trim()||null;
+  let vColour = (document.getElementById('ci-colour')?.value||'').trim()||null;
   let checkinDate = document.getElementById('ci-checkin')?.value||nowLocal();
   let ret  = document.getElementById('ci-return')?.value||'';
   let room = document.getElementById('ci-room')?.value.trim()||null;
@@ -2209,6 +2231,7 @@ async function checkIn(){
     await sbFetch('vehicles',{method:'POST',body:JSON.stringify({
       reg, name, phone:phone||null,
       email: document.getElementById('ci-email')?.value.trim()||null,
+      vehicle_make: vMake, vehicle_model: vModel, vehicle_colour: vColour,
       location: loc,
       check_in_date: checkinDate,
       return_date: ret,
@@ -2246,7 +2269,7 @@ async function checkIn(){
         reg:     reg
       }).catch(e=>console.warn('Check-in email:',e));
     }
-    ['ci-reg','ci-name','ci-phone','ci-checkin','ci-room','ci-return','ci-email'].forEach(id=>{
+    ['ci-reg','ci-name','ci-phone','ci-checkin','ci-room','ci-return','ci-email','ci-make','ci-model','ci-colour'].forEach(id=>{
       let el=document.getElementById(id); if(el) el.value='';
     });
     let ov=document.getElementById('ci-location-override'); if(ov) ov.value='auto';
@@ -6912,12 +6935,14 @@ function renderCPList(elId, list, action){
     let badgeText = isDeliver ? 'Collect from hotel' : 'Return to hotel';
     let btnBg     = isDeliver ? '#1E407C' : '#1D9E75';
     let btnText   = isDeliver ? 'Take photos + Confirm received' : 'Take photos + Confirm returned';
+    let vInfo=[v.vehicle_colour,v.vehicle_make,v.vehicle_model].filter(Boolean).join(' ');
     return '<div style="background:#fff;border:1px solid '+borderCol+';border-radius:10px;padding:14px;margin-bottom:10px">'
-      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:'+(vInfo?'2px':'8px')+'">'
       +'<div style="font-size:26px;font-weight:800;letter-spacing:.06em;color:#1E407C">'+v.reg+'</div>'
       +'<span style="background:'+badgeBg+';color:'+badgeCol+';padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600">'+badgeText+'</span>'
       +'</div>'
-      +'<button onclick="openCPConfirmModal(\''+v.reg+'\',\''+action+'\')"'
+      +(vInfo?'<div style="font-size:13px;font-weight:500;color:#444;margin-bottom:8px">'+vInfo+'</div>':'')
+      +'<button data-reg="'+v.reg+'" data-action="'+action+'" onclick="openCPConfirmModal(this.dataset.reg,this.dataset.action)"'
       +' style="width:100%;padding:12px;background:'+btnBg+';color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">'+btnText+'</button>'
       +'</div>';
   }).join('');
@@ -6952,8 +6977,10 @@ function renderCPReturnSection(toReturn, withMe){
       let statusCol=isOverdue?'#791F1F':isDueSoon?'#633806':'#085041';
       let statusBg=isOverdue?'#FCEBEB':isDueSoon?'#FAEEDA':'#E1F5EE';
       let statusText=isOverdue?'Overdue':isDueSoon?'Due soon':'OK';
+      let vi=[v.vehicle_colour,v.vehicle_make,v.vehicle_model].filter(Boolean).join(' ');
       html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;'+(i>0?'border-top:1px solid #f0f0f0':'')+'">'
-        + '<div style="font-size:16px;font-weight:800;letter-spacing:.05em;color:#1E407C">'+v.reg+'</div>'
+        + '<div><div style="font-size:16px;font-weight:800;letter-spacing:.05em;color:#1E407C">'+v.reg+'</div>'
+        + (vi?'<div style="font-size:11px;color:#555">'+vi+'</div>':'')+'</div>'
         + '<div style="font-size:11px;color:#888;text-align:right">'
         + '<div>Return: '+fmtD(v.return_date)+'</div>'
         + '<span style="background:'+statusBg+';color:'+statusCol+';padding:1px 7px;border-radius:8px;font-size:10px;font-weight:600">'+statusText+'</span>'

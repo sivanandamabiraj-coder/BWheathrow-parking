@@ -118,7 +118,8 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
   <div class="card"><div class="ch"><span class="sn">1</span><h2>Your vehicle</h2></div><div class="cb">
     <div class="f"><label>Registration plate <span class="req">*</span></label><input type="text" id="f-reg" class="up" placeholder="AB12 CDE" maxlength="10" autocomplete="off"><div class="em" id="e-reg">Please enter your registration plate</div></div>
     <div class="r2">
-      <div class="f"><label>Make / model</label><input type="text" id="f-make" placeholder="e.g. Ford Focus" autocomplete="off"></div>
+      <div class="f"><label>Make</label><input type="text" id="f-make" placeholder="e.g. Ford" autocomplete="off"></div>
+      <div class="f"><label>Model</label><input type="text" id="f-model" placeholder="e.g. Focus" autocomplete="off"></div>
       <div class="f"><label>Colour</label><input type="text" id="f-colour" placeholder="e.g. Silver" autocomplete="off"></div>
     </div>
   </div></div>
@@ -299,6 +300,7 @@ function popReview(){
   let ci=document.getElementById('f-ci').value;
   let ret=document.getElementById('f-ret').value;
   let make=document.getElementById('f-make').value.trim();
+  let model=document.getElementById('f-model')?.value.trim()||'';
   let col=document.getElementById('f-colour').value.trim();
   document.getElementById('r-reg').textContent=reg;
   document.getElementById('r-name').textContent=name;
@@ -306,7 +308,7 @@ function popReview(){
   document.getElementById('r-room').textContent=room||'–';
   document.getElementById('r-ci').textContent=fmtDT(ci);
   document.getElementById('r-ret').textContent=fmtDT(ret);
-  document.getElementById('r-veh').textContent=[col,make].filter(Boolean).join(' ')||'–';
+  document.getElementById('r-veh').textContent=[col,make,model].filter(Boolean).join(' ')||'–';
 }
 
 async function submitAll(){
@@ -318,6 +320,7 @@ async function submitAll(){
   let phone=document.getElementById('f-phone').value.trim();
   let email=document.getElementById('f-email').value.trim();
   let make=document.getElementById('f-make').value.trim();
+  let model=document.getElementById('f-model')?.value.trim()||'';
   let col=document.getElementById('f-colour').value.trim();
   let ci=document.getElementById('f-ci').value;   // "YYYY-MM-DDTHH:MM"
   let ret=document.getElementById('f-ret').value;
@@ -331,6 +334,7 @@ async function submitAll(){
         ref_code:ref, reg, name, phone,
         email:email||null,
         vehicle_make:make||null,
+        vehicle_model:model||null,
         vehicle_colour:col||null,
         check_in_date:ci,    // full datetime string
         return_date:ret,     // full datetime string
@@ -384,14 +388,12 @@ async function sendGuestEmail({ref,reg,name,phone,room,ci,ret,email}){
         let m={};rows.forEach(x=>{m[x.key]=x.value;});
         cfg={apiKey:m.email_api_key||'',fromEmail:m.email_from||'',
           hotelName:m.email_hotel_name||'Best Western Ariel Hotel',
-          replyEmail:m.email_reply_to||'',
-          onPending:m.email_on_pending!=='false'};
+          replyEmail:m.email_reply_to||''};
         localStorage.setItem('heathrow_email_cfg',JSON.stringify(cfg));
       }
     }catch(e){}
   }
   if(!cfg||!cfg.apiKey||!cfg.fromEmail) return;
-  if(cfg.onPending===false) return;
   let hotel=cfg.hotelName||'Best Western Ariel Hotel';
   let html=`<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:20px;color:#1a1a1a">
   <div style="background:#1E407C;padding:16px 20px;border-radius:8px 8px 0 0;border-bottom:3px solid #C9A84C">
