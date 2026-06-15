@@ -6902,6 +6902,11 @@ function launchContractorPortal(){
 
 let _cpAllVehicles = [];   // all active vehicles for this contractor (active + history)
 let _cpMineActive  = [];   // active vehicles currently linked to this contractor
+let _cpToDeliver   = [];   // raw lists before search/sort applied
+let _cpToReturn    = [];
+let _cpWithMe      = [];
+let _cpSortMode    = 'date'; // 'date' | 'reg'
+let _cpParkedOpen  = false;
 
 async function loadContractorPortal(){
   try{
@@ -6943,14 +6948,17 @@ async function loadContractorPortal(){
     _cpAllVehicles = [...allActive,...allHistory].filter(wasEverMine);
 
     // Deliver list: pending_to_contractor (hotel → contractor, needs my confirmation)
-    let toDeliver = mine.filter(v=>v.move_status==='pending_to_contractor');
+    _cpToDeliver = mine.filter(v=>v.move_status==='pending_to_contractor');
     // Return list: pending_to_hotel (contractor → hotel, I need to return them)
-    let toReturn = mine.filter(v=>v.move_status==='pending_to_hotel');
+    _cpToReturn = mine.filter(v=>v.move_status==='pending_to_hotel');
     // Already at contractor (parked with me)
-    let withMe = mine.filter(v=>v.location==='contractor' && (!v.move_status || v.move_status==='null' || v.move_status===''));
+    _cpWithMe = mine.filter(v=>v.location==='contractor' && (!v.move_status || v.move_status==='null' || v.move_status===''));
 
-    renderCPList('cp-deliver-list', toDeliver, 'deliver');
-    renderCPReturnSection(toReturn, withMe);
+    cpFilterAndSort();
+
+    // "Synced" timestamp
+    let syncedEl=document.getElementById('cp-synced');
+    if(syncedEl) syncedEl.innerHTML='<i style="display:inline-flex;align-items:center;gap:5px">↻ Synced just now</i>';
 
     // Refresh dashboard/report if currently visible
     if(document.getElementById('cp-section-dashboard')&&document.getElementById('cp-section-dashboard').style.display!=='none') renderCPDashboard();
@@ -6960,90 +6968,144 @@ async function loadContractorPortal(){
   }
 }
 
+// ── Urgency badge for return cards, based on return_date ──
+function cpUrgencyBadge(returnDate){
+  let td = today();
+  let rd = (returnDate||'').slice(0,10);
+  let rdTime = (returnDate||'').slice(11,16);
+  if(!rd) return {text:'No date', bg:'#f0f0f0', col:'#888'};
+  if(rd < td){
+    let days = nightsApart(rd, td);
+    return {text:'Overdue '+days+'d', bg:'#FCEBEB', col:'#791F1F'};
+  }
+  if(rd === td) return {text:'Due today'+(rdTime?' '+rdTime:''), bg:'#FAEEDA', col:'#633806'};
+  let days = nightsApart(td, rd);
+  if(days===1) return {text:'Due tomorrow', bg:'#E1F5EE', col:'#085041'};
+  return {text:'Due in '+days+'d', bg:'#E1F5EE', col:'#085041'};
+}
+
+// ── Search filter — matches reg, make, model, colour ──
+function cpMatchesSearch(v, q){
+  if(!q) return true;
+  q = q.toLowerCase();
+  let fields = [v.reg, v.vehicle_make, v.vehicle_model, v.vehicle_colour, v.room_number];
+  return fields.some(f => (f||'').toLowerCase().includes(q));
+}
+
+// ── Sort — by date (urgency/check-in) or by registration ──
+function cpSortList(list, dateField){
+  let sorted = [...list];
+  if(_cpSortMode === 'reg'){
+    sorted.sort((a,b)=> (a.reg||'').localeCompare(b.reg||''));
+  } else {
+    sorted.sort((a,b)=> (a[dateField]||'').localeCompare(b[dateField]||''));
+  }
+  return sorted;
+}
+
+function cpToggleSort(){
+  _cpSortMode = _cpSortMode==='date' ? 'reg' : 'date';
+  let btn=document.getElementById('cp-sort-btn');
+  if(btn) btn.innerHTML = _cpSortMode==='date' ? '\u2195 Date' : '\u2195 Reg';
+  cpFilterAndSort();
+}
+
+function cpToggleParked(){
+  _cpParkedOpen = !_cpParkedOpen;
+  let list=document.getElementById('cp-parked-list');
+  let chev=document.getElementById('cp-parked-chevron');
+  if(list) list.style.display = _cpParkedOpen ? 'block' : 'none';
+  if(chev) chev.textContent = _cpParkedOpen ? '\u25B2' : '\u25BC';
+  if(_cpParkedOpen) cpFilterAndSort();
+}
+
+// ── Apply search + sort, update stats, and re-render all sections ──
+function cpFilterAndSort(){
+  let q = (document.getElementById('cp-search')||{}).value || '';
+
+  let deliver = cpSortList(_cpToDeliver.filter(v=>cpMatchesSearch(v,q)), 'check_in_date');
+  let ret     = cpSortList(_cpToReturn.filter(v=>cpMatchesSearch(v,q)), 'return_date');
+  let parked  = cpSortList(_cpWithMe.filter(v=>cpMatchesSearch(v,q)), 'current_location_start');
+
+  // Update stat counts (always show TOTAL counts, not filtered, so driver sees full picture)
+  let elC=document.getElementById('cp-stat-collect'); if(elC) elC.textContent = _cpToDeliver.length;
+  let elR=document.getElementById('cp-stat-return');  if(elR) elR.textContent = _cpToReturn.length;
+  let elP=document.getElementById('cp-stat-parked');  if(elP) elP.textContent = _cpWithMe.length;
+
+  let elDC=document.getElementById('cp-deliver-count'); if(elDC) elDC.textContent = deliver.length;
+  let elRC=document.getElementById('cp-return-count');  if(elRC) elRC.textContent = ret.length;
+  let elPC=document.getElementById('cp-parked-count');  if(elPC) elPC.textContent = parked.length;
+
+  renderCPList('cp-deliver-list', deliver, 'deliver');
+  renderCPList('cp-return-list', ret, 'return');
+
+  // Parked list only rendered when expanded (saves work on a 40+ vehicle list)
+  if(_cpParkedOpen){
+    renderCPParkedList(parked);
+  }
+}
+
 function renderCPList(elId, list, action){
   let el = document.getElementById(elId);
   if(!el) return;
   if(!list.length){
-    el.innerHTML='<div style="background:#f5f5f3;border-radius:8px;padding:14px;color:#aaa;font-size:13px;text-align:center">No vehicles pending</div>';
+    el.innerHTML='<div style="background:#f5f5f3;border-radius:8px;padding:14px;color:#aaa;font-size:13px;text-align:center">No vehicles'+(action==='deliver'?' to collect':' to return')+'</div>';
     return;
   }
   let isDeliver = action==='deliver';
   el.innerHTML = list.map(v=>{
     let borderCol = isDeliver ? '#FAC775' : '#1D9E75';
-    let badgeBg   = isDeliver ? '#FAEEDA' : '#E1F5EE';
-    let badgeCol  = isDeliver ? '#633806' : '#085041';
-    let badgeText = isDeliver ? 'Collect from hotel' : 'Return to hotel';
     let btnBg     = isDeliver ? '#1E407C' : '#1D9E75';
     let btnText   = isDeliver ? 'Take photos + Confirm received' : 'Take photos + Confirm returned';
     let vInfo=[v.vehicle_colour,v.vehicle_make,v.vehicle_model].filter(Boolean).join(' ');
+    let badge;
+    if(isDeliver){
+      badge = {text:'Collect from hotel', bg:'#FAEEDA', col:'#633806'};
+    } else {
+      badge = cpUrgencyBadge(v.return_date);
+    }
+    let subInfo = v.room_number ? 'Room '+v.room_number : '';
     return '<div style="background:#fff;border:1px solid '+borderCol+';border-radius:10px;padding:14px;margin-bottom:10px">'
-      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:'+(vInfo?'2px':'8px')+'">'
+      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:'+(vInfo||subInfo?'2px':'8px')+'">'
       +'<div style="font-size:26px;font-weight:800;letter-spacing:.06em;color:#1E407C">'+v.reg+'</div>'
-      +'<span style="background:'+badgeBg+';color:'+badgeCol+';padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600">'+badgeText+'</span>'
+      +'<span style="background:'+badge.bg+';color:'+badge.col+';padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap;margin-top:2px">'+badge.text+'</span>'
       +'</div>'
-      +(vInfo?'<div style="font-size:13px;font-weight:500;color:#444;margin-bottom:8px">'+vInfo+'</div>':'')
+      +(vInfo?'<div style="font-size:13px;font-weight:500;color:#444;margin-bottom:2px">'+vInfo+'</div>':'')
+      +(subInfo?'<div style="font-size:11px;color:#999;margin-bottom:8px">'+subInfo+'</div>':(vInfo?'<div style="margin-bottom:8px"></div>':''))
       +'<button data-reg="'+v.reg+'" data-action="'+action+'" onclick="openCPConfirmModal(this.dataset.reg,this.dataset.action)"'
-      +' style="width:100%;padding:12px;background:'+btnBg+';color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">'+btnText+'</button>'
+      +' style="width:100%;padding:12px;background:'+btnBg+';color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">'+btnText+'</button>'
       +'</div>';
   }).join('');
 }
 
-function renderCPReturnSection(toReturn, withMe){
-  let returnEl = document.getElementById('cp-return-list');
-  if(!returnEl) return;
-  let html = '';
-
-  // Hotel-requested returns — identical card style to "Collect from hotel"
-  toReturn.forEach(function(v){
-    html += '<div style="background:#fff;border:1px solid #1D9E75;border-radius:10px;padding:14px;margin-bottom:10px">'
-      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
-      + '<div style="font-size:26px;font-weight:800;letter-spacing:.06em;color:#1E407C">'+v.reg+'</div>'
-      + '<span style="background:#E1F5EE;color:#085041;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600">Return to hotel</span>'
-      + '</div>'
-      + '<button data-reg="'+v.reg+'" data-action="return" onclick="openCPConfirmModal(this.dataset.reg,this.dataset.action)"'
-      + ' style="width:100%;padding:12px;background:#1D9E75;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">Take photos + Confirm returned</button>'
-      + '</div>';
-  });
-
-  // Currently parked with contractor — compact info list, no action needed
-  if(withMe.length){
-    let td=today();
-    if(toReturn.length) html += '<div style="height:8px"></div>';
-    html += '<div style="font-size:12px;font-weight:600;color:#555;margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em">Currently parked with you ('+withMe.length+')</div>';
-    html += '<div style="background:#fff;border:1px solid #eee;border-radius:10px;overflow:hidden">';
-    withMe.forEach(function(v, i){
-      let isOverdue=(v.return_date||'').slice(0,10)<td;
-      let isDueSoon=(v.return_date||'').slice(0,10)<=addDays(td,3);
-      let statusCol=isOverdue?'#791F1F':isDueSoon?'#633806':'#085041';
-      let statusBg=isOverdue?'#FCEBEB':isDueSoon?'#FAEEDA':'#E1F5EE';
-      let statusText=isOverdue?'Overdue':isDueSoon?'Due soon':'OK';
-      let vi=[v.vehicle_colour,v.vehicle_make,v.vehicle_model].filter(Boolean).join(' ');
-      html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;'+(i>0?'border-top:1px solid #f0f0f0':'')+'">'
-        + '<div><div style="font-size:16px;font-weight:800;letter-spacing:.05em;color:#1E407C">'+v.reg+'</div>'
-        + (vi?'<div style="font-size:11px;color:#555">'+vi+'</div>':'')+'</div>'
-        + '<div style="font-size:11px;color:#888;text-align:right">'
-        + '<div>Return: '+fmtD(v.return_date)+'</div>'
-        + '<span style="background:'+statusBg+';color:'+statusCol+';padding:1px 7px;border-radius:8px;font-size:10px;font-weight:600">'+statusText+'</span>'
-        + '</div></div>';
-    });
-    html += '</div>';
+function renderCPParkedList(list){
+  let el = document.getElementById('cp-parked-list');
+  if(!el) return;
+  if(!list.length){
+    el.innerHTML='<div style="background:#f5f5f3;border-radius:8px;padding:14px;color:#aaa;font-size:13px;text-align:center">No vehicles match</div>';
+    return;
   }
-
-  if(!html) html = '<div style="background:#f5f5f3;border-radius:8px;padding:14px;color:#aaa;font-size:13px;text-align:center">No vehicles to return</div>';
-  returnEl.innerHTML = html;
-}
-
-function renderCPListHTML(list, action){
-  return list.map(v=>{
-    return '<div style="background:#fff;border:1px solid #1D9E75;border-radius:10px;padding:14px;margin-bottom:10px">'
-      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
-      +'<div style="font-size:26px;font-weight:800;letter-spacing:.06em;color:#1E407C">'+v.reg+'</div>'
-      +'<span style="background:#E1F5EE;color:#085041;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600">Return to hotel</span>'
-      +'</div>'
-      +'<button onclick="openCPConfirmModal(\''+v.reg+'\',\'return\')"'
-      +' style="width:100%;padding:12px;background:#1D9E75;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">Take photos + Confirm returned</button>'
-      +'</div>';
-  }).join('');
+  let td=today();
+  let html = '<div style="background:#fff;border:1px solid #eee;border-radius:10px;overflow:hidden">';
+  list.forEach((v,i)=>{
+    let isOverdue=(v.return_date||'').slice(0,10)<td;
+    let isDueSoon=(v.return_date||'').slice(0,10)<=addDays(td,3);
+    let statusCol=isOverdue?'#791F1F':isDueSoon?'#633806':'#085041';
+    let statusBg=isOverdue?'#FCEBEB':isDueSoon?'#FAEEDA':'#E1F5EE';
+    let statusText=isOverdue?'Overdue':isDueSoon?'Due soon':'OK';
+    let vi=[v.vehicle_colour,v.vehicle_make,v.vehicle_model].filter(Boolean).join(' ');
+    let nights=nightsApart(v.current_location_start, td);
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;'+(i>0?'border-top:1px solid #f0f0f0':'')+'">'
+      + '<div><div style="font-size:16px;font-weight:800;letter-spacing:.05em;color:#1E407C">'+v.reg+'</div>'
+      + (vi?'<div style="font-size:11px;color:#555">'+vi+'</div>':'')
+      + '<div style="font-size:10px;color:#aaa">'+nights+' night'+(nights!==1?'s':'')+' with you</div></div>'
+      + '<div style="font-size:11px;color:#888;text-align:right">'
+      + '<div>Return: '+fmtD(v.return_date)+'</div>'
+      + '<span style="background:'+statusBg+';color:'+statusCol+';padding:1px 7px;border-radius:8px;font-size:10px;font-weight:600">'+statusText+'</span>'
+      + '</div></div>';
+  });
+  html += '</div>';
+  el.innerHTML = html;
 }
 
 function openCPConfirmModal(reg, action){
@@ -7571,10 +7633,37 @@ window.addEventListener('DOMContentLoaded',()=>{
     <!-- ── VEHICLES TAB ── -->
     <div id="cp-section-vehicles">
 
+    <!-- Summary stats -->
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <div style="flex:1;background:#1E407C;border-radius:10px;padding:10px 4px;text-align:center">
+        <div id="cp-stat-collect" style="color:#fff;font-size:20px;font-weight:800;line-height:1">0</div>
+        <div style="color:rgba(255,255,255,.7);font-size:10px;margin-top:3px">Collect</div>
+      </div>
+      <div style="flex:1;background:#1D9E75;border-radius:10px;padding:10px 4px;text-align:center">
+        <div id="cp-stat-return" style="color:#fff;font-size:20px;font-weight:800;line-height:1">0</div>
+        <div style="color:rgba(255,255,255,.7);font-size:10px;margin-top:3px">Return</div>
+      </div>
+      <div style="flex:1;background:#888;border-radius:10px;padding:10px 4px;text-align:center">
+        <div id="cp-stat-parked" style="color:#fff;font-size:20px;font-weight:800;line-height:1">0</div>
+        <div style="color:rgba(255,255,255,.7);font-size:10px;margin-top:3px">Parked</div>
+      </div>
+    </div>
+
+    <!-- Search + sort -->
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      <input id="cp-search" type="text" placeholder="Search reg, make, colour..." oninput="cpFilterAndSort()"
+        style="flex:1;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit">
+      <button id="cp-sort-btn" onclick="cpToggleSort()"
+        style="padding:9px 12px;border:1px solid #ddd;background:#fff;border-radius:8px;font-size:12px;font-weight:600;color:#1E407C;cursor:pointer;white-space:nowrap;font-family:inherit">
+        ↕ Date
+      </button>
+    </div>
+
     <!-- Vehicles to deliver (hotel → contractor) -->
     <div id="cp-deliver-section" style="margin-bottom:1.5rem">
-      <h2 style="font-size:14px;font-weight:700;color:#633806;margin-bottom:10px;padding:8px 12px;background:#FAEEDA;border-radius:8px;border-left:4px solid #EF9F27">
-        COLLECT FROM HOTEL
+      <h2 style="font-size:14px;font-weight:700;color:#633806;margin-bottom:10px;padding:8px 12px;background:#FAEEDA;border-radius:8px;border-left:4px solid #EF9F27;display:flex;justify-content:space-between;align-items:center">
+        <span>COLLECT FROM HOTEL</span>
+        <span id="cp-deliver-count" style="background:rgba(0,0,0,.08);border-radius:10px;padding:1px 8px;font-size:11px;font-weight:600">0</span>
       </h2>
       <div id="cp-deliver-list">
         <div style="color:#aaa;font-size:13px;padding:12px 0">Loading...</div>
@@ -7582,14 +7671,25 @@ window.addEventListener('DOMContentLoaded',()=>{
     </div>
 
     <!-- Vehicles to return (contractor → hotel) -->
-    <div id="cp-return-section">
-      <h2 style="font-size:14px;font-weight:700;color:#085041;margin-bottom:10px;padding:8px 12px;background:#E1F5EE;border-radius:8px;border-left:4px solid #1D9E75">
-        RETURN TO HOTEL
+    <div id="cp-return-section" style="margin-bottom:1rem">
+      <h2 style="font-size:14px;font-weight:700;color:#085041;margin-bottom:10px;padding:8px 12px;background:#E1F5EE;border-radius:8px;border-left:4px solid #1D9E75;display:flex;justify-content:space-between;align-items:center">
+        <span>RETURN TO HOTEL</span>
+        <span id="cp-return-count" style="background:rgba(0,0,0,.08);border-radius:10px;padding:1px 8px;font-size:11px;font-weight:600">0</span>
       </h2>
       <div id="cp-return-list">
         <div style="color:#aaa;font-size:13px;padding:12px 0">Loading...</div>
       </div>
     </div>
+
+    <!-- Currently parked — collapsible -->
+    <div id="cp-parked-toggle" onclick="cpToggleParked()"
+      style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:#f5f5f3;border-radius:8px;font-size:12px;color:#666;font-weight:600;cursor:pointer;font-family:inherit">
+      <span>Currently parked with you (<span id="cp-parked-count">0</span>)</span>
+      <span id="cp-parked-chevron">▼</span>
+    </div>
+    <div id="cp-parked-list" style="display:none;margin-top:8px"></div>
+
+    <div id="cp-synced" style="text-align:center;padding:10px;font-size:11px;color:#aaa"></div>
     </div><!-- end cp-section-vehicles -->
 
     <!-- ── DASHBOARD TAB ── -->
