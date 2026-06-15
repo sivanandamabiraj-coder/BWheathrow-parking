@@ -1662,6 +1662,32 @@ function fmtDT(d){if(!d)return'–';let x=new Date(d);if(isNaN(x))return d;retur
 function showLoading(m){document.getElementById('loading').classList.add('show');document.getElementById('loading-msg').textContent=m||'Loading...';}
 function hideLoading(){document.getElementById('loading').classList.remove('show');}
 
+// ── Supabase Storage upload helper ──
+// Uploads a base64 dataUrl to the 'vehicle-photos' bucket and returns the public URL
+async function sbStorageUpload(path, dataUrl){
+  let base = SB_URL.replace(/\/+$/,'');
+  // Convert base64 dataUrl -> Blob
+  let res = await fetch(dataUrl);
+  let blob = await res.blob();
+  let url = base + '/storage/v1/object/vehicle-photos/' + path;
+  let r = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'apikey': SB_KEY,
+      'Authorization': 'Bearer ' + SB_KEY,
+      'Content-Type': blob.type || 'image/jpeg',
+      'x-upsert': 'true'
+    },
+    body: blob
+  });
+  if(!r.ok){
+    let txt=''; try{txt=await r.text();}catch(e){}
+    throw new Error('Storage upload failed ('+r.status+'): '+txt.slice(0,150));
+  }
+  // Public URL format for Supabase Storage
+  return base + '/storage/v1/object/public/vehicle-photos/' + path;
+}
+
 async function sbFetch(path,opts={}){
   let base=SB_URL.replace(/\/+$/,'');
   let url=base+'/rest/v1/'+path;
@@ -3388,69 +3414,55 @@ async function openPhotos(reg){
       }));
     }catch(e){ console.warn('vehicle_photos load failed:',e.message); }
 
-    // ── 2. Load contractor photos from move_log entries + move_photos column ──
+    // ── 2. Load contractor photos ──
+    // move_photos now stores {category: publicUrl} from Supabase Storage (small URLs, not base64).
+    // move_log entries only carry photo_categories (labels) for history — no image data.
     let contractorPhotos = [];
     try{
       let vRows = await sbFetch('vehicles?reg=eq.'+encodeURIComponent(reg)+'&select=move_log,move_photos');
       if(vRows&&vRows[0]){
         let v = vRows[0];
 
-        // Parse move_log to get per-move photo data and dates
         let moveLog = [];
         try{ moveLog = JSON.parse(v.move_log||'[]'); }catch(e){}
 
-        // move_photos is the LATEST set of contractor photos (base64)
+        // Current photos — URLs pointing to Supabase Storage
         let latestPhotos = {};
         try{ latestPhotos = JSON.parse(v.move_photos||'{}'); }catch(e){}
 
-        // Find the latest move_log entry that has photo_categories
         let photoMoves = moveLog.filter(m=>m.photo_categories&&m.photo_categories.length>0);
+        let latestMove = photoMoves.length ? photoMoves[photoMoves.length-1] : null;
 
-        if(photoMoves.length > 0){
-          // Load photos from each move_log entry (stored per-move since latest update)
-          // Reverse so most recent first
-          [...photoMoves].reverse().forEach((move, moveIdx)=>{
-            let isLatest = moveIdx === 0;
-            let movePhotos = {};
+        // Current photos (from Storage URLs)
+        Object.entries(latestPhotos).forEach(([cat,url])=>{
+          if(!url) return;
+          contractorPhotos.push({
+            source:      'contractor',
+            category:    cat,
+            dataUrl:     url.startsWith('data:') ? url : null, // legacy base64 still supported
+            public_url:  url.startsWith('data:') ? null : url,
+            uploaded_at: latestMove?.date||null,
+            uploaded_by: latestMove?.contractor_name||'Contractor',
+            move_date:   latestMove?.date||null,
+            move_note:   latestMove?.note||''
+          });
+        });
 
-            // Prefer per-move photos stored in log entry
-            if(move.photos && typeof move.photos === 'object'){
-              movePhotos = move.photos;
-            } else if(isLatest){
-              // Fallback: use move_photos column for most recent move
-              movePhotos = latestPhotos;
-            }
-
-            Object.entries(movePhotos).forEach(([cat, dataUrl])=>{
-              if(dataUrl && dataUrl.startsWith('data:')){
-                contractorPhotos.push({
-                  source:      isLatest ? 'contractor' : 'contractor-history',
-                  category:    cat,
-                  dataUrl:     dataUrl,
-                  public_url:  null,
-                  uploaded_at: move.date||null,
-                  uploaded_by: move.contractor_name||'Contractor',
-                  move_date:   move.date||null,
-                  move_note:   move.note||''
-                });
-              }
-            });
-
-            // For older moves with only category list (before photo-in-log update)
-            if(!move.photos && !isLatest){
-              (move.photo_categories||[]).forEach(cat=>{
-                contractorPhotos.push({
-                  source:      'contractor-archived',
-                  category:    cat,
-                  dataUrl:     null,
-                  public_url:  null,
-                  uploaded_at: move.date||null,
-                  uploaded_by: move.contractor_name||'Contractor',
-                  move_date:   move.date||null,
-                  move_note:   move.note||'(image not retained — older move)'
-                });
+        // Earlier moves — labels only, images not retained per-move (current snapshot only)
+        if(photoMoves.length > 1){
+          photoMoves.slice(0,-1).reverse().forEach(move=>{
+            (move.photo_categories||[]).forEach(cat=>{
+              contractorPhotos.push({
+                source:      'contractor-archived',
+                category:    cat,
+                dataUrl:     null,
+                public_url:  null,
+                uploaded_at: move.date||null,
+                uploaded_by: move.contractor_name||'Contractor',
+                move_date:   move.date||null,
+                move_note:   move.note||'(image not retained — earlier move)'
               });
-            }
+            });
           });
         }
       }
@@ -7385,10 +7397,10 @@ async function cpConfirmMove(){
   let newHd=(v.hotel_days||0)+(v.location==='hotel'?nightsHere:0);
   let newCd=(v.contractor_days||0)+(v.location==='contractor'?nightsHere:0);
 
+  // Collect photos to upload: {category: dataUrl}
   let photoData={};
   Object.entries(_cpPhotos).forEach(([cat,s])=>{
     if(CP_MULTI.includes(cat)){
-      // Multi-photo: store as interior_1, interior_2 etc.
       let arr=Array.isArray(s)?s:[];
       arr.forEach((item,i)=>{ if(item&&item.validated) photoData[cat+'_'+(i+1)]=item.dataUrl; });
     } else {
@@ -7397,6 +7409,28 @@ async function cpConfirmMove(){
   });
   let photoCats=Object.keys(photoData);
 
+  let btn=document.getElementById('cp-confirm-btn');
+  btn.textContent='Uploading photos...'; btn.disabled=true;
+
+  // ── Upload each photo to Supabase Storage — get back small public URLs ──
+  // This replaces storing ~150-600KB base64 per photo directly in the database row,
+  // which was causing 1-5MB rows and massive egress on every routine poll.
+  let photoUrls={};
+  let timestamp=Date.now();
+  try{
+    for(let [cat,dataUrl] of Object.entries(photoData)){
+      let path=encodeURIComponent(reg.replace(/\s+/g,''))+'/'+timestamp+'_'+cat+'.jpg';
+      photoUrls[cat]=await sbStorageUpload(path,dataUrl);
+    }
+  }catch(e){
+    document.getElementById('cp-modal-error').innerHTML='<div class="alert error">Photo upload failed: '+e.message+'</div>';
+    btn.textContent='✓ Confirm & submit'; btn.disabled=false;
+    return;
+  }
+
+  btn.textContent='Saving...';
+
+  // move_log gets only labels (photo_categories) — never embeds image data
   log.push({
     loc:toLocation, date:moveDate,
     note:(toLocation==='contractor'?'Received at '+v.contractor_name:'Returned to hotel')
@@ -7404,20 +7438,18 @@ async function cpConfirmMove(){
     contractor_id:toLocation==='contractor'?v.contractor_id:null,
     contractor_name:toLocation==='contractor'?v.contractor_name:null,
     rate:toLocation==='contractor'?v.contractor_rate:null,
-    photo_categories:photoCats,
-    photos:photoData
+    photo_categories:photoCats
   });
 
   let patch={
     location:toLocation, move_status:null, move_pending_to:null,
     hotel_days:newHd, contractor_days:newCd,
     current_location_start:moveDate, move_log:JSON.stringify(log),
-    move_photos:JSON.stringify(photoData)
+    // move_photos now stores only small URLs, not base64 — typically <1KB total
+    move_photos:JSON.stringify(photoUrls)
   };
   if(toLocation==='hotel'){patch.contractor_id=null;patch.contractor_name=null;patch.contractor_rate=null;}
 
-  let btn=document.getElementById('cp-confirm-btn');
-  btn.textContent='Saving...'; btn.disabled=true;
   try{
     await sbFetch('vehicles?reg=eq.'+encodeURIComponent(reg),{method:'PATCH',body:JSON.stringify(patch)});
     document.getElementById('cp-confirm-modal').style.display='none';
