@@ -5245,6 +5245,9 @@ async function approvePending(id, reg){
       location:loc, check_in_date:p.check_in_date||td,
       return_date:p.return_date,
       room_number:p.room_number||null,
+      vehicle_make:p.vehicle_make||null,
+      vehicle_model:p.vehicle_model||null,
+      vehicle_colour:p.vehicle_colour||null,
       current_location_start:p.check_in_date||td,
       hotel_days:0, contractor_days:0, status:'active',
       ref_code:p.ref_code||null,
@@ -5273,6 +5276,7 @@ async function approvePending(id, reg){
 }
 
 async function approveEdited(id){
+  let p      = pendingData.find(x=>String(x.id)===String(id)) || {};
   let reg    = (document.getElementById('ep-reg-'+id).value||'').trim().toUpperCase();
   let name   = (document.getElementById('ep-name-'+id).value||'').trim();
   let cin    = document.getElementById('ep-checkin-'+id).value;
@@ -5286,11 +5290,18 @@ async function approveEdited(id){
     let loc = locOv==='auto'?allocateSpace(type):locOv;
     let td = today();
     await sbFetch('vehicles',{method:'POST',body:JSON.stringify({
-      reg,name,phone:null,type,location:loc,
+      reg,name,phone:p.phone||null,type,location:loc,
+      email:p.email||null,
       check_in_date:cin,return_date:ret,flight_date:null,
+      room_number:p.room_number||null,
+      vehicle_make:p.vehicle_make||null,
+      vehicle_model:p.vehicle_model||null,
+      vehicle_colour:p.vehicle_colour||null,
+      ref_code:p.ref_code||null,
+      package_type:type,
       current_location_start:cin,
       hotel_days:0,contractor_days:0,status:'active',
-      move_log:JSON.stringify([{loc,date:cin,note:'Approved (edited) from guest self check-in',contractor_id:null,contractor_name:null,rate:null}])
+      move_log:JSON.stringify([{loc,date:cin,note:'Approved (edited) from guest self check-in (ref: '+(p.ref_code||'')+')',contractor_id:null,contractor_name:null,rate:null}])
     })});
     await sbFetch('pending_checkins?id=eq.'+id,{method:'PATCH',body:JSON.stringify({status:'approved',reviewed_at:new Date().toISOString(),reviewed_by:currentUser?currentUser.username:'staff'})});
     await loadData(true);
