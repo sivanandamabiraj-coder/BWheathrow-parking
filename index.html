@@ -724,7 +724,7 @@ on conflict (key) do nothing;</textarea>
         <div id="ci-alert"></div>
         <div class="form-row">
           <div class="form-group"><label for="ci-reg">Registration plate *</label><input type="text" id="ci-reg" placeholder="AB12 CDE" style="text-transform:uppercase" onchange="checkRepeatCustomer()"></div>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+          <div class="vehicle-info-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px">
             <div class="form-group" style="margin:0"><label for="ci-make">Vehicle make</label><input type="text" id="ci-make" placeholder="e.g. Ford"></div>
             <div class="form-group" style="margin:0"><label for="ci-model">Model</label><input type="text" id="ci-model" placeholder="e.g. Focus"></div>
             <div class="form-group" style="margin:0"><label for="ci-colour">Colour</label><input type="text" id="ci-colour" placeholder="e.g. Red"></div>
