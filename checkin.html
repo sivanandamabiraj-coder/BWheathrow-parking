@@ -45,7 +45,7 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 .tc-box h4{font-size:13px;font-weight:700;color:var(--navy);margin-bottom:7px}
 .tc-box ul{padding-left:1.2rem;margin-bottom:7px}
 .tc-row{display:flex;align-items:flex-start;gap:10px;padding:11px;background:var(--cream);border-radius:8px;border:1.5px solid var(--gold);cursor:pointer}
-.tc-row input[type=checkbox]{display:none}
+.tc-row input[type=checkbox]{opacity:0;position:absolute;width:0;height:0;pointer-events:none}
 .tc-check-box{width:22px;height:22px;border:2px solid var(--navy);border-radius:5px;background:#fff;flex-shrink:0;margin-top:1px;display:flex;align-items:center;justify-content:center;transition:all .2s;cursor:pointer}
 .tc-row input[type=checkbox]:checked + .tc-check-box{background:var(--navy);border-color:var(--navy)}
 .tc-row input[type=checkbox]:checked + .tc-check-box::after{content:'✓';color:#fff;font-size:14px;font-weight:700;line-height:1}
@@ -174,11 +174,11 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
       </ul>
       <p style="margin-top:10px">By ticking below you confirm you have read, understood and agree to these terms, and that all information provided is accurate.</p>
     </div>
-    <label class="tc-row">
-      <input type="checkbox" id="f-tc">
-      <div class="tc-check-box"></div>
+    <div class="tc-row" onclick="let cb=document.getElementById('f-tc');cb.checked=!cb.checked;syncTCVisual();" style="cursor:pointer">
+      <input type="checkbox" id="f-tc" style="display:none">
+      <div class="tc-check-box" id="tc-visual"></div>
       <span>I have read and agree to the <strong>Best Western Ariel Hotel Long-Stay Parking Agreement</strong>. I confirm all details provided are accurate.</span>
-    </label>
+    </div>
     <div class="em" id="e-tc" style="margin-top:8px">You must accept the terms to continue</div>
   </div></div>
   <div class="btn-nav"><button class="btn-bk" onclick="go(3)">← Back</button><button class="btn-nx" onclick="go(5)">Review booking →</button></div>
@@ -268,6 +268,31 @@ function shErr(id,inp){
   document.getElementById(id).classList.add('on');
   if(inp) document.getElementById(inp).classList.add('e');
 }
+function normaliseReg(raw){ return (raw||'').replace(/\s+/g,'').toUpperCase().trim(); }
+function validateReg(raw){
+  let reg=normaliseReg(raw);
+  if(!reg) return {valid:false,warning:'Registration cannot be empty'};
+  if(reg.length<2) return {valid:false,warning:'Too short'};
+  if(reg.length>10) return {valid:false,warning:'Too long (max 10 characters)'};
+  if(/[^A-Z0-9]/.test(reg)) return {valid:false,warning:'Letters and numbers only'};
+  return {valid:true,warning:null};
+}
+
+function syncTCVisual(){
+  let cb=document.getElementById('f-tc');
+  let vis=document.getElementById('tc-visual');
+  if(!cb||!vis) return;
+  if(cb.checked){
+    vis.style.background='var(--navy)';
+    vis.style.borderColor='var(--navy)';
+    vis.innerHTML='<span style="color:#fff;font-size:14px;font-weight:700;line-height:22px;display:block;text-align:center">✓</span>';
+  } else {
+    vis.style.background='#fff';
+    vis.style.borderColor='var(--navy)';
+    vis.innerHTML='';
+  }
+}
+
 function validate(step){
   clrErr(); let ok=true;
   if(step===1&&!document.getElementById('f-reg').value.trim()){shErr('e-reg','f-reg');ok=false;}
