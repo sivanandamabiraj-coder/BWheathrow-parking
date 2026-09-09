@@ -2301,7 +2301,11 @@ async function checkIn(){
 
   showLoading('Checking in '+reg+'...');
   try{
-    await sbFetch('vehicles',{method:'POST',body:JSON.stringify({
+    // Check for repeat visit (checked-out record exists)
+  let existingCI = await sbFetch('vehicles?reg=eq.'+encodeURIComponent(reg)+'&status=eq.checked-out&select=reg&limit=1');
+  let ciMethod = (existingCI&&existingCI.length>0) ? 'PATCH' : 'POST';
+  let ciUrl = ciMethod==='PATCH' ? 'vehicles?reg=eq.'+encodeURIComponent(reg) : 'vehicles';
+  await sbFetch(ciUrl,{method:ciMethod,body:JSON.stringify({
       reg, name, phone:phone||null,
       email: document.getElementById('ci-email')?.value.trim()||null,
       vehicle_make: vMake, vehicle_model: vModel, vehicle_colour: vColour,
@@ -5283,7 +5287,13 @@ async function approvePending(id, reg){
   try{
     let loc = allocateSpace(p.type);
     let td = today();
-    await sbFetch('vehicles',{method:'POST',body:JSON.stringify({
+
+    // Check if vehicle already has a checked-out record — repeat visit
+    // In this case UPDATE the existing row rather than INSERT (avoids unique constraint error)
+    let existing = await sbFetch('vehicles?reg=eq.'+encodeURIComponent(p.reg)+'&status=eq.checked-out&select=reg&limit=1');
+    let isRepeatVisit = existing && existing.length > 0;
+
+    let vehicleData = {
       reg:p.reg, name:p.name, phone:p.phone, type:p.type,
       email:p.email||null,
       location:loc, check_in_date:p.check_in_date||td,
@@ -5293,11 +5303,22 @@ async function approvePending(id, reg){
       vehicle_model:p.vehicle_model||null,
       vehicle_colour:p.vehicle_colour||null,
       current_location_start:p.check_in_date||td,
-      hotel_days:0, contractor_days:0, status:'active',
+      hotel_days:0, contractor_days:0,
+      contractor_id:null, contractor_name:null, contractor_rate:null,
+      move_status:null, move_pending_to:null, move_photos:null,
+      status:'active',
       ref_code:p.ref_code||null,
       package_type:p.type,
-      move_log:JSON.stringify([{loc,date:p.check_in_date||td,note:'Approved from guest self check-in (ref: '+p.ref_code+')',contractor_id:null,contractor_name:null,rate:null}])
-    })});
+      move_log:JSON.stringify([{loc,date:p.check_in_date||td,note:'Approved from guest self check-in (ref: '+p.ref_code+') — repeat visit',contractor_id:null,contractor_name:null,rate:null}])
+    };
+
+    if(isRepeatVisit){
+      // UPDATE existing checked-out record with new booking details
+      await sbFetch('vehicles?reg=eq.'+encodeURIComponent(p.reg),{method:'PATCH',body:JSON.stringify(vehicleData)});
+    } else {
+      // INSERT new record (first-time visit)
+      await sbFetch('vehicles',{method:'POST',body:JSON.stringify(vehicleData)});
+    }
     await sbFetch('pending_checkins?id=eq.'+id,{method:'PATCH',body:JSON.stringify({status:'approved',reviewed_at:new Date().toISOString(),reviewed_by:currentUser?currentUser.username:'staff'})});
     await loadData(true);
     await loadPending();
@@ -5340,10 +5361,13 @@ async function approveEdited(id){
   try{
     let loc = locOv==='auto'?allocateSpace(type):locOv;
     let td = today();
-    await sbFetch('vehicles',{method:'POST',body:JSON.stringify({
+    // Check for repeat visit (checked-out record exists)
+    let existingE = await sbFetch('vehicles?reg=eq.'+encodeURIComponent(reg)+'&status=eq.checked-out&select=reg&limit=1');
+    let isRepeatE = existingE && existingE.length > 0;
+    let editedData = {
       reg,name,phone:p.phone||null,type,location:loc,
       email:p.email||null,
-      check_in_date:cin,return_date:ret,flight_date:null,
+      check_in_date:cin,return_date:ret,
       room_number:p.room_number||null,
       vehicle_make:p.vehicle_make||null,
       vehicle_model:p.vehicle_model||null,
@@ -5351,9 +5375,17 @@ async function approveEdited(id){
       ref_code:p.ref_code||null,
       package_type:type,
       current_location_start:cin,
-      hotel_days:0,contractor_days:0,status:'active',
+      hotel_days:0,contractor_days:0,
+      contractor_id:null,contractor_name:null,contractor_rate:null,
+      move_status:null,move_pending_to:null,move_photos:null,
+      status:'active',
       move_log:JSON.stringify([{loc,date:cin,note:'Approved (edited) from guest self check-in (ref: '+(p.ref_code||'')+')',contractor_id:null,contractor_name:null,rate:null}])
-    })});
+    };
+    if(isRepeatE){
+      await sbFetch('vehicles?reg=eq.'+encodeURIComponent(reg),{method:'PATCH',body:JSON.stringify(editedData)});
+    } else {
+      await sbFetch('vehicles',{method:'POST',body:JSON.stringify(editedData)});
+    }
     await sbFetch('pending_checkins?id=eq.'+id,{method:'PATCH',body:JSON.stringify({status:'approved',reviewed_at:new Date().toISOString(),reviewed_by:currentUser?currentUser.username:'staff'})});
     await loadData(true);
     await loadPending();
