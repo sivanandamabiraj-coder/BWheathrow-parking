@@ -723,7 +723,10 @@ on conflict (key) do nothing;</textarea>
         <h3>New vehicle check-in</h3>
         <div id="ci-alert"></div>
         <div class="form-row">
-          <div class="form-group"><label for="ci-reg">Registration plate *</label><input type="text" id="ci-reg" placeholder="AB12 CDE" style="text-transform:uppercase" onchange="checkRepeatCustomer()"></div>
+          <div class="form-group"><label for="ci-reg">Registration plate *</label><input type="text" id="ci-reg" placeholder="AB12 CDE" style="text-transform:uppercase"
+  oninput="this.value=this.value.toUpperCase()"
+  onchange="this.value=normaliseReg(this.value);checkRegLive(this.value);checkRepeatCustomer()">
+<div id="ci-reg-feedback" style="font-size:11px;margin-top:3px"></div></div>
           <div class="vehicle-info-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px">
             <div class="form-group" style="margin:0"><label for="ci-make">Vehicle make</label><input type="text" id="ci-make" placeholder="e.g. Ford"></div>
             <div class="form-group" style="margin:0"><label for="ci-model">Model</label><input type="text" id="ci-model" placeholder="e.g. Focus"></div>
@@ -1599,6 +1602,32 @@ let SB_URL='',SB_KEY='';
 let vehicles=[],historyData=[];
 
 function today(){return new Date().toISOString().split('T')[0];}
+
+// ── Registration normalisation and validation ──
+// Strips spaces, uppercases — so "da 24 myh", "DA24MYH", "da24myh" all become "DA24MYH"
+function normaliseReg(raw){
+  return (raw||'').replace(/\s+/g,'').toUpperCase().trim();
+}
+
+// UK plate format check (allows current, prefix, suffix, dateless/cherished formats)
+// Returns {valid: bool, warning: string|null}
+function validateReg(raw){
+  let reg = normaliseReg(raw);
+  if(!reg) return {valid:false, warning:'Registration cannot be empty'};
+  if(reg.length < 2) return {valid:false, warning:'Registration too short'};
+  if(reg.length > 10) return {valid:false, warning:'Registration too long (max 10 characters)'};
+  // Warn on suspicious characters but don't block (cherished plates can be unusual)
+  if(/[^A-Z0-9]/.test(reg)) return {valid:false, warning:'Registration should only contain letters and numbers'};
+  return {valid:true, warning:null};
+}
+
+// Check if reg is already active in DB — returns vehicle if found, null if free
+async function checkRegInDB(reg){
+  try{
+    let rows=await sbFetch('vehicles?reg=eq.'+encodeURIComponent(reg)+'&status=eq.active&select=reg,name,room_number,check_in_date&limit=1');
+    return (rows&&rows.length>0) ? rows[0] : null;
+  }catch(e){ return null; } // fail silently — don't block check-in if check fails
+}
 function isCM(){ return currentUser&&currentUser.role==='contractor_manager'; }
 function todayDT(){return new Date().toISOString();} // full ISO datetime for comparisons with datetime fields
 function nowLocal(){let d=new Date();d.setSeconds(0,0);return d.toISOString().slice(0,16);}
@@ -1710,6 +1739,7 @@ async function sbFetch(path,opts={}){
     let msg=json.message||json.error||'Database error';
     if(json.code==='PGRST301'||msg.includes('JWT')||r.status===401) throw new Error('Auth failed — check your API key in Settings');
     if(r.status===503||r.status===500) throw new Error('Database unavailable ('+r.status+') — check if your Supabase project is paused at supabase.com');
+    if(json.code==='23505'||msg.includes('duplicate key')||msg.includes('unique constraint')) throw new Error('duplicate key: '+msg);
     throw new Error(msg);
   }
   // For GET requests (no method = GET), always return an array
@@ -2225,7 +2255,10 @@ function updateSpacePreview(){
 }
 
 async function checkIn(){
-  let reg  = (document.getElementById('ci-reg')?.value||'').trim().toUpperCase();
+  let rawReg = document.getElementById('ci-reg')?.value||'';
+  let reg = normaliseReg(rawReg);
+  // Write normalised reg back to field so staff sees what was saved
+  if(document.getElementById('ci-reg')) document.getElementById('ci-reg').value = reg;
   let name = (document.getElementById('ci-name')?.value||'').trim();
   let phone= (document.getElementById('ci-phone')?.value||'').trim();
   let vMake   = (document.getElementById('ci-make')?.value||'').trim()||null;
@@ -2239,7 +2272,18 @@ async function checkIn(){
 
   if(!reg||!name){alertEl.innerHTML='<div class="alert warn">Registration and name are required.</div>';return;}
   if(!ret){alertEl.innerHTML='<div class="alert warn">Expected return date and time is required.</div>';return;}
-  if(vehicles.find(v=>v.reg===reg)){alertEl.innerHTML='<div class="alert warn">'+reg+' is already checked in.</div>';return;}
+  // Validate format
+  let valResult = validateReg(reg);
+  if(!valResult.valid){ alertEl.innerHTML='<div class="alert warn">'+valResult.warning+'</div>'; return; }
+
+  // Live DB duplicate check — catches stale local array AND concurrent sessions
+  let existingVehicle = await checkRegInDB(reg);
+  if(existingVehicle){
+    await loadData(true);
+    let who = existingVehicle.name ? ' — '+existingVehicle.name+(existingVehicle.room_number ? ', Room '+existingVehicle.room_number : '') : '';
+    alertEl.innerHTML='<div class="alert warn">'+reg+' is already checked in'+who+'</div>';
+    return;
+  }
 
   let loc = override==='auto' ? allocateSpace() : override;
   let{long}=hotelCounts();
@@ -5272,12 +5316,19 @@ async function approvePending(id, reg){
         reg:     p.reg
       }).catch(e=>console.warn('Approval email:',e));
     }
-  }catch(e){hideLoading();alert('Error: '+e.message);}
+  }catch(e){
+    hideLoading();
+    if(e.message&&e.message.includes('duplicate key')){
+      await loadData(true);
+      alert((p.reg||'Vehicle')+' is already checked in as an active vehicle.\nThe pending request was not approved — please check the Active tab.');
+    } else { alert('Error approving: '+e.message); }
+  }
 }
 
 async function approveEdited(id){
   let p      = pendingData.find(x=>String(x.id)===String(id)) || {};
-  let reg    = (document.getElementById('ep-reg-'+id).value||'').trim().toUpperCase();
+  let reg    = normaliseReg(document.getElementById('ep-reg-'+id).value||'');
+  if(document.getElementById('ep-reg-'+id)) document.getElementById('ep-reg-'+id).value=reg;
   let name   = (document.getElementById('ep-name-'+id).value||'').trim();
   let cin    = document.getElementById('ep-checkin-'+id).value;
   let ret    = document.getElementById('ep-return-'+id).value;
@@ -5307,7 +5358,13 @@ async function approveEdited(id){
     await loadData(true);
     await loadPending();
     hideLoading();
-  }catch(e){hideLoading();alert('Error: '+e.message);}
+  }catch(e){
+    hideLoading();
+    if(e.message&&e.message.includes('duplicate key')){
+      await loadData(true);
+      alert(reg+' is already checked in as an active vehicle.\nThe pending request was not approved — please check the Active tab.');
+    } else { alert('Error: '+e.message); }
+  }
 }
 
 async function rejectPending(id, reg){

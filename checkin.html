@@ -118,7 +118,9 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 <!-- STEP 1 -->
 <div id="s-1" class="screen active" style="padding-top:14px">
   <div class="card"><div class="ch"><span class="sn">1</span><h2>Your vehicle</h2></div><div class="cb">
-    <div class="f"><label>Registration plate <span class="req">*</span></label><input type="text" id="f-reg" class="up" placeholder="AB12 CDE" maxlength="10" autocomplete="off"><div class="em" id="e-reg">Please enter your registration plate</div></div>
+    <div class="f"><label>Registration plate <span class="req">*</span></label><input type="text" id="f-reg" class="up" placeholder="AB12 CDE" maxlength="10" autocomplete="off"
+  oninput="this.value=this.value.toUpperCase()"
+  onblur="this.value=normaliseReg(this.value)"><div class="em" id="e-reg">Please enter your registration plate</div></div>
     <div class="r3">
       <div class="f"><label>Make</label><input type="text" id="f-make" placeholder="e.g. Ford" autocomplete="off"></div>
       <div class="f"><label>Model</label><input type="text" id="f-model" placeholder="e.g. Focus" autocomplete="off"></div>
@@ -295,7 +297,8 @@ function go(next){
   window.scrollTo(0,0);
 }
 function popReview(){
-  let reg=document.getElementById('f-reg').value.trim().toUpperCase();
+  let reg=normaliseReg(document.getElementById('f-reg').value);
+  document.getElementById('f-reg').value=reg;
   let name=document.getElementById('f-name').value.trim();
   let phone=document.getElementById('f-phone').value.trim();
   let room=document.getElementById('f-room').value.trim();
@@ -317,7 +320,8 @@ async function submitAll(){
   let btn=document.getElementById('sub-btn');
   btn.disabled=true; btn.innerHTML='<span class="spin"></span> Submitting...';
   document.getElementById('sub-err').style.display='none';
-  let reg=document.getElementById('f-reg').value.trim().toUpperCase();
+  let reg=normaliseReg(document.getElementById('f-reg').value);
+  document.getElementById('f-reg').value=reg;
   let name=document.getElementById('f-name').value.trim();
   let phone=document.getElementById('f-phone').value.trim();
   let email=document.getElementById('f-email').value.trim();
