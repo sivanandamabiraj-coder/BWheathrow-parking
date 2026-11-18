@@ -1,0 +1,802 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#1E407C">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>ParkDesk Driver</title>
+<style>
+:root{--navy:#1E407C;--gold:#C9A84C;--green:#1D9E75;--amber:#EF9F27;--red:#E24B4A;--bg:#f2f4f8;--card:#fff;--ink:#1c2433;--mute:#6b7488;--line:#e3e7ef;
+--sat:env(safe-area-inset-top,0px);--sab:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:16px;overscroll-behavior:none}
+button{font-family:inherit;cursor:pointer}
+.hide{display:none!important}
+
+/* ---------- login ---------- */
+#login{min-height:100%;background:linear-gradient(180deg,var(--navy) 0%,#2a52a0 100%);display:flex;flex-direction:column;justify-content:center;padding:24px;padding-top:calc(24px + var(--sat))}
+#login .brand{color:#fff;text-align:center;margin-bottom:24px}
+#login .brand img{width:76px;height:76px;border-radius:18px;box-shadow:0 6px 20px rgba(0,0,0,.25)}
+#login .brand h1{font-size:24px;margin:12px 0 2px}
+#login .brand p{margin:0;opacity:.75;font-size:14px}
+#login .box{background:#fff;border-radius:16px;padding:20px;box-shadow:0 10px 30px rgba(0,0,0,.2);max-width:420px;width:100%;margin:0 auto}
+label{display:block;font-size:13px;font-weight:600;color:var(--mute);margin:12px 0 5px}
+input[type=email],input[type=password],input[type=text],input[type=search]{width:100%;padding:14px;border:1.5px solid var(--line);border-radius:10px;font-size:16px;font-family:inherit;background:#fff;color:var(--ink)}
+input:focus{outline:none;border-color:var(--navy)}
+.btn{display:block;width:100%;border:none;border-radius:12px;padding:16px;font-size:16px;font-weight:700;color:#fff;background:var(--navy)}
+.btn:disabled{background:#c5cbd8!important;cursor:not-allowed}
+.btn.green{background:var(--green)}
+.btn.ghost{background:#fff;color:var(--navy);border:1.5px solid var(--navy)}
+.msg{font-size:13px;padding:10px 12px;border-radius:8px;margin-top:12px}
+.msg.err{background:#FCEBEB;color:#791F1F}.msg.ok{background:#E1F5EE;color:#085041}.msg.info{background:#E6F1FB;color:#0C447C}
+
+/* ---------- app shell ---------- */
+#app{height:100%;display:flex;flex-direction:column}
+header{background:var(--navy);color:#fff;padding:calc(10px + var(--sat)) 14px 10px;display:flex;align-items:center;gap:10px;flex-shrink:0}
+header .who{flex:1;min-width:0}
+header .who b{display:block;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+header .who small{opacity:.75;font-size:12px}
+.iconbtn{background:rgba(255,255,255,.14);border:none;color:#fff;width:42px;height:42px;border-radius:12px;font-size:20px;display:flex;align-items:center;justify-content:center}
+.iconbtn.spin{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#banner{flex-shrink:0}
+.bar{padding:9px 14px;font-size:13px;display:flex;align-items:center;gap:10px}
+.bar.off{background:#FAEEDA;color:#633806}
+.bar.pend{background:#E6F1FB;color:#0C447C}
+.bar button{margin-left:auto;background:#fff;border:1px solid currentColor;color:inherit;border-radius:8px;padding:5px 10px;font-size:12px;font-weight:700}
+.toolbar{padding:10px 12px 4px;display:flex;gap:8px;flex-shrink:0}
+.toolbar input{flex:1;padding:11px 12px;font-size:15px}
+.toolbar button{background:#fff;border:1.5px solid var(--line);border-radius:10px;padding:0 14px;font-weight:700;color:var(--navy);font-size:14px}
+main{flex:1;overflow-y:auto;padding:8px 12px 20px;-webkit-overflow-scrolling:touch}
+.empty{background:#fff;border:1.5px dashed var(--line);border-radius:14px;padding:30px 16px;text-align:center;color:var(--mute);font-size:15px}
+.card{background:var(--card);border-radius:14px;padding:14px;margin-bottom:10px;border-left:6px solid var(--navy);box-shadow:0 1px 3px rgba(20,30,60,.08)}
+.card.collect{border-left-color:var(--amber)}.card.return{border-left-color:var(--green)}
+.card .top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.reg{font-size:30px;font-weight:800;letter-spacing:.06em;color:var(--navy);line-height:1.1}
+.badge{font-size:12px;font-weight:700;padding:4px 10px;border-radius:20px;white-space:nowrap}
+.veh{font-size:15px;font-weight:600;margin-top:4px}
+.sub{font-size:13px;color:var(--mute);margin-top:2px}
+.card .btn{margin-top:12px;font-size:16px;padding:15px}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:12px 14px;background:#fff;border-bottom:1px solid var(--line)}
+.rows{border-radius:14px;overflow:hidden;box-shadow:0 1px 3px rgba(20,30,60,.08)}
+.rows .row:last-child{border-bottom:none}
+.row .reg{font-size:20px}
+.row .r{text-align:right;font-size:12px;color:var(--mute)}
+nav{display:flex;background:#fff;border-top:1px solid var(--line);padding-bottom:var(--sab);flex-shrink:0}
+nav button{flex:1;border:none;background:none;padding:10px 4px 9px;color:var(--mute);font-size:12px;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:2px;position:relative}
+nav button .ic{font-size:22px;line-height:1}
+nav button.on{color:var(--navy)}
+nav button.on::before{content:"";position:absolute;top:0;left:20%;right:20%;height:3px;background:var(--navy);border-radius:0 0 3px 3px}
+nav .n{position:absolute;top:4px;left:calc(50% + 8px);background:var(--red);color:#fff;border-radius:10px;font-size:11px;min-width:19px;height:19px;line-height:19px;padding:0 5px;text-align:center}
+nav .n.zero{background:#c5cbd8}
+.toast{position:fixed;left:12px;right:12px;bottom:calc(76px + var(--sab));background:#1c2433;color:#fff;padding:13px 16px;border-radius:12px;font-size:14px;z-index:900;box-shadow:0 8px 24px rgba(0,0,0,.3)}
+.toast.ok{background:#0f7a58}.toast.err{background:#a22f2e}
+
+/* ---------- menu sheet ---------- */
+.sheet-bg{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:700;display:flex;align-items:flex-end}
+.sheet{background:#fff;width:100%;border-radius:20px 20px 0 0;padding:18px 16px calc(18px + var(--sab));max-height:85%;overflow-y:auto}
+.sheet h3{margin:0 0 10px;font-size:18px}
+.sheet .btn{margin-top:10px}
+.sheet .item{padding:12px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;font-size:14px}
+.sheet .item b{font-size:18px;color:var(--navy);letter-spacing:.05em}
+.sheet .item .e{color:#a22f2e;font-size:12px;margin-top:3px}
+.sheet .item .btn{padding:9px;font-size:13px;margin-top:8px}
+
+/* ---------- photo job overlay ---------- */
+#job{position:fixed;inset:0;background:var(--bg);z-index:600;display:flex;flex-direction:column}
+#job .jh{background:var(--navy);color:#fff;padding:calc(10px + var(--sat)) 14px 12px;flex-shrink:0}
+#job .jh .t{display:flex;align-items:center;gap:10px}
+#job .jh .t .x{background:rgba(255,255,255,.14);border:none;color:#fff;width:40px;height:40px;border-radius:12px;font-size:20px}
+#job .jh .t div{flex:1}
+#job .jh .t b{font-size:26px;letter-spacing:.06em;display:block;line-height:1.1}
+#job .jh .t small{opacity:.8;font-size:13px}
+.prog{height:8px;background:rgba(255,255,255,.2);border-radius:4px;margin-top:10px;overflow:hidden}
+.prog i{display:block;height:100%;width:0;background:var(--gold);transition:width .25s}
+.progtxt{font-size:12px;opacity:.85;margin-top:5px}
+#jobbody{flex:1;overflow-y:auto;padding:12px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tile{background:#fff;border:2px dashed #b9c1d1;border-radius:14px;padding:10px;min-height:128px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;position:relative;overflow:hidden}
+.tile.done{border:2px solid var(--green);padding:0}
+.tile img{width:100%;height:100%;object-fit:cover;aspect-ratio:4/3;display:block}
+.tile .ic{font-size:30px}
+.tile b{font-size:15px;display:block;margin-top:2px}
+.tile small{font-size:11px;color:var(--mute)}
+.tile .tick{position:absolute;top:6px;right:6px;background:var(--green);color:#fff;border-radius:50%;width:24px;height:24px;line-height:24px;font-weight:800;font-size:14px}
+.tile .lbl{position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.55);color:#fff;font-size:12px;font-weight:700;padding:4px}
+.tile.bad{border-color:var(--red);background:#FCEBEB}
+.opt{background:#fff;border:1.5px solid var(--line);border-radius:14px;padding:12px;margin-top:10px}
+.opt h4{margin:0 0 2px;font-size:14px}.opt small{color:var(--mute);font-size:12px}
+.thumbs{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.thumb{width:74px;height:56px;border-radius:8px;overflow:hidden;border:2px solid var(--green);position:relative}
+.thumb img{width:100%;height:100%;object-fit:cover}
+.thumb u{position:absolute;top:0;right:0;background:rgba(0,0,0,.6);color:#fff;font-size:12px;width:20px;height:20px;text-align:center;text-decoration:none;line-height:20px}
+.addph{width:74px;height:56px;border-radius:8px;border:2px dashed var(--navy);color:var(--navy);font-size:26px;background:#fff}
+#jobfoot{padding:12px 12px calc(12px + var(--sab));background:#fff;border-top:1px solid var(--line);flex-shrink:0}
+
+/* ---------- camera ---------- */
+#cam{position:fixed;inset:0;background:#000;z-index:800;display:flex;flex-direction:column}
+#cam video{flex:1;width:100%;object-fit:cover;min-height:0;background:#000}
+#cam .top{position:absolute;top:0;left:0;right:0;padding:calc(12px + var(--sat)) 14px 24px;background:linear-gradient(#000a,#0000);color:#fff;display:flex;align-items:flex-start;gap:10px}
+#cam .top div{flex:1}
+#cam .top b{font-size:20px;display:block}
+#cam .top small{font-size:13px;opacity:.9}
+#cam .top button{background:rgba(255,255,255,.2);border:none;color:#fff;width:44px;height:44px;border-radius:50%;font-size:20px}
+#cam .guide{position:absolute;left:8%;right:8%;top:22%;bottom:24%;border:2px dashed rgba(255,255,255,.55);border-radius:18px;pointer-events:none}
+#cam .bot{position:absolute;bottom:0;left:0;right:0;padding:20px 0 calc(22px + var(--sab));display:flex;justify-content:center;background:linear-gradient(#0000,#000a)}
+#shutter{width:78px;height:78px;border-radius:50%;background:#fff;border:6px solid rgba(255,255,255,.45);background-clip:padding-box}
+#shutter:active{transform:scale(.92)}
+#flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:850;transition:opacity .15s}
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<div id="login" class="hide">
+  <div class="brand">
+    <img src="icon-192.png" alt="">
+    <h1>ParkDesk Driver</h1>
+    <p>Best Western Ariel Hotel · Heathrow</p>
+  </div>
+  <form class="box" id="loginform" autocomplete="on">
+    <label for="lu">Email address</label>
+    <input id="lu" type="email" name="username" autocomplete="username" inputmode="email" autocapitalize="none" autocorrect="off" required>
+    <label for="lp">Password</label>
+    <input id="lp" type="password" name="password" autocomplete="current-password" required>
+    <div id="lerr"></div>
+    <button class="btn" id="lbtn" type="submit" style="margin-top:18px">Sign in</button>
+  </form>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="app" class="hide">
+  <header>
+    <div class="who"><b id="hname">Driver</b><small id="hsync">Not synced yet</small></div>
+    <button class="iconbtn" id="refbtn" aria-label="Refresh">↻</button>
+    <button class="iconbtn" id="menubtn" aria-label="Menu">☰</button>
+  </header>
+  <div id="banner"></div>
+  <div class="toolbar">
+    <input type="search" id="q" placeholder="Search reg, make, colour…" autocomplete="off">
+    <button id="sortbtn">↕ Date</button>
+  </div>
+  <main id="main"></main>
+  <nav>
+    <button data-tab="collect"><span class="ic">📥</span>Collect<span class="n" id="n-collect">0</span></button>
+    <button data-tab="return"><span class="ic">📤</span>Return<span class="n" id="n-return">0</span></button>
+    <button data-tab="parked"><span class="ic">🅿️</span>With me<span class="n zero" id="n-parked">0</span></button>
+  </nav>
+</div>
+
+<div id="job" class="hide">
+  <div class="jh">
+    <div class="t"><button class="x" id="jclose" aria-label="Cancel">✕</button>
+      <div><b id="jreg"></b><small id="jdesc"></small></div></div>
+    <div class="prog"><i id="jfill"></i></div>
+    <div class="progtxt" id="jtxt"></div>
+  </div>
+  <div id="jobbody"></div>
+  <div id="jobfoot">
+    <button class="btn" id="jstart">Start camera</button>
+    <button class="btn green hide" id="jsubmit" style="margin-top:0">Confirm &amp; submit</button>
+  </div>
+</div>
+
+<div id="cam" class="hide">
+  <video id="camvid" playsinline muted autoplay></video>
+  <div class="guide"></div>
+  <div class="top"><div><b id="camtitle"></b><small id="camhint"></small></div>
+    <button id="camflip" aria-label="Switch camera">⟲</button>
+    <button id="camclose" aria-label="Close camera">✕</button></div>
+  <div class="bot"><button id="shutter" aria-label="Take photo"></button></div>
+</div>
+<div id="flash"></div>
+<div id="sheet" class="sheet-bg hide"><div class="sheet" id="sheetbody"></div></div>
+<div id="toast" class="toast hide"></div>
+<canvas id="cvs" class="hide"></canvas>
+
+<script>
+'use strict';
+/* =====================================================================
+   ParkDesk Driver — installable PWA for subcontractor drivers.
+   Uses the same Supabase project, tables and Storage bucket as the main
+   system, and the same rules as the contractor portal (4 required photos,
+   photos → Storage, move_log + move_photos updated on the vehicle row).
+   ===================================================================== */
+const SB_URL = 'https://kcmzncomwnjejcchtlas.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtjbXpuY29td25qZWpjY2h0bGFzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwOTI1MzAsImV4cCI6MjA5MTY2ODUzMH0.fsrJFLFxzT3ZFzM-oe96hptWDRr-cKg1S8anyfkWHgY';
+const BUCKET = 'vehicle-photos';
+// Push alerts: paste the PUBLIC key from driver-push/vapid-keygen.html here. Leave '' to hide the alerts feature.
+const VAPID_PUBLIC_KEY = 'BJn7PQIJjdRGRvadG5rqUx78gvixY3d6b3QmeOhf1P3Oym9fnVs_3fxmussDsiu5hyiTn_3Rby1UofeSPeJHreY';
+const SESSION_KEY = 'pd_driver_user', CACHE_KEY = 'pd_driver_cache', LOCK_KEY = 'pd_driver_lock';
+const SESSION_HOURS = 12;          // idle sign-out
+const POLL_MS = 60000;
+const REQUIRED = ['front','rear','left','right'];
+const MULTI = ['interior','damage'], MULTI_MAX = 5;
+const LABELS = {
+  front:{label:'Front',icon:'⬆️',hint:'Face the front bumper'},
+  rear:{label:'Rear',icon:'⬇️',hint:'Face the rear of the vehicle'},
+  left:{label:'Left side',icon:'⬅️',hint:'Driver side, full length'},
+  right:{label:'Right side',icon:'➡️',hint:'Passenger side, full length'},
+  interior:{label:'Interior',icon:'🪑',hint:'Through driver window, seats visible'},
+  damage:{label:'Damage',icon:'⚠️',hint:'Close-up of any scratch or dent'}
+};
+const LIST_COLS = 'reg,room_number,status,location,check_in_date,return_date,contractor_id,contractor_name,move_status,current_location_start,vehicle_make,vehicle_model,vehicle_colour';
+const FULL_COLS = 'reg,name,phone,email,room_number,status,location,check_in_date,return_date,check_out_date,hotel_days,contractor_days,contractor_id,contractor_name,contractor_rate,move_status,move_pending_to,move_log,ref_code,current_location_start,vehicle_make,vehicle_model,vehicle_colour';
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const todayStr = () => new Date().toISOString().slice(0,10);
+const addDays = (d,n) => { const x = new Date(d); x.setDate(x.getDate()+n); return x.toISOString().slice(0,10); };
+function nightsApart(a,b){
+  if(!a||!b) return 0;
+  const da = new Date((a+'').slice(0,10)), db = new Date((b+'').slice(0,10));
+  if(isNaN(da)||isNaN(db)) return 0;
+  return Math.max(0, Math.round((db-da)/86400000));
+}
+function fmtD(d){ if(!d) return '–'; const x = new Date(d); return isNaN(x) ? d : x.toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit',year:'2-digit'}); }
+function fmtDT(d){ const x = new Date(d); return x.toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit',year:'numeric'})+' '+x.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}); }
+async function sha256(str){
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+function lsGet(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+function lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+function lsDel(k){ try{ localStorage.removeItem(k); }catch(e){} }
+
+/* ---------------- Supabase helpers ---------------- */
+async function sbFetch(path, opts = {}, timeout = 25000){
+  const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), timeout);
+  try{
+    const r = await fetch(SB_URL + '/rest/v1/' + path, {
+      ...opts, signal: ctl.signal,
+      headers: {apikey:SB_KEY, Authorization:'Bearer '+SB_KEY, 'Content-Type':'application/json', Prefer:'return=representation', ...(opts.headers||{})}
+    });
+    if(r.status === 204) return [];
+    const text = await r.text();
+    let json = []; if(text){ try{ json = JSON.parse(text); }catch(e){ throw new Error('Invalid response from database'); } }
+    if(json && !Array.isArray(json) && (json.code || json.error)){
+      if(r.status === 500 || r.status === 503) throw new Error('Database unavailable — try again shortly');
+      throw new Error(json.message || json.error || 'Database error');
+    }
+    return Array.isArray(json) ? json : [];
+  }catch(e){
+    if(e.name === 'AbortError') throw new Error('Connection timed out');
+    if(e instanceof TypeError) throw new Error('No connection');
+    throw e;
+  }finally{ clearTimeout(t); }
+}
+async function storageUpload(path, dataUrl){
+  const blob = await (await fetch(dataUrl)).blob();
+  const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 60000);
+  try{
+    const r = await fetch(SB_URL+'/storage/v1/object/'+BUCKET+'/'+path, {
+      method:'POST', signal:ctl.signal,
+      headers:{apikey:SB_KEY, Authorization:'Bearer '+SB_KEY, 'Content-Type':blob.type||'image/jpeg', 'x-upsert':'true'}, body:blob
+    });
+    if(!r.ok){ let tx=''; try{ tx = await r.text(); }catch(e){} throw new Error('Photo upload failed ('+r.status+') '+tx.slice(0,100)); }
+    return SB_URL+'/storage/v1/object/public/'+BUCKET+'/'+path;
+  }catch(e){ if(e.name==='AbortError') throw new Error('Photo upload timed out'); if(e instanceof TypeError) throw new Error('No connection'); throw e; }
+  finally{ clearTimeout(t); }
+}
+
+/* ---------------- IndexedDB queue (submissions that could not upload yet) ---------------- */
+let _db = null;
+function idb(){
+  if(_db) return Promise.resolve(_db);
+  return new Promise((res, rej) => {
+    const rq = indexedDB.open('pd_driver', 1);
+    rq.onupgradeneeded = () => rq.result.createObjectStore('jobs', {keyPath:'id'});
+    rq.onsuccess = () => { _db = rq.result; res(_db); };
+    rq.onerror = () => rej(rq.error);
+  });
+}
+async function jobsAll(){ const d = await idb(); return new Promise((res,rej)=>{ const r = d.transaction('jobs').objectStore('jobs').getAll(); r.onsuccess=()=>res(r.result||[]); r.onerror=()=>rej(r.error); }); }
+async function jobPut(j){ const d = await idb(); return new Promise((res,rej)=>{ const tx = d.transaction('jobs','readwrite'); tx.objectStore('jobs').put(j); tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); }); }
+async function jobDel(id){ const d = await idb(); return new Promise((res,rej)=>{ const tx = d.transaction('jobs','readwrite'); tx.objectStore('jobs').delete(id); tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); }); }
+
+/* ---------------- state ---------------- */
+let user = null, vehicles = [], tab = 'collect', sortMode = 'date', lastSync = null, knownKeys = null, syncing = false;
+
+/* ---------------- toast ---------------- */
+let _tt = null;
+function toast(msg, kind = '', ms = 4000){
+  const el = $('toast'); el.className = 'toast ' + kind; el.textContent = msg; el.classList.remove('hide');
+  clearTimeout(_tt); _tt = setTimeout(() => el.classList.add('hide'), ms);
+}
+
+/* ====================================================================
+   LOGIN / SESSION
+   ==================================================================== */
+function lockState(){ try{ return JSON.parse(lsGet(LOCK_KEY)||'{}'); }catch(e){ return {}; } }
+function saveSession(u){ lsSet(SESSION_KEY, JSON.stringify({id:u.id, username:u.username, full_name:u.full_name, email:u.email, role:u.role, contractor_id:u.contractor_id, last:Date.now()})); }
+function loadSession(){
+  try{
+    const u = JSON.parse(lsGet(SESSION_KEY)||'null');
+    if(!u) return null;
+    if(Date.now() - (u.last||0) > SESSION_HOURS*3600*1000){ lsDel(SESSION_KEY); return null; }
+    return u;
+  }catch(e){ return null; }
+}
+function logout(){
+  pushForget();     // this phone stops receiving alerts for the signed-out driver
+  lsDel(SESSION_KEY); lsDel(CACHE_KEY); user = null; vehicles = []; knownKeys = null;
+  $('app').classList.add('hide'); $('login').classList.remove('hide'); $('lp').value = ''; closeSheet();
+}
+$('loginform').addEventListener('submit', async ev => {
+  ev.preventDefault();
+  const err = $('lerr'), btn = $('lbtn');
+  const lk = lockState();
+  if(lk.until && Date.now() < lk.until){ err.innerHTML = '<div class="msg err">Too many attempts. Try again in '+Math.ceil((lk.until-Date.now())/60000)+' min.</div>'; return; }
+  const email = $('lu').value.trim().toLowerCase(), pw = $('lp').value;
+  if(!email || !pw) return;
+  btn.disabled = true; btn.textContent = 'Checking…'; err.innerHTML = '';
+  try{
+    const hash = await sha256(pw);
+    let rows = await sbFetch('app_users?email=eq.'+encodeURIComponent(email)+'&active=eq.true&select=id,username,full_name,email,role,contractor_id,password_hash');
+    if(!rows.length) rows = await sbFetch('app_users?username=eq.'+encodeURIComponent(email)+'&active=eq.true&select=id,username,full_name,email,role,contractor_id,password_hash');
+    const u = rows[0];
+    if(!u || u.password_hash !== hash){
+      const n = (lk.n||0)+1; lsSet(LOCK_KEY, JSON.stringify(n>=5 ? {n:0, until:Date.now()+5*60000} : {n}));
+      err.innerHTML = '<div class="msg err">Incorrect email or password.</div>'; return;
+    }
+    if(u.role !== 'contractor'){
+      err.innerHTML = '<div class="msg err">This app is for contractor drivers. Please use the main ParkDesk system.</div>'; return;
+    }
+    lsDel(LOCK_KEY); user = u; saveSession(u); startApp();
+  }catch(e){
+    err.innerHTML = '<div class="msg err">'+esc(navigator.onLine ? e.message : 'No internet connection')+'</div>';
+  }finally{ btn.disabled = false; btn.textContent = 'Sign in'; }
+});
+
+/* ====================================================================
+   APP: lists
+   ==================================================================== */
+async function startApp(){
+  $('login').classList.add('hide'); $('app').classList.remove('hide');
+  $('hname').textContent = user.full_name || user.username || 'Driver';
+  // restore cached list instantly so the screen is never empty
+  try{ const c = JSON.parse(lsGet(CACHE_KEY)||'null'); if(c && c.uid === user.id){ vehicles = c.rows||[]; lastSync = c.at; } }catch(e){}
+  setTab(tab); updateSyncText(); updateBanner();
+  await refresh(true);
+  flushJobs();
+  pushResync().then(pushRefreshCache);
+}
+function isMine(v){
+  const myName = (user.full_name || user.username || '').toLowerCase();
+  const myId = user.contractor_id != null ? String(user.contractor_id) : null;
+  if(myId && v.contractor_id != null && String(v.contractor_id) === myId) return true;
+  if(myName && v.contractor_name && v.contractor_name.toLowerCase() === myName) return true;
+  return false;
+}
+function groups(){
+  const mine = vehicles.filter(isMine);
+  return {
+    collect: mine.filter(v => v.move_status === 'pending_to_contractor'),
+    ret:     mine.filter(v => v.move_status === 'pending_to_hotel'),
+    parked:  mine.filter(v => v.location === 'contractor' && !v.move_status)
+  };
+}
+async function refresh(first){
+  if(!user || syncing) return;
+  syncing = true; $('refbtn').classList.add('spin');
+  try{
+    // still allowed to sign in? (account may have been deactivated)
+    const ok = await sbFetch('app_users?id=eq.'+encodeURIComponent(user.id)+'&active=eq.true&select=id');
+    if(!ok.length){ toast('Your account is no longer active.', 'err'); logout(); return; }
+    const rows = await sbFetch('vehicles?status=eq.active&or=(contractor_id.not.is.null,contractor_name.not.is.null)&select='+LIST_COLS+'&limit=1000');
+    vehicles = rows; lastSync = Date.now();
+    lsSet(CACHE_KEY, JSON.stringify({uid:user.id, rows, at:lastSync}));
+    saveSession(user);
+    // announce new jobs
+    const g = groups();
+    const keys = new Set([...g.collect.map(v => 'c:'+v.reg), ...g.ret.map(v => 'r:'+v.reg)]);
+    if(knownKeys && !first){
+      const fresh = [...keys].filter(k => !knownKeys.has(k));
+      if(fresh.length){
+        const nc = fresh.filter(k => k[0]==='c').length, nr = fresh.filter(k => k[0]==='r').length;
+        toast('New: '+[nc && nc+' to collect', nr && nr+' to return'].filter(Boolean).join(' · '), 'ok', 6000);
+        try{ navigator.vibrate && navigator.vibrate([200,100,200]); }catch(e){}
+      }
+    }
+    knownKeys = keys;
+    render(); updateBanner();
+  }catch(e){
+    if(!first) toast(navigator.onLine ? e.message : 'Offline — showing last saved list', 'err');
+    updateBanner();
+  }finally{ syncing = false; $('refbtn').classList.remove('spin'); updateSyncText(); }
+}
+function updateSyncText(){
+  $('hsync').textContent = lastSync ? 'Updated '+new Date(lastSync).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : 'Not synced yet';
+}
+function setTab(t){
+  tab = t;
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+  $('sortbtn').textContent = sortMode === 'date' ? '↕ Date' : '↕ Reg';
+  render();
+}
+function urgency(returnDate){
+  const td = todayStr(), rd = (returnDate||'').slice(0,10);
+  if(!rd) return {t:'No date', bg:'#eceff4', c:'#6b7488'};
+  if(rd < td) return {t:'Overdue '+nightsApart(rd,td)+'d', bg:'#FCEBEB', c:'#791F1F'};
+  if(rd === td) return {t:'Due today', bg:'#FAEEDA', c:'#633806'};
+  const d = nightsApart(td, rd);
+  return d === 1 ? {t:'Due tomorrow', bg:'#E1F5EE', c:'#085041'} : {t:'Due in '+d+'d', bg:'#E1F5EE', c:'#085041'};
+}
+function matches(v, q){
+  if(!q) return true; q = q.toLowerCase().replace(/\s+/g,'');
+  return [v.reg, v.vehicle_make, v.vehicle_model, v.vehicle_colour, v.room_number].some(f => (f||'').toLowerCase().replace(/\s+/g,'').includes(q));
+}
+function sorted(list, field){
+  const l = [...list];
+  l.sort(sortMode === 'reg' ? (a,b) => (a.reg||'').localeCompare(b.reg||'') : (a,b) => (a[field]||'').localeCompare(b[field]||''));
+  return l;
+}
+function render(){
+  const g = groups(), q = $('q').value.trim();
+  const setN = (id, n) => { const e = $(id); e.textContent = n; e.classList.toggle('zero', n === 0); };
+  setN('n-collect', g.collect.length); setN('n-return', g.ret.length); setN('n-parked', g.parked.length);
+  const main = $('main'); let html = '';
+  if(tab === 'collect' || tab === 'return'){
+    const isC = tab === 'collect';
+    const list = sorted((isC ? g.collect : g.ret).filter(v => matches(v,q)), isC ? 'check_in_date' : 'return_date');
+    if(!list.length) html = '<div class="empty">'+(q ? 'No vehicles match your search' : isC ? 'Nothing to collect from the hotel right now 🎉' : 'Nothing waiting to be returned right now 🎉')+'</div>';
+    html = html || list.map(v => {
+      const b = isC ? {t:'Collect from hotel', bg:'#FAEEDA', c:'#633806'} : urgency(v.return_date);
+      const vi = [v.vehicle_colour, v.vehicle_make, v.vehicle_model].filter(Boolean).join(' ');
+      return '<div class="card '+(isC?'collect':'return')+'"><div class="top"><div class="reg">'+esc(v.reg)+'</div>'
+        +'<span class="badge" style="background:'+b.bg+';color:'+b.c+'">'+esc(b.t)+'</span></div>'
+        +(vi ? '<div class="veh">'+esc(vi)+'</div>' : '<div class="veh" style="color:#aaa">Vehicle details not recorded</div>')
+        +(v.room_number ? '<div class="sub">Room '+esc(v.room_number)+'</div>' : '')
+        +(isC ? '' : '<div class="sub">Return date '+esc(fmtD(v.return_date))+'</div>')
+        +'<button class="btn'+(isC?'':' green')+'" data-reg="'+esc(v.reg)+'" data-action="'+(isC?'deliver':'return')+'">📷 '+(isC?'Take photos · Confirm received':'Take photos · Confirm returned')+'</button></div>';
+    }).join('');
+  } else {
+    const td = todayStr();
+    const list = sorted(g.parked.filter(v => matches(v,q)), 'current_location_start');
+    if(!list.length) html = '<div class="empty">'+(q ? 'No vehicles match your search' : 'No vehicles parked with you')+'</div>';
+    else html = '<div class="rows">'+list.map(v => {
+      const rd = (v.return_date||'').slice(0,10), over = rd && rd < td, soon = rd && rd <= addDays(td,3);
+      const col = over ? ['#FCEBEB','#791F1F','Overdue'] : soon ? ['#FAEEDA','#633806','Due soon'] : ['#E1F5EE','#085041','OK'];
+      const vi = [v.vehicle_colour, v.vehicle_make, v.vehicle_model].filter(Boolean).join(' ');
+      const n = nightsApart(v.current_location_start, td);
+      return '<div class="row"><div><div class="reg">'+esc(v.reg)+'</div>'+(vi?'<div class="sub">'+esc(vi)+'</div>':'')
+        +'<div class="sub">'+n+' night'+(n!==1?'s':'')+' with you</div></div>'
+        +'<div class="r"><div>Return '+esc(fmtD(v.return_date))+'</div><span class="badge" style="background:'+col[0]+';color:'+col[1]+';font-size:11px;padding:2px 8px">'+col[2]+'</span></div></div>';
+    }).join('')+'</div>';
+  }
+  main.innerHTML = html;
+}
+document.querySelector('nav').addEventListener('click', e => { const b = e.target.closest('button[data-tab]'); if(b) setTab(b.dataset.tab); });
+$('q').addEventListener('input', render);
+$('sortbtn').addEventListener('click', () => { sortMode = sortMode === 'date' ? 'reg' : 'date'; setTab(tab); });
+$('refbtn').addEventListener('click', () => refresh());
+$('main').addEventListener('click', e => { const b = e.target.closest('button[data-reg]'); if(b) openJob(b.dataset.reg, b.dataset.action); });
+document.addEventListener('visibilitychange', () => { if(!document.hidden && user){ refresh(); flushJobs(); } });
+window.addEventListener('online', () => { updateBanner(); if(user){ refresh(); flushJobs(); } });
+window.addEventListener('offline', updateBanner);
+
+/* ---------------- banner & menu ---------------- */
+let pendingCount = 0;
+async function updateBanner(){
+  let jobs = []; try{ jobs = await jobsAll(); }catch(e){}
+  pendingCount = jobs.length;
+  let h = '';
+  if(!navigator.onLine) h += '<div class="bar off">📡 Offline — you can still take photos; they upload when signal returns.</div>';
+  if(jobs.length) h += '<div class="bar pend">⏳ '+jobs.length+' submission'+(jobs.length>1?'s':'')+' waiting to upload <button id="pendbtn">View</button></div>';
+  if(pushSupported() && Notification.permission === 'default' && !lsGet(PUSH_DISMISS_KEY)) h += '<div class="bar pend">🔔 Get an alert when a vehicle is ready <button id="pushon">Turn on</button><button id="pushno" style="margin-left:0">✕</button></div>';
+  $('banner').innerHTML = h;
+  const pb = $('pendbtn'); if(pb) pb.onclick = showPending;
+  const po = $('pushon'); if(po) po.onclick = async () => { await pushEnable(); updateBanner(); };
+  const pn = $('pushno'); if(pn) pn.onclick = () => { lsSet(PUSH_DISMISS_KEY,'1'); updateBanner(); };
+}
+function closeSheet(){ $('sheet').classList.add('hide'); }
+$('sheet').addEventListener('click', e => { if(e.target === $('sheet')) closeSheet(); });
+let installEvt = null;
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; });
+window.addEventListener('appinstalled', () => { installEvt = null; toast('App installed', 'ok'); });
+$('menubtn').addEventListener('click', async () => {
+  await pushRefreshCache();
+  $('sheetbody').innerHTML = '<h3>'+esc(user.full_name||user.username)+'</h3>'
+    +'<div class="sub" style="margin-bottom:6px">Signed in as '+esc(user.email||user.username)+'</div>'
+    +(installEvt ? '<button class="btn" id="m-install">Install app on this phone</button>' : '')
+    +pushMenuHtml()
+    +'<button class="btn ghost" id="m-pend">Waiting uploads ('+pendingCount+')</button>'
+    +'<button class="btn ghost" id="m-logout" style="color:#a22f2e;border-color:#a22f2e">Sign out</button>'
+    +'<button class="btn ghost" id="m-close" style="margin-top:10px">Close</button>';
+  $('sheet').classList.remove('hide');
+  const i = $('m-install'); if(i) i.onclick = async () => { closeSheet(); installEvt.prompt(); await installEvt.userChoice; installEvt = null; };
+  $('m-pend').onclick = showPending; $('m-logout').onclick = logout; $('m-close').onclick = closeSheet;
+  const pt = $('m-push'); if(pt) pt.onclick = async () => { if(await pushIsOn()) await pushForget(); else await pushEnable(); closeSheet(); updateBanner(); };
+});
+async function showPending(){
+  const jobs = await jobsAll();
+  $('sheetbody').innerHTML = '<h3>Waiting to upload</h3>'
+    +(jobs.length ? jobs.map(j => '<div class="item"><b>'+esc(j.reg)+'</b> · '+(j.action==='deliver'?'Received':'Returned')+'<div class="sub">'+esc(fmtDT(j.moveDate))+' · '+Object.keys(j.photos).length+' photos</div>'
+        +(j.error ? '<div class="e">'+esc(j.error)+'</div>' : '')
+        +'<button class="btn ghost" data-discard="'+esc(j.id)+'" style="color:#a22f2e;border-color:#a22f2e">Discard</button></div>').join('')
+      +'<button class="btn" id="p-retry">Retry now</button>'
+      : '<div class="empty">Nothing waiting 👍</div>')
+    +'<button class="btn ghost" id="p-close">Close</button>';
+  $('sheet').classList.remove('hide');
+  $('p-close').onclick = closeSheet;
+  const r = $('p-retry'); if(r) r.onclick = async () => { closeSheet(); await flushJobs(true); };
+  document.querySelectorAll('[data-discard]').forEach(b => b.onclick = async () => {
+    if(!confirm('Discard this submission and its photos? This cannot be undone.')) return;
+    await jobDel(b.dataset.discard); await updateBanner(); showPending();
+  });
+}
+
+/* ====================================================================
+   PHOTO JOB
+   ==================================================================== */
+let job = null;   // {reg, action, photos:{front:dataUrl,...,interior:[...],damage:[...]}}
+let wakeLock = null;
+function openJob(reg, action){
+  const v = vehicles.find(x => x.reg === reg);
+  job = {reg, action, photos:{}, v};
+  $('jreg').textContent = reg;
+  $('jdesc').textContent = action === 'deliver' ? 'Confirming receipt at your car park' : 'Confirming return to the hotel';
+  $('job').classList.remove('hide');
+  renderJob();
+  try{ navigator.wakeLock && navigator.wakeLock.request('screen').then(l => wakeLock = l).catch(()=>{}); }catch(e){}
+}
+function closeJob(){
+  $('job').classList.add('hide'); job = null;
+  try{ wakeLock && wakeLock.release(); }catch(e){} wakeLock = null;
+}
+$('jclose').addEventListener('click', () => {
+  const any = job && Object.keys(job.photos).length;
+  if(any && !confirm('Cancel and lose the photos you have taken?')) return;
+  closeJob();
+});
+function doneCount(){ return REQUIRED.filter(c => job.photos[c]).length; }
+function nextMissing(){ return REQUIRED.find(c => !job.photos[c]); }
+function renderJob(){
+  const n = doneCount();
+  $('jfill').style.width = Math.round(n/REQUIRED.length*100)+'%';
+  $('jtxt').textContent = n+' of '+REQUIRED.length+' required photos taken';
+  const tiles = REQUIRED.map(c => {
+    const p = job.photos[c], L = LABELS[c];
+    return p ? '<div class="tile done" data-cat="'+c+'"><img src="'+p+'" alt=""><span class="tick">✓</span><span class="lbl">'+L.label+' · tap to retake</span></div>'
+             : '<div class="tile" data-cat="'+c+'"><span class="ic">'+L.icon+'</span><b>'+L.label+'</b><small>'+L.hint+'</small></div>';
+  }).join('');
+  const opt = MULTI.map(c => {
+    const arr = job.photos[c] || [], L = LABELS[c];
+    return '<div class="opt"><h4>'+L.label+' <small>(optional, up to '+MULTI_MAX+')</small></h4><small>'+L.hint+'</small><div class="thumbs">'
+      +arr.map((p,i) => '<div class="thumb"><img src="'+p+'" alt=""><u data-rm="'+c+':'+i+'">✕</u></div>').join('')
+      +(arr.length < MULTI_MAX ? '<button class="addph" data-add="'+c+'">+</button>' : '')+'</div></div>';
+  }).join('');
+  $('jobbody').innerHTML = '<div class="grid">'+tiles+'</div>'+opt;
+  const all = n === REQUIRED.length;
+  $('jstart').classList.toggle('hide', all);
+  $('jsubmit').classList.toggle('hide', !all);
+  if(!all) $('jstart').textContent = n === 0 ? '📷 Start camera' : '📷 Next: '+LABELS[nextMissing()].label;
+}
+$('jobbody').addEventListener('click', e => {
+  const rm = e.target.closest('[data-rm]'); if(rm){ const [c,i] = rm.dataset.rm.split(':'); job.photos[c].splice(+i,1); renderJob(); return; }
+  const add = e.target.closest('[data-add]'); if(add){ openCam(add.dataset.add, false); return; }
+  const t = e.target.closest('.tile'); if(t) openCam(t.dataset.cat, false);
+});
+$('jstart').addEventListener('click', () => openCam(nextMissing(), true));
+
+/* ---------------- camera ---------------- */
+let stream = null, facing = 'environment', camCat = null, camGuided = false;
+async function openCam(cat, guided){
+  camCat = cat; camGuided = guided;
+  $('camtitle').textContent = LABELS[cat].label + (REQUIRED.includes(cat) ? '  ('+(REQUIRED.indexOf(cat)+1)+' of 4)' : '');
+  $('camhint').textContent = LABELS[cat].hint;
+  $('cam').classList.remove('hide');
+  await startStream();
+}
+async function startStream(){
+  stopStream();
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:facing, width:{ideal:1920}, height:{ideal:1440}}, audio:false});
+    const v = $('camvid'); v.srcObject = stream; try{ await v.play(); }catch(e){}
+  }catch(e){
+    // camera blocked or unavailable → fall back to the phone's own camera app via file input
+    closeCam();
+    const inp = document.createElement('input'); inp.type='file'; inp.accept='image/*'; inp.capture='environment'; inp.style.display='none';
+    inp.onchange = () => { if(inp.files[0]) fileToDataUrl(inp.files[0]).then(d => acceptPhoto(d)); inp.remove(); };
+    document.body.appendChild(inp); inp.click();
+  }
+}
+function stopStream(){ if(stream){ stream.getTracks().forEach(t => t.stop()); stream = null; } $('camvid').srcObject = null; }
+function closeCam(){ stopStream(); $('cam').classList.add('hide'); }
+$('camclose').addEventListener('click', closeCam);
+$('camflip').addEventListener('click', () => { facing = facing === 'environment' ? 'user' : 'environment'; startStream(); });
+$('shutter').addEventListener('click', () => {
+  const v = $('camvid'); if(!v.videoWidth) return;
+  const c = $('cvs'); c.width = v.videoWidth; c.height = v.videoHeight; c.getContext('2d').drawImage(v, 0, 0);
+  const raw = c.toDataURL('image/jpeg', 0.9);
+  const f = $('flash'); f.style.opacity = .85; setTimeout(() => f.style.opacity = 0, 120);
+  try{ navigator.vibrate && navigator.vibrate(40); }catch(e){}
+  closeCam(); acceptPhoto(raw);
+});
+function fileToDataUrl(file){ return new Promise((res,rej) => { const r = new FileReader(); r.onload = e => res(e.target.result); r.onerror = rej; r.readAsDataURL(file); }); }
+
+// Resize to 1024px, stamp reg + date/time onto the image (evidence), JPEG 0.72
+function processPhoto(dataUrl, reg, cat){
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      let w = img.width, h = img.height; const MAX = 1024;
+      if(w > MAX){ h = Math.round(h*MAX/w); w = MAX; }
+      const c = document.createElement('canvas'); c.width = w; c.height = h;
+      const x = c.getContext('2d'); x.drawImage(img, 0, 0, w, h);
+      // blank / black check
+      const t = document.createElement('canvas'); t.width = 16; t.height = 16;
+      const tx = t.getContext('2d'); tx.drawImage(img, 0, 0, 16, 16);
+      const d = tx.getImageData(0,0,16,16).data; let sum = 0; for(let i=0;i<d.length;i+=4) sum += d[i]+d[i+1]+d[i+2];
+      if(sum/(256*3) < 8){ resolve(null); return; }
+      const bar = Math.round(h*0.055), fs = Math.round(bar*0.62);
+      x.fillStyle = 'rgba(0,0,0,.6)'; x.fillRect(0, h-bar, w, bar);
+      x.fillStyle = '#fff'; x.font = '700 '+fs+'px system-ui,Arial,sans-serif'; x.textBaseline = 'middle';
+      x.fillText(reg+'  ·  '+LABELS[cat].label.toUpperCase(), 10, h-bar/2);
+      x.textAlign = 'right'; x.font = '500 '+fs+'px system-ui,Arial,sans-serif'; x.fillText(fmtDT(new Date()), w-10, h-bar/2);
+      resolve(c.toDataURL('image/jpeg', 0.72));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+async function acceptPhoto(raw){
+  const cat = camCat;
+  const out = await processPhoto(raw, job.reg, cat);
+  if(!out){ toast('That photo looks blank or too dark — please retake it.', 'err'); renderJob(); return; }
+  if(MULTI.includes(cat)){ (job.photos[cat] = job.photos[cat] || []).push(out); }
+  else job.photos[cat] = out;
+  renderJob();
+  if(camGuided){ const nx = nextMissing(); if(nx) openCam(nx, true); }
+}
+
+/* ---------------- submit (save locally first, then upload) ---------------- */
+$('jsubmit').addEventListener('click', async () => {
+  if(doneCount() < REQUIRED.length){ toast('Take all 4 required photos first.', 'err'); return; }
+  const btn = $('jsubmit'); btn.disabled = true; btn.textContent = 'Saving…';
+  const flat = {};
+  Object.entries(job.photos).forEach(([cat, p]) => {
+    if(MULTI.includes(cat)) p.forEach((d,i) => flat[cat+'_'+(i+1)] = d); else flat[cat] = p;
+  });
+  const j = {id: job.reg+'_'+Date.now(), reg: job.reg, action: job.action, moveDate: new Date().toISOString(), photos: flat, error: null};
+  try{ await jobPut(j); }
+  catch(e){ toast('Could not save photos on this phone: '+e.message, 'err'); btn.disabled = false; btn.textContent = 'Confirm & submit'; return; }
+  closeJob(); btn.disabled = false; btn.textContent = 'Confirm & submit';
+  toast('Saved — uploading…', '', 2500);
+  await updateBanner();
+  await flushJobs(true);
+});
+
+let flushing = false;
+async function flushJobs(manual){
+  if(flushing || !user) return; flushing = true;
+  try{
+    const jobs = await jobsAll();
+    for(const j of jobs){
+      try{
+        const msg = await processJob(j);
+        await jobDel(j.id);
+        toast(msg, 'ok', 5000);
+      }catch(e){
+        if(e.permanent){ await jobDel(j.id); toast(e.message, 'err', 6000); }
+        else{
+          j.error = e.message; try{ await jobPut(j); }catch(_){}
+          if(manual || navigator.onLine) toast(j.reg+': '+(e.message==='No connection' || !navigator.onLine ? 'No signal — saved on your phone, will upload automatically' : e.message+' — will retry'), 'err', 6000);
+          break;   // stop on first failure (likely connectivity)
+        }
+      }
+    }
+  } finally { flushing = false; await updateBanner(); await refresh(); }
+}
+async function processJob(j){
+  let v = null;
+  for(let i=0; i<3 && !v; i++){
+    try{ const a = await sbFetch('vehicles?reg=eq.'+encodeURIComponent(j.reg.trim())+'&select='+FULL_COLS+'&limit=1'); if(a[0]) v = a[0]; else await sleep(800); }
+    catch(e){ if(i === 2) throw e; await sleep(800); }
+  }
+  if(!v) throw new Error('Could not load vehicle data');
+  const expected = j.action === 'deliver' ? 'pending_to_contractor' : 'pending_to_hotel';
+  if(v.move_status !== expected){
+    const err = new Error(j.reg+' is no longer waiting to be '+(j.action==='deliver'?'collected':'returned')+' — already updated.'); err.permanent = true; throw err;
+  }
+  const toLoc = j.action === 'deliver' ? 'contractor' : 'hotel';
+  let log = []; try{ const r = v.move_log; log = Array.isArray(r) ? r : (r ? JSON.parse(r) : []); }catch(e){ log = []; }
+  const nightsHere = nightsApart(v.current_location_start, j.moveDate);
+  const newHd = (v.hotel_days||0) + (v.location === 'hotel' ? nightsHere : 0);
+  const newCd = (v.contractor_days||0) + (v.location === 'contractor' ? nightsHere : 0);
+  // upload photos (path is stable per job → safe to retry)
+  const stamp = new Date(j.moveDate).getTime(), urls = {};
+  for(const [cat, data] of Object.entries(j.photos)){
+    urls[cat] = await storageUpload(encodeURIComponent(j.reg.replace(/\s+/g,''))+'/'+stamp+'_'+cat+'.jpg', data);
+  }
+  const cats = Object.keys(urls);
+  log.push({
+    loc: toLoc, date: j.moveDate,
+    note: (toLoc === 'contractor' ? 'Received at '+v.contractor_name : 'Returned to hotel')+' — confirmed by contractor ('+cats.join(', ')+' photos)',
+    contractor_id: toLoc === 'contractor' ? v.contractor_id : null,
+    contractor_name: toLoc === 'contractor' ? v.contractor_name : null,
+    rate: toLoc === 'contractor' ? v.contractor_rate : null,
+    photo_categories: cats
+  });
+  const patch = {location:toLoc, move_status:null, move_pending_to:null, hotel_days:newHd, contractor_days:newCd,
+    current_location_start:j.moveDate, move_log:JSON.stringify(log), move_photos:JSON.stringify(urls)};
+  if(toLoc === 'hotel'){ patch.contractor_id = null; patch.contractor_name = null; patch.contractor_rate = null; }
+  // guard on move_status so a double submit can never apply twice
+  const res = await sbFetch('vehicles?reg=eq.'+encodeURIComponent(j.reg)+'&move_status=eq.'+expected, {method:'PATCH', body:JSON.stringify(patch)});
+  if(!res.length){ const err = new Error(j.reg+' was already updated by someone else.'); err.permanent = true; throw err; }
+  return '✅ '+j.reg+' '+(j.action === 'deliver' ? 'received' : 'returned')+' — '+cats.length+' photos saved';
+}
+
+/* ====================================================================
+   PUSH ALERTS
+   ==================================================================== */
+const PUSH_DISMISS_KEY = 'pd_driver_push_dismiss';
+function pushSupported(){ return !!VAPID_PUBLIC_KEY && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window; }
+function b64uToBytes(b){ const p = '='.repeat((4 - b.length % 4) % 4), r = atob((b+p).replace(/-/g,'+').replace(/_/g,'/')); return Uint8Array.from(r, c => c.charCodeAt(0)); }
+async function pushSub(){ try{ const reg = await navigator.serviceWorker.ready; return await reg.pushManager.getSubscription(); }catch(e){ return null; } }
+async function pushIsOn(){ return pushSupported() && Notification.permission === 'granted' && !!(await pushSub()); }
+async function pushSave(sub){
+  const j = sub.toJSON();
+  await sbFetch('push_subscriptions?on_conflict=endpoint', {
+    method:'POST', headers:{Prefer:'resolution=merge-duplicates,return=minimal'},
+    body: JSON.stringify({endpoint:j.endpoint, p256dh:j.keys.p256dh, auth:j.keys.auth, user_id:String(user.id),
+      contractor_id: user.contractor_id != null ? String(user.contractor_id) : null,
+      contractor_name: (user.full_name || user.username || '').toLowerCase(),
+      user_agent: navigator.userAgent.slice(0,200), last_seen: new Date().toISOString()})
+  });
+}
+async function pushEnable(){
+  if(!pushSupported()){ toast('Alerts are not supported on this phone/browser.', 'err'); return false; }
+  try{
+    const perm = await Notification.requestPermission();
+    if(perm !== 'granted'){ toast(perm === 'denied' ? 'Alerts are blocked — allow notifications for this app in Chrome settings.' : 'Alerts not turned on.', 'err', 6000); return false; }
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    const subscribeNew = () => reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:b64uToBytes(VAPID_PUBLIC_KEY)});
+    if(!sub){ try{ sub = await subscribeNew(); }catch(e){ const old = await reg.pushManager.getSubscription(); if(old){ await old.unsubscribe(); sub = await subscribeNew(); } else throw e; } }
+    await pushSave(sub);
+    toast('🔔 Alerts are on — you will be told when a vehicle is ready.', 'ok', 5000);
+    return true;
+  }catch(e){ toast('Could not turn on alerts: '+e.message, 'err', 6000); return false; }
+}
+async function pushForget(){            // sign-out / turn off: remove this phone from the list
+  try{
+    const sub = await pushSub(); if(!sub) return;
+    await sbFetch('push_subscriptions?endpoint=eq.'+encodeURIComponent(sub.endpoint), {method:'DELETE', headers:{Prefer:'return=minimal'}}).catch(()=>{});
+    await sub.unsubscribe();
+  }catch(e){}
+}
+async function pushResync(){            // after sign-in / app start: keep the stored phone details fresh
+  if(!pushSupported() || Notification.permission !== 'granted' || !user) return;
+  try{ const sub = await pushSub(); if(sub) await pushSave(sub); else await pushEnable(); }catch(e){}
+}
+function pushMenuHtml(){
+  if(!pushSupported()) return '';
+  if(Notification.permission === 'denied') return '<div class="msg info" style="margin-top:10px">🔔 Alerts are blocked. Allow notifications for this app in your phone settings.</div>';
+  const on = Notification.permission === 'granted' && pushOnCache;
+  return '<button class="btn '+(on?'ghost':'')+'" id="m-push">'+(on ? '🔕 Turn off job alerts' : '🔔 Turn on job alerts')+'</button>';
+}
+let pushOnCache = false;
+async function pushRefreshCache(){ pushOnCache = await pushIsOn(); }
+if('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', ev => { if(ev.data && ev.data.type === 'push' && user) refresh(); });
+
+/* ====================================================================
+   BOOT
+   ==================================================================== */
+if('serviceWorker' in navigator){ window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(()=>{})); }
+// periodic refresh only when visible and not mid-photo
+setInterval(() => { if(user && !document.hidden && $('job').classList.contains('hide') && $('cam').classList.contains('hide')) refresh(); }, POLL_MS);
+(function boot(){
+  const u = loadSession();
+  if(u){ user = u; startApp(); } else { $('login').classList.remove('hide'); }
+})();
+</script>
+</body>
+</html>
