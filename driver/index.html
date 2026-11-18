@@ -148,6 +148,8 @@ nav .n.zero{background:#c5cbd8}
     <input id="lu" type="email" name="username" autocomplete="username" inputmode="email" autocapitalize="none" autocorrect="off" required>
     <label for="lp">Password</label>
     <input id="lp" type="password" name="password" autocomplete="current-password" required>
+    <label style="display:flex;align-items:center;gap:10px;font-size:15px;font-weight:600;color:var(--ink);margin:16px 0 0;cursor:pointer"><input type="checkbox" id="lkeep" checked style="width:22px;height:22px;accent-color:var(--navy)"> Keep me signed in on this phone</label>
+    <div class="sub" style="margin-top:4px">Untick on a shared phone — you will be signed out after 12 hours.</div>
     <div id="lerr"></div>
     <button class="btn" id="lbtn" type="submit" style="margin-top:18px">Sign in</button>
   </form>
@@ -214,7 +216,8 @@ const BUCKET = 'vehicle-photos';
 // Push alerts: paste the PUBLIC key from driver-push/vapid-keygen.html here. Leave '' to hide the alerts feature.
 const VAPID_PUBLIC_KEY = 'BJn7PQIJjdRGRvadG5rqUx78gvixY3d6b3QmeOhf1P3Oym9fnVs_3fxmussDsiu5hyiTn_3Rby1UofeSPeJHreY';
 const SESSION_KEY = 'pd_driver_user', CACHE_KEY = 'pd_driver_cache', LOCK_KEY = 'pd_driver_lock';
-const SESSION_HOURS = 12;          // idle sign-out
+const SESSION_HOURS = 12;          // idle sign-out when "Keep me signed in" is off
+const KEEP_DAYS = 30;              // idle sign-out when "Keep me signed in" is on
 const POLL_MS = 60000;
 const REQUIRED = ['front','rear','left','right'];
 const MULTI = ['interior','damage'], MULTI_MAX = 5;
@@ -315,12 +318,13 @@ function toast(msg, kind = '', ms = 4000){
    LOGIN / SESSION
    ==================================================================== */
 function lockState(){ try{ return JSON.parse(lsGet(LOCK_KEY)||'{}'); }catch(e){ return {}; } }
-function saveSession(u){ lsSet(SESSION_KEY, JSON.stringify({id:u.id, username:u.username, full_name:u.full_name, email:u.email, role:u.role, contractor_id:u.contractor_id, last:Date.now()})); }
+function saveSession(u){ lsSet(SESSION_KEY, JSON.stringify({id:u.id, username:u.username, full_name:u.full_name, email:u.email, role:u.role, contractor_id:u.contractor_id, keep:!!u.keep, last:Date.now()})); }
 function loadSession(){
   try{
     const u = JSON.parse(lsGet(SESSION_KEY)||'null');
     if(!u) return null;
-    if(Date.now() - (u.last||0) > SESSION_HOURS*3600*1000){ lsDel(SESSION_KEY); return null; }
+    const limit = u.keep ? KEEP_DAYS*24*3600*1000 : SESSION_HOURS*3600*1000;
+    if(Date.now() - (u.last||0) > limit){ lsDel(SESSION_KEY); return null; }
     return u;
   }catch(e){ return null; }
 }
@@ -349,7 +353,10 @@ $('loginform').addEventListener('submit', async ev => {
     if(u.role !== 'contractor'){
       err.innerHTML = '<div class="msg err">This app is for contractor drivers. Please use the main ParkDesk system.</div>'; return;
     }
-    lsDel(LOCK_KEY); user = u; saveSession(u); startApp();
+    lsDel(LOCK_KEY); user = u; user.keep = $('lkeep').checked; saveSession(user);
+    // ask the phone's password manager (Google Password Manager etc.) to remember the password — encrypted by the phone, never stored by this app
+    try{ if(window.PasswordCredential) await navigator.credentials.store(new PasswordCredential({id:email, password:pw, name:u.full_name||email})); }catch(_){}
+    startApp();
   }catch(e){
     err.innerHTML = '<div class="msg err">'+esc(navigator.onLine ? e.message : 'No internet connection')+'</div>';
   }finally{ btn.disabled = false; btn.textContent = 'Sign in'; }

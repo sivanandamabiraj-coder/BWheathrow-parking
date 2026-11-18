@@ -1,5 +1,5 @@
 // ParkDesk Driver — service worker. Caches the app shell only; never touches Supabase calls.
-const CACHE = 'parkdesk-driver-v2';
+const CACHE = 'parkdesk-driver-v3';
 const SHELL = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png', './badge-96.png'];
 
 self.addEventListener('install', e => {
